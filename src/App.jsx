@@ -51,7 +51,7 @@ function computeVirusScores(track) {
 async function fetchItunesData(title, artist) {
   try {
     const q = encodeURIComponent(`${title} ${artist}`);
-    const res = await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=5&media=music`);
+    const res = await fetch(`/itunes-api/search?term=${q}&entity=song&limit=5&media=music`);
     if (!res.ok) return { artworkUrl: null, previewUrl: null };
     const data = await res.json();
     const results = data.results || [];
