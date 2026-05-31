@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/itunes-api/:path*",
+      "destination": "https://itunes.apple.com/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
