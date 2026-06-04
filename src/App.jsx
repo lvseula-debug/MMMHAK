@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import "./App.css";
+import EmotionRadarChart from "./EmotionRadarChart";
 
 // ── Custom Cursor ─────────────────────────────────────────────────────────────
 function CustomCursor() {
@@ -53,21 +54,45 @@ function computeVirusScores(track) {
 
   const raw = {
     depression: lyrics_sentiment.depression * 0.5 + (1 - valence) * 0.3 + modeFactor * 0.2,
-    anxiety: lyrics_sentiment.anxiety * 0.4 + tempoStress * 0.3 + (1 - valence) * 0.2 + modeFactor * 0.1,
-    anger: lyrics_sentiment.anger * 0.5 + loudNorm * 0.2 + energy * 0.1 + modeFactor * 0.2,
-    joy: lyrics_sentiment.joy * 0.5 + valence * 0.35 + (1 - modeFactor * 0.5) * 0.15,
-    stability: lyrics_sentiment.stability * 0.4 + (1 - tempoStress) * 0.3 + (1 - loudNorm) * 0.3,
+    anxiety:    lyrics_sentiment.anxiety * 0.4 + tempoStress * 0.3 + (1 - valence) * 0.2 + modeFactor * 0.1,
+    anger:      lyrics_sentiment.anger * 0.5 + loudNorm * 0.2 + energy * 0.1 + modeFactor * 0.2,
+    joy:        lyrics_sentiment.joy * 0.5 + valence * 0.35 + (1 - modeFactor * 0.5) * 0.15,
+    stability:  lyrics_sentiment.stability * 0.4 + (1 - tempoStress) * 0.3 + (1 - loudNorm) * 0.3,
   };
 
   const spread = {};
   Object.keys(raw).forEach(k => { spread[k] = Math.min(raw[k] * (0.6 + contagion * 0.7), 1); });
 
+  // new polarity metrics
+  const positive_score = Math.min(
+    spread.joy * 0.45 +
+    spread.stability * 0.25 +
+    valence * 0.30,
+    1
+  );
+  const negative_score = Math.min(
+    spread.depression * 0.40 +
+    spread.anxiety * 0.35 +
+    spread.anger * 0.25,
+    1
+  );
+  const polarity = positive_score - negative_score;
+  const confidence = Math.abs(polarity);
+  const classification = polarity > 0.25 ? "POSITIVE" : polarity < -0.25 ? "NEGATIVE" : "MIXED";
+
   return {
     ...spread,
+    positive_score,
+    negative_score,
+    polarity,
+    confidence,
+    classification,
     discomfort: (spread.anger * 0.4 + spread.anxiety * 0.35 + spread.depression * 0.25),
     contagion,
     streams,
   };
+}
+
 }
 
 async function fetchItunesData(title, artist) {
@@ -506,7 +531,7 @@ function PreviewSection({ track }) {
 }
 
 // ── Center Panel ──────────────────────────────────────────────────────────────
-function CenterPanel({ activeTrack, isMobile }) {
+function CenterPanel({ activeTrack, isMobile, scores }) {
   const [openPopup, setOpenPopup] = useState(null);
 
   const toggle = (id) => setOpenPopup((prev) => (prev === id ? null : id));
@@ -579,10 +604,11 @@ function CenterPanel({ activeTrack, isMobile }) {
           ))}
         </div>
 
-        {/* Preview center */}
-        <PreviewSection track={activeTrack} />
-
-
+        {/* Preview center + emotion radar */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 16, minWidth: 0 }}>
+          <PreviewSection track={activeTrack} />
+          {!isMobile && scores && <EmotionRadarChart scores={scores} />}
+        </div>
       </div>
     </div>
   );
@@ -983,7 +1009,7 @@ export default function MMMHAKApp() {
               zIndex: 10,
             }}
           >
-            <CenterPanel activeTrack={activeTrack} isMobile={false} />
+            <CenterPanel activeTrack={activeTrack} isMobile={false} scores={scores} />
           </div>
         </>
       )}
@@ -1011,7 +1037,7 @@ export default function MMMHAKApp() {
           />
 
           {/* Center panel */}
-          <CenterPanel activeTrack={activeTrack} isMobile={true} />
+          <CenterPanel activeTrack={activeTrack} isMobile={true} scores={scores} />
 
           {/* Bottom artist strip */}
           <MobileSidebarStrip
