@@ -497,7 +497,7 @@ function PreviewSection({ track }) {
           marginTop: 14,
           fontFamily: "'Space Mono', monospace",
           fontSize: 12,
-          color: "#1A0050",
+          color: "#CCFF00",
           fontWeight: 700,
           letterSpacing: "0.1em",
           textTransform: "uppercase",
