@@ -92,9 +92,6 @@ function computeVirusScores(track) {
     streams,
   };
 }
-
-}
-
 async function fetchItunesData(title, artist) {
   try {
     const q = encodeURIComponent(`${title} ${artist}`);
