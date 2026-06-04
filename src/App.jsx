@@ -582,37 +582,7 @@ function CenterPanel({ activeTrack, isMobile }) {
         {/* Preview center */}
         <PreviewSection track={activeTrack} />
 
-        {/* Right ambient space — decorative */}
-        {!isMobile && (
-          <div
-            style={{
-              flex: 1,
-              position: "relative",
-              minWidth: 40,
-              pointerEvents: "none",
-            }}
-          >
-            {[
-              { top: "18%", right: "12%", size: 64, opacity: 0.12 },
-              { top: "48%", right: "28%", size: 32, opacity: 0.08 },
-              { top: "70%", right: "8%",  size: 90, opacity: 0.06 },
-            ].map((c, i) => (
-              <div
-                key={i}
-                style={{
-                  position: "absolute",
-                  top: c.top,
-                  right: c.right,
-                  width: c.size,
-                  height: c.size,
-                  borderRadius: "50%",
-                  border: `1.5px solid rgba(26,0,80,${c.opacity * 2})`,
-                  background: `rgba(26,0,80,${c.opacity})`,
-                }}
-              />
-            ))}
-          </div>
-        )}
+
       </div>
     </div>
   );
