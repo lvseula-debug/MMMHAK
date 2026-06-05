@@ -545,6 +545,30 @@ function PreviewSection({ track }) {
   );
 }
 
+// ── Error Boundary ────────────────────────────────────────────────────────────
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("Chart Render Error:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full p-4 flex items-center justify-center bg-red-900/50 rounded-lg text-red-200 text-xs text-center border border-red-500/30">
+          차트 데이터를 불러오거나 렌더링하는 중 오류가 발생했습니다.
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // ── Center Panel ──────────────────────────────────────────────────────────────
 function CenterPanel({ activeTrack, isMobile, scores }) {
   const [openPopup, setOpenPopup] = useState(null);
@@ -554,63 +578,33 @@ function CenterPanel({ activeTrack, isMobile, scores }) {
 
   return (
     <div
+      className="flex flex-col relative w-full"
       style={{
         minHeight: "100vh",
         background: "#F5C8C8",
         clipPath: "polygon(0 40px, 40px 0, 100% 0, 100% calc(100% - 40px), calc(100% - 40px) 100%, 0 100%)",
-        position: "relative",
-        display: "flex",
-        flexDirection: "column",
         animation: "fadeSlideIn 0.5s ease",
       }}
     >
       {/* Navigation pill */}
       <div
-        style={{
-          alignSelf: "flex-start",
-          margin: "28px 0 0 28px",
-          padding: "6px 16px",
-          borderRadius: 20,
-          background: "#1A0050",
-          fontFamily: "'Space Mono', monospace",
-          fontSize: 10,
-          fontWeight: 700,
-          color: "#CCFF00",
-          letterSpacing: "0.15em",
-          textTransform: "uppercase",
-        }}
+        className="self-start mt-7 ml-7 px-4 py-1.5 rounded-full bg-[#1A0050] text-[#CCFF00] text-[10px] font-bold tracking-[0.15em] uppercase"
+        style={{ fontFamily: "'Space Mono', monospace" }}
       >
         Navigation
       </div>
 
       {/* Top Center: Preview Section */}
-      <div style={{ display: "flex", justifyContent: "center", width: "100%", marginTop: 10 }}>
+      <div className="flex justify-center w-full mt-2">
         <PreviewSection track={activeTrack} />
       </div>
 
       {/* Content row */}
       <div
-        style={{
-          display: "flex",
-          flex: 1,
-          padding: isMobile ? "20px 16px 40px" : "24px 24px 48px",
-          gap: 16,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
+        className={`flex flex-1 items-center justify-center gap-4 ${isMobile ? "p-5 pb-10 flex-col" : "p-6 pb-12 flex-row"}`}
       >
         {/* Info buttons column */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            gap: 4,
-            flexShrink: 0,
-            position: "relative",
-            zIndex: 50,
-          }}
-        >
+        <div className={`flex flex-col justify-center gap-1 relative z-50 shrink-0 ${isMobile ? "w-full max-w-[300px] flex-row flex-wrap" : ""}`}>
           {INFO_BUTTONS.map((btn) => (
             <InfoButton
               key={btn.id}
@@ -624,9 +618,11 @@ function CenterPanel({ activeTrack, isMobile, scores }) {
           ))}
         </div>
 
-        {/* Radar chart — desktop only */}
-        {!isMobile && scores && (
-          <EmotionRadarChart scores={scores} />
+        {/* Radar chart — rendered on both desktop and mobile */}
+        {scores && (
+          <ErrorBoundary>
+            <EmotionRadarChart scores={scores} />
+          </ErrorBoundary>
         )}
       </div>
     </div>

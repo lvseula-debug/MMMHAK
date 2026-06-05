@@ -2,27 +2,33 @@
 import React, { useEffect, useState, useRef } from "react";
 
 function SingleRadarChart({ axes, scores, size = 240, radius = 50, color = "#CCFF00" }) {
+  if (!scores || !axes) return null; // Error handling: Ensure data exists
+
   const center = size / 2;
   const angleStep = (Math.PI * 2) / axes.length;
   const [points, setPoints] = useState("");
   const [hovered, setHovered] = useState(null);
 
   useEffect(() => {
-    const pts = axes
-      .map((key, i) => {
-        const v = Math.min(Math.max(scores[key] ?? 0, 0), 1);
-        const r = v * radius;
-        const x = center + r * Math.sin(i * angleStep);
-        const y = center - r * Math.cos(i * angleStep);
-        return `${x},${y}`;
-      })
-      .join(" ");
-    setPoints(pts);
+    try {
+      const pts = axes
+        .map((key, i) => {
+          const v = Math.min(Math.max(scores[key] ?? 0, 0), 1);
+          const r = v * radius;
+          const x = center + r * Math.sin(i * angleStep);
+          const y = center - r * Math.cos(i * angleStep);
+          return `${x},${y}`;
+        })
+        .join(" ");
+      setPoints(pts);
+    } catch (err) {
+      console.error("Error computing radar points", err);
+    }
   }, [scores, axes, radius, center, angleStep]);
 
   return (
-    <div style={{ position: "relative", width: size, height: size }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <div className="relative w-full max-w-[240px] aspect-square flex items-center justify-center">
+      <svg className="w-full h-auto overflow-visible" viewBox={`0 0 ${size} ${size}`}>
         {/* concentric grid */}
         {[...Array(5)].map((_, idx) => {
           const r = (radius / 5) * (idx + 1);
@@ -106,22 +112,11 @@ function SingleRadarChart({ axes, scores, size = 240, radius = 50, color = "#CCF
       </svg>
       {hovered && (
         <div
+          className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#1A0050]/95 text-[#CCFF00] px-2 py-1 rounded text-[10px] whitespace-nowrap z-10 border border-[#CCFF00]/40"
           style={{
-            position: "absolute",
-            bottom: -8,
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "rgba(26,0,80,0.95)",
-            color: "#CCFF00",
-            padding: "3px 8px",
-            borderRadius: 4,
             fontFamily: "'Space Mono', monospace",
-            fontSize: 10,
             pointerEvents: "none",
             boxShadow: "0 0 8px #CCFF00",
-            zIndex: 10,
-            whiteSpace: "nowrap",
-            border: "1px solid rgba(204,255,0,0.4)",
           }}
         >
           {hovered.toUpperCase()}: {Math.round((scores[hovered] ?? 0) * 100)}%
@@ -138,66 +133,63 @@ function DraggableChartGroup({ children, blobWidth = 260, blobHeight = 260 }) {
   const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
 
   const onMouseDown = (e) => {
+    // Only drag on desktop where touch isn't prioritized, but allow touch for mobile
     dragging.current = true;
     setIsDragging(true);
-    dragStart.current = { mx: e.clientX, my: e.clientY, px: pos.x, py: pos.y };
-    e.preventDefault();
+    // Support both mouse and touch events
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    dragStart.current = { mx: clientX, my: clientY, px: pos.x, py: pos.y };
   };
 
   useEffect(() => {
-    const onMouseMove = (e) => {
+    const onMove = (e) => {
       if (!dragging.current) return;
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
       setPos({
-        x: dragStart.current.px + (e.clientX - dragStart.current.mx),
-        y: dragStart.current.py + (e.clientY - dragStart.current.my),
+        x: dragStart.current.px + (clientX - dragStart.current.mx),
+        y: dragStart.current.py + (clientY - dragStart.current.my),
       });
     };
-    const onMouseUp = () => { 
+    const onUp = () => { 
       dragging.current = false; 
       setIsDragging(false);
     };
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("mousemove", onMove, { passive: true });
+    window.addEventListener("mouseup", onUp);
+    window.addEventListener("touchmove", onMove, { passive: true });
+    window.addEventListener("touchend", onUp);
     return () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onUp);
     };
   }, []);
 
   return (
     <div
+      className="relative z-10 flex justify-center items-center select-none w-full max-w-[260px] mx-auto"
       style={{
-        position: "relative",
-        zIndex: 10,
         transform: `translate(${pos.x}px, ${pos.y}px)`,
         cursor: isDragging ? "grabbing" : "grab",
-        userSelect: "none",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
       }}
       onMouseDown={onMouseDown}
+      onTouchStart={onMouseDown}
     >
       {/* Purple blob background */}
       <div
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#1A0050] rounded-full z-0 opacity-96 pointer-events-none w-full h-full"
         style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: blobWidth,
-          height: blobHeight,
-          background: "#1A0050",
-          borderRadius: "50%",
+          maxWidth: blobWidth,
+          maxHeight: blobHeight,
           animation: "float-blob 8s ease-in-out infinite",
-          zIndex: 0,
-          opacity: 0.96,
-          pointerEvents: "none",
           boxShadow: "0 0 40px rgba(26,0,80,0.8), 0 0 80px rgba(26,0,80,0.4)",
         }}
       />
       {/* Chart content on top of blob */}
-      <div style={{ position: "relative", zIndex: 1, padding: "16px" }}>
+      <div className="relative z-10 p-4 w-full">
         {children}
       </div>
     </div>
@@ -205,6 +197,8 @@ function DraggableChartGroup({ children, blobWidth = 260, blobHeight = 260 }) {
 }
 
 export default function EmotionRadarChart({ scores }) {
+  if (!scores) return null; // Prevent crash if scores is null
+
   const triAxes = ["depression", "anxiety", "anger"];
   const sqAxes = ["joy", "stability", "positive_score", "negative_score"];
 
@@ -216,29 +210,12 @@ export default function EmotionRadarChart({ scores }) {
   const classColor = classColors[scores.classification] || "#FFF";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, marginTop: 10 }}>
-
-      <div
-        style={{
-          display: "flex",
-          gap: 40,
-          alignItems: "center",
-          flexWrap: "wrap",
-          justifyContent: "center",
-          padding: "16px 24px",
-        }}
-      >
+    <div className="flex flex-col items-center gap-4 mt-2 w-full">
+      <div className="flex flex-col md:flex-row gap-10 items-center justify-center p-4 w-full">
         {/* Negative Emotions Draggable Chart */}
-        <DraggableChartGroup blobWidth={240} blobHeight={240}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-            <div style={{
-              fontFamily: "'Space Mono', monospace",
-              fontSize: 8,
-              color: "rgba(255,51,102,0.8)",
-              letterSpacing: "0.2em",
-              textTransform: "uppercase",
-              fontWeight: 700,
-            }}>
+        <DraggableChartGroup blobWidth={260} blobHeight={260}>
+          <div className="flex flex-col items-center gap-2 w-full">
+            <div className="font-['Space_Mono'] text-[8px] text-[#FF3366]/80 tracking-[0.2em] uppercase font-bold">
               NEGATIVE EMOTIONS
             </div>
             <SingleRadarChart axes={triAxes} scores={scores} size={240} radius={45} color="#FF3366" />
@@ -246,24 +223,13 @@ export default function EmotionRadarChart({ scores }) {
         </DraggableChartGroup>
 
         {/* Divider */}
-        <div style={{
-          width: 1,
-          height: 160,
-          background: "rgba(204,255,0,0.15)",
-          flexShrink: 0,
-        }} />
+        <div className="hidden md:block w-px h-[160px] bg-[#CCFF00]/15 shrink-0" />
+        <div className="block md:hidden h-px w-3/4 max-w-[200px] bg-[#CCFF00]/15 shrink-0" />
 
         {/* Emotional Balance Draggable Chart */}
-        <DraggableChartGroup blobWidth={240} blobHeight={240}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-            <div style={{
-              fontFamily: "'Space Mono', monospace",
-              fontSize: 8,
-              color: "rgba(0,255,136,0.8)",
-              letterSpacing: "0.2em",
-              textTransform: "uppercase",
-              fontWeight: 700,
-            }}>
+        <DraggableChartGroup blobWidth={260} blobHeight={260}>
+          <div className="flex flex-col items-center gap-2 w-full">
+            <div className="font-['Space_Mono'] text-[8px] text-[#00FF88]/80 tracking-[0.2em] uppercase font-bold">
               EMOTIONAL BALANCE
             </div>
             <SingleRadarChart axes={sqAxes} scores={scores} size={240} radius={45} color="#00FF88" />
