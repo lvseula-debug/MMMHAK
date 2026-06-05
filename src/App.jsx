@@ -350,6 +350,38 @@ function PreviewSection({ track }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
 
+  // Draggable state
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragging = useRef(false);
+  const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
+
+  const onMouseDown = (e) => {
+    dragging.current = true;
+    setIsDragging(true);
+    dragStart.current = { mx: e.clientX, my: e.clientY, px: pos.x, py: pos.y };
+  };
+
+  useEffect(() => {
+    const onMouseMove = (e) => {
+      if (!dragging.current) return;
+      setPos({
+        x: dragStart.current.px + (e.clientX - dragStart.current.mx),
+        y: dragStart.current.py + (e.clientY - dragStart.current.my),
+      });
+    };
+    const onMouseUp = () => { 
+      dragging.current = false; 
+      setIsDragging(false);
+    };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
+
   useEffect(() => {
     setPlaying(false);
     if (audioRef.current) {
@@ -358,7 +390,8 @@ function PreviewSection({ track }) {
     }
   }, [track?.id]);
 
-  const togglePlay = () => {
+  const togglePlay = (e) => {
+    e.stopPropagation();
     if (!audioRef.current) {
       if (!track?.previewUrl) alert("No audio preview available for this track.");
       return;
@@ -375,6 +408,7 @@ function PreviewSection({ track }) {
 
   return (
     <div
+      onMouseDown={onMouseDown}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -384,6 +418,10 @@ function PreviewSection({ track }) {
         position: "relative",
         padding: "20px 10px 30px",
         minWidth: 0,
+        transform: `translate(${pos.x}px, ${pos.y}px)`,
+        cursor: isDragging ? "grabbing" : "grab",
+        zIndex: isDragging ? 100 : 10,
+        userSelect: "none",
       }}
     >
       <audio ref={audioRef} src={track?.previewUrl} onEnded={() => setPlaying(false)} />
@@ -451,7 +489,7 @@ function PreviewSection({ track }) {
         <img
           src={imgUrl}
           alt={track?.artist || "Artist"}
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }}
         />
         {playing && (
           <div
@@ -477,7 +515,7 @@ function PreviewSection({ track }) {
           marginTop: 14,
           fontFamily: "'Space Mono', monospace",
           fontSize: 12,
-          color: "#1A0050",
+          color: "#CCFF00",
           fontWeight: 700,
           letterSpacing: "0.1em",
           textTransform: "uppercase",
