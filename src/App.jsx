@@ -545,6 +545,11 @@ function CenterPanel({ activeTrack, isMobile, scores }) {
         Navigation
       </div>
 
+      {/* Top Center: Preview Section */}
+      <div style={{ display: "flex", justifyContent: "center", width: "100%", marginTop: 10 }}>
+        <PreviewSection track={activeTrack} />
+      </div>
+
       {/* Content row */}
       <div
         style={{
@@ -552,7 +557,8 @@ function CenterPanel({ activeTrack, isMobile, scores }) {
           flex: 1,
           padding: isMobile ? "20px 16px 40px" : "24px 24px 48px",
           gap: 16,
-          alignItems: "stretch",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
         {/* Info buttons column */}
@@ -579,9 +585,6 @@ function CenterPanel({ activeTrack, isMobile, scores }) {
             />
           ))}
         </div>
-
-        {/* Preview center */}
-        <PreviewSection track={activeTrack} />
 
         {/* Radar chart — desktop only */}
         {!isMobile && scores && (
