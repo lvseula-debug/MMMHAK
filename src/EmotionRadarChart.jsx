@@ -185,7 +185,6 @@ function DraggableChartGroup({ children, blobWidth = 260, blobHeight = 260 }) {
           maxWidth: blobWidth,
           maxHeight: blobHeight,
           animation: "float-blob 8s ease-in-out infinite",
-          boxShadow: "0 0 40px rgba(26,0,80,0.8), 0 0 80px rgba(26,0,80,0.4)",
         }}
       />
       {/* Chart content on top of blob */}
