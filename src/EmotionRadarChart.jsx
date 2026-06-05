@@ -1,7 +1,7 @@
 // src/EmotionRadarChart.jsx
 import React, { useEffect, useState, useRef } from "react";
 
-function SingleRadarChart({ axes, scores, size = 160, radius = 50, color = "#CCFF00" }) {
+function SingleRadarChart({ axes, scores, size = 240, radius = 50, color = "#CCFF00" }) {
   const center = size / 2;
   const angleStep = (Math.PI * 2) / axes.length;
   const [points, setPoints] = useState("");
@@ -108,7 +108,7 @@ function SingleRadarChart({ axes, scores, size = 160, radius = 50, color = "#CCF
         <div
           style={{
             position: "absolute",
-            bottom: -24,
+            bottom: -8,
             left: "50%",
             transform: "translateX(-50%)",
             background: "rgba(26,0,80,0.95)",
@@ -131,11 +131,7 @@ function SingleRadarChart({ axes, scores, size = 160, radius = 50, color = "#CCF
   );
 }
 
-export default function EmotionRadarChart({ scores }) {
-  const triAxes = ["depression", "anxiety", "anger"];
-  const sqAxes = ["joy", "stability", "positive_score", "negative_score"];
-
-  // Draggable blob state
+function DraggableChartGroup({ children, blobWidth = 260, blobHeight = 260 }) {
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const dragging = useRef(false);
@@ -168,6 +164,50 @@ export default function EmotionRadarChart({ scores }) {
     };
   }, []);
 
+  return (
+    <div
+      style={{
+        position: "relative",
+        zIndex: 10,
+        transform: `translate(${pos.x}px, ${pos.y}px)`,
+        cursor: isDragging ? "grabbing" : "grab",
+        userSelect: "none",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+      onMouseDown={onMouseDown}
+    >
+      {/* Purple blob background */}
+      <div
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          width: blobWidth,
+          height: blobHeight,
+          background: "#1A0050",
+          borderRadius: "50%",
+          animation: "float-blob 8s ease-in-out infinite",
+          zIndex: 0,
+          opacity: 0.96,
+          pointerEvents: "none",
+          boxShadow: "0 0 40px rgba(26,0,80,0.8), 0 0 80px rgba(26,0,80,0.4)",
+        }}
+      />
+      {/* Chart content on top of blob */}
+      <div style={{ position: "relative", zIndex: 1, padding: "16px" }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+export default function EmotionRadarChart({ scores }) {
+  const triAxes = ["depression", "anxiety", "anger"];
+  const sqAxes = ["joy", "stability", "positive_score", "negative_score"];
+
   const classColors = {
     POSITIVE: "#00FF88",
     NEGATIVE: "#FF3366",
@@ -178,50 +218,18 @@ export default function EmotionRadarChart({ scores }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, marginTop: 10 }}>
 
-      {/* Draggable group: blob + charts together */}
       <div
         style={{
-          position: "relative",
-          zIndex: 10,
-          transform: `translate(${pos.x}px, ${pos.y}px)`,
-          cursor: isDragging ? "grabbing" : "grab",
-          userSelect: "none",
+          display: "flex",
+          gap: 40,
+          alignItems: "center",
+          flexWrap: "wrap",
+          justifyContent: "center",
+          padding: "16px 24px",
         }}
-        onMouseDown={onMouseDown}
       >
-        {/* Purple blob background — same as album cover */}
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            width: 500,
-            height: 280,
-            background: "#1A0050",
-            borderRadius: "50%",
-            animation: "float-blob 8s ease-in-out infinite",
-            zIndex: 0,
-            opacity: 0.96,
-            pointerEvents: "none",
-            boxShadow: "0 0 40px rgba(26,0,80,0.8), 0 0 80px rgba(26,0,80,0.4)",
-          }}
-        />
-
-        {/* Charts row on top of blob */}
-        <div
-          style={{
-            position: "relative",
-            zIndex: 1,
-            display: "flex",
-            gap: 56,
-            alignItems: "center",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            padding: "24px 32px",
-          }}
-        >
-          {/* Triangle chart label */}
+        {/* Negative Emotions Draggable Chart */}
+        <DraggableChartGroup blobWidth={240} blobHeight={240}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
             <div style={{
               fontFamily: "'Space Mono', monospace",
@@ -233,18 +241,20 @@ export default function EmotionRadarChart({ scores }) {
             }}>
               NEGATIVE EMOTIONS
             </div>
-            <SingleRadarChart axes={triAxes} scores={scores} size={160} radius={45} color="#FF3366" />
+            <SingleRadarChart axes={triAxes} scores={scores} size={240} radius={45} color="#FF3366" />
           </div>
+        </DraggableChartGroup>
 
-          {/* Divider */}
-          <div style={{
-            width: 1,
-            height: 120,
-            background: "rgba(204,255,0,0.15)",
-            flexShrink: 0,
-          }} />
+        {/* Divider */}
+        <div style={{
+          width: 1,
+          height: 160,
+          background: "rgba(204,255,0,0.15)",
+          flexShrink: 0,
+        }} />
 
-          {/* Quad chart label */}
+        {/* Emotional Balance Draggable Chart */}
+        <DraggableChartGroup blobWidth={240} blobHeight={240}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
             <div style={{
               fontFamily: "'Space Mono', monospace",
@@ -256,9 +266,9 @@ export default function EmotionRadarChart({ scores }) {
             }}>
               EMOTIONAL BALANCE
             </div>
-            <SingleRadarChart axes={sqAxes} scores={scores} size={160} radius={45} color="#00FF88" />
+            <SingleRadarChart axes={sqAxes} scores={scores} size={240} radius={45} color="#00FF88" />
           </div>
-        </div>
+        </DraggableChartGroup>
       </div>
 
       {/* Classification badge — stays fixed below */}
