@@ -9,20 +9,17 @@ function CustomCursor() {
   useEffect(() => {
     const cursor = cursorRef.current;
     if (!cursor) return;
-
     const move = (e) => {
       cursor.style.left = e.clientX + "px";
       cursor.style.top = e.clientY + "px";
     };
     window.addEventListener("mousemove", move);
-
     const onOver = (e) => {
       const t = e.target.closest("button, a, [data-hover]");
       if (t) cursor.classList.add("hovering");
       else cursor.classList.remove("hovering");
     };
     window.addEventListener("mouseover", onOver);
-
     return () => {
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseover", onOver);
@@ -54,28 +51,17 @@ function computeVirusScores(track) {
 
   const raw = {
     depression: lyrics_sentiment.depression * 0.5 + (1 - valence) * 0.3 + modeFactor * 0.2,
-    anxiety:    lyrics_sentiment.anxiety * 0.4 + tempoStress * 0.3 + (1 - valence) * 0.2 + modeFactor * 0.1,
-    anger:      lyrics_sentiment.anger * 0.5 + loudNorm * 0.2 + energy * 0.1 + modeFactor * 0.2,
-    joy:        lyrics_sentiment.joy * 0.5 + valence * 0.35 + (1 - modeFactor * 0.5) * 0.15,
-    stability:  lyrics_sentiment.stability * 0.4 + (1 - tempoStress) * 0.3 + (1 - loudNorm) * 0.3,
+    anxiety: lyrics_sentiment.anxiety * 0.4 + tempoStress * 0.3 + (1 - valence) * 0.2 + modeFactor * 0.1,
+    anger: lyrics_sentiment.anger * 0.5 + loudNorm * 0.2 + energy * 0.1 + modeFactor * 0.2,
+    joy: lyrics_sentiment.joy * 0.5 + valence * 0.35 + (1 - modeFactor * 0.5) * 0.15,
+    stability: lyrics_sentiment.stability * 0.4 + (1 - tempoStress) * 0.3 + (1 - loudNorm) * 0.3,
   };
 
   const spread = {};
   Object.keys(raw).forEach(k => { spread[k] = Math.min(raw[k] * (0.6 + contagion * 0.7), 1); });
 
-  // new polarity metrics
-  const positive_score = Math.min(
-    spread.joy * 0.45 +
-    spread.stability * 0.25 +
-    valence * 0.30,
-    1
-  );
-  const negative_score = Math.min(
-    spread.depression * 0.40 +
-    spread.anxiety * 0.35 +
-    spread.anger * 0.25,
-    1
-  );
+  const positive_score = Math.min(spread.joy * 0.45 + spread.stability * 0.25 + valence * 0.30, 1);
+  const negative_score = Math.min(spread.depression * 0.40 + spread.anxiety * 0.35 + spread.anger * 0.25, 1);
   const polarity = positive_score - negative_score;
   const confidence = Math.abs(polarity);
   const classification = polarity > 0.25 ? "POSITIVE" : polarity < -0.25 ? "NEGATIVE" : "MIXED";
@@ -92,6 +78,7 @@ function computeVirusScores(track) {
     streams,
   };
 }
+
 async function fetchItunesData(title, artist) {
   try {
     const q = encodeURIComponent(`${title} ${artist}`);
@@ -115,10 +102,10 @@ async function fetchItunesData(title, artist) {
 
 // ── Info Buttons Data ─────────────────────────────────────────────────────────
 const INFO_BUTTONS = [
-  { id: "bpm",    label: "BPM",    icon: "♫", content: 'Tempo: 128 BPM — High energy dance rhythm' },
-  { id: "key",    label: "KEY",    icon: "♪", content: 'Key: A minor — Creates tension and emotional depth' },
+  { id: "bpm", label: "BPM", icon: "♫", content: 'Tempo: 128 BPM — High energy dance rhythm' },
+  { id: "key", label: "KEY", icon: "♪", content: 'Key: A minor — Creates tension and emotional depth' },
   { id: "energy", label: "ENERGY", icon: "♫", content: 'Energy Score: 0.88 / 1.0 — Intense, driving force' },
-  { id: "plays",  label: "PLAYS",  icon: "◎", content: 'Total Plays: 980,000,000 — Global viral spread' },
+  { id: "plays", label: "PLAYS", icon: "◎", content: 'Total Plays: 980,000,000 — Global viral spread' },
   { id: "lyrics", label: "LYRICS", icon: "♫", content: 'Sentiment: Joy 65% · Anxiety 12% · Depression 5%' },
 ];
 
@@ -230,10 +217,10 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track }) {
     if (btn.id === 'bpm') content = `Tempo: ${track.bpm} BPM — ${track.bpm > 120 ? 'High energy' : 'Chill'} rhythm`;
     else if (btn.id === 'key') content = `Key: ${track.mode === 'minor' ? 'Minor' : 'Major'} — ${track.mode === 'minor' ? 'Emotional depth' : 'Bright feel'}`;
     else if (btn.id === 'energy') content = `Energy Score: ${track.energy.toFixed(2)} / 1.0`;
-    else if (btn.id === 'plays') content = `Total Plays: ${track.streams >= 1000000 ? (track.streams/1000000).toFixed(1) + 'M' : track.streams}`;
+    else if (btn.id === 'plays') content = `Total Plays: ${track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + 'M' : track.streams}`;
     else if (btn.id === 'lyrics') {
-        const s = track.lyrics_sentiment;
-        content = `Sentiment: Joy ${Math.round(s.joy*100)}% · Anxiety ${Math.round(s.anxiety*100)}% · Depression ${Math.round(s.depression*100)}%`;
+      const s = track.lyrics_sentiment;
+      content = `Sentiment: Joy ${Math.round(s.joy * 100)}% · Anxiety ${Math.round(s.anxiety * 100)}% · Depression ${Math.round(s.depression * 100)}%`;
     }
   }
 
@@ -349,9 +336,7 @@ function Waveform({ playing }) {
             background: "#CCFF00",
             borderRadius: 2,
             height: 8,
-            animation: playing
-              ? `wave 0.8s ease-in-out ${delay}s infinite`
-              : "none",
+            animation: playing ? `wave 0.8s ease-in-out ${delay}s infinite` : "none",
             boxShadow: playing ? "0 0 6px rgba(204,255,0,0.6)" : "none",
           }}
         />
@@ -375,14 +360,14 @@ function PreviewSection({ track }) {
 
   const togglePlay = () => {
     if (!audioRef.current) {
-        if (!track?.previewUrl) alert("No audio preview available for this track.");
-        return;
+      if (!track?.previewUrl) alert("No audio preview available for this track.");
+      return;
     }
-    if (playing) { 
-        audioRef.current.pause(); 
-        setPlaying(false); 
-    } else { 
-        audioRef.current.play().then(() => setPlaying(true)).catch(() => setPlaying(false)); 
+    if (playing) {
+      audioRef.current.pause();
+      setPlaying(false);
+    } else {
+      audioRef.current.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
     }
   };
 
@@ -401,11 +386,7 @@ function PreviewSection({ track }) {
         minWidth: 0,
       }}
     >
-      <audio
-        ref={audioRef}
-        src={track?.previewUrl}
-        onEnded={() => setPlaying(false)}
-      />
+      <audio ref={audioRef} src={track?.previewUrl} onEnded={() => setPlaying(false)} />
 
       {/* Organic blob — behind everything */}
       <div
@@ -472,7 +453,6 @@ function PreviewSection({ track }) {
           alt={track?.artist || "Artist"}
           style={{ width: "100%", height: "100%", objectFit: "cover" }}
         />
-        {/* Playing overlay */}
         {playing && (
           <div
             style={{
@@ -497,7 +477,7 @@ function PreviewSection({ track }) {
           marginTop: 14,
           fontFamily: "'Space Mono', monospace",
           fontSize: 12,
-          color: "#CCFF00",
+          color: "#1A0050",
           fontWeight: 700,
           letterSpacing: "0.1em",
           textTransform: "uppercase",
@@ -506,7 +486,7 @@ function PreviewSection({ track }) {
       >
         {track?.artist || "Artist"}
         <div style={{ fontSize: 10, fontWeight: 400, opacity: 0.8, marginTop: 4 }}>
-            {track?.title || "Unknown Title"}
+          {track?.title || "Unknown Title"}
         </div>
       </div>
 
@@ -539,8 +519,7 @@ function CenterPanel({ activeTrack, isMobile, scores }) {
       style={{
         minHeight: "100vh",
         background: "#F5C8C8",
-        clipPath:
-          "polygon(0 40px, 40px 0, 100% 0, 100% calc(100% - 40px), calc(100% - 40px) 100%, 0 100%)",
+        clipPath: "polygon(0 40px, 40px 0, 100% 0, 100% calc(100% - 40px), calc(100% - 40px) 100%, 0 100%)",
         position: "relative",
         display: "flex",
         flexDirection: "column",
@@ -601,11 +580,13 @@ function CenterPanel({ activeTrack, isMobile, scores }) {
           ))}
         </div>
 
-        {/* Preview center + emotion radar */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 16, minWidth: 0 }}>
-          <PreviewSection track={activeTrack} />
-          {!isMobile && scores && <EmotionRadarChart scores={scores} />}
-        </div>
+        {/* Preview center */}
+        <PreviewSection track={activeTrack} />
+
+        {/* Radar chart — desktop only */}
+        {!isMobile && scores && (
+          <EmotionRadarChart scores={scores} />
+        )}
       </div>
     </div>
   );
@@ -658,22 +639,15 @@ function MobileSidebarStrip({ tracks, activeTrack, onSelect, label }) {
                 height: 54,
                 objectFit: "cover",
                 borderRadius: 6,
-                border:
-                  activeTrack?.id === track.id
-                    ? "2px solid #CCFF00"
-                    : "2px solid transparent",
-                boxShadow:
-                  activeTrack?.id === track.id
-                    ? "0 0 10px rgba(204,255,0,0.5)"
-                    : "none",
+                border: activeTrack?.id === track.id ? "2px solid #CCFF00" : "2px solid transparent",
+                boxShadow: activeTrack?.id === track.id ? "0 0 10px rgba(204,255,0,0.5)" : "none",
                 transition: "border 0.2s, box-shadow 0.2s",
               }}
             />
             <span
               style={{
                 fontSize: 8,
-                color:
-                  activeTrack?.id === track.id ? "#CCFF00" : "rgba(255,255,255,0.5)",
+                color: activeTrack?.id === track.id ? "#CCFF00" : "rgba(255,255,255,0.5)",
                 fontFamily: "'Space Mono', monospace",
                 maxWidth: 72,
                 textAlign: "center",
@@ -714,7 +688,6 @@ function Header({ isMobile, tracksCount }) {
         boxShadow: "0 4px 28px rgba(0,0,0,0.5)",
       }}
     >
-      {/* Logo */}
       <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
         <div
           style={{
@@ -743,10 +716,7 @@ function Header({ isMobile, tracksCount }) {
         </div>
       </div>
 
-      {/* Right accent */}
-      <div
-        style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}
-      >
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
         <span
           style={{
             fontFamily: "'Space Mono', monospace",
@@ -800,7 +770,6 @@ export default function MMMHAKApp() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Fetch logic from old app
   useEffect(() => {
     async function fetchData() {
       const LASTFM_API_KEY = "8031c3fd85fae84e3a1970b02e22a231";
@@ -946,23 +915,13 @@ export default function MMMHAKApp() {
     <>
       <CustomCursor />
 
-      {/* Deep-purple fixed background */}
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          background: "#1A0050",
-          zIndex: -1,
-        }}
-      />
+      <div style={{ position: "fixed", inset: 0, background: "#1A0050", zIndex: -1 }} />
 
-      {/* Grid dot overlay */}
       <div
         style={{
           position: "fixed",
           inset: 0,
-          backgroundImage:
-            "radial-gradient(circle, rgba(204,255,0,0.045) 1px, transparent 1px)",
+          backgroundImage: "radial-gradient(circle, rgba(204,255,0,0.045) 1px, transparent 1px)",
           backgroundSize: "36px 36px",
           zIndex: 0,
           pointerEvents: "none",
@@ -974,25 +933,8 @@ export default function MMMHAKApp() {
       {/* ── DESKTOP layout ── */}
       {!isMobile && (
         <>
-          {/* Left sidebar — truly fixed */}
-          <Sidebar
-            tracks={leftTracks}
-            side="left"
-            activeTrack={activeTrack}
-            onSelect={handleSelect}
-            isMobile={false}
-          />
-
-          {/* Right sidebar — truly fixed */}
-          <Sidebar
-            tracks={rightTracks}
-            side="right"
-            activeTrack={activeTrack}
-            onSelect={handleSelect}
-            isMobile={false}
-          />
-
-          {/* Center scrollable zone */}
+          <Sidebar tracks={leftTracks} side="left" activeTrack={activeTrack} onSelect={handleSelect} isMobile={false} />
+          <Sidebar tracks={rightTracks} side="right" activeTrack={activeTrack} onSelect={handleSelect} isMobile={false} />
           <div
             style={{
               position: "fixed",
@@ -1025,24 +967,9 @@ export default function MMMHAKApp() {
             zIndex: 10,
           }}
         >
-          {/* Top artist strip */}
-          <MobileSidebarStrip
-            tracks={leftTracks}
-            activeTrack={activeTrack}
-            onSelect={handleSelect}
-            label="Top Tracks (1-25)"
-          />
-
-          {/* Center panel */}
+          <MobileSidebarStrip tracks={leftTracks} activeTrack={activeTrack} onSelect={handleSelect} label="Top Tracks (1-25)" />
           <CenterPanel activeTrack={activeTrack} isMobile={true} scores={scores} />
-
-          {/* Bottom artist strip */}
-          <MobileSidebarStrip
-            tracks={rightTracks}
-            activeTrack={activeTrack}
-            onSelect={handleSelect}
-            label="Top Tracks (26-50)"
-          />
+          <MobileSidebarStrip tracks={rightTracks} activeTrack={activeTrack} onSelect={handleSelect} label="Top Tracks (26-50)" />
         </div>
       )}
     </>
