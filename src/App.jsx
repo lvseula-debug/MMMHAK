@@ -560,7 +560,7 @@ function PreviewSection({ track }) {
         }}
       >
         {track?.artist || "Artist"}
-        <div style={{ fontSize: 10, fontWeight: 400, opacity: 0.8, marginTop: 4 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#1A0050", marginTop: 4 }}>
           {track?.title || "Unknown Title"}
         </div>
       </div>

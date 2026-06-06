@@ -214,7 +214,7 @@ export default function EmotionRadarChart({ scores }) {
         {/* Negative Emotions Draggable Chart */}
         <DraggableChartGroup blobWidth={260} blobHeight={260}>
           <div className="flex flex-col items-center gap-2 w-full">
-            <div className="font-['Space_Mono'] text-[8px] text-[#FF3366]/80 tracking-[0.2em] uppercase font-bold">
+            <div className="font-['Space_Mono'] text-[12px] text-[#FF3366] tracking-[0.2em] uppercase font-extrabold">
               NEGATIVE EMOTIONS
             </div>
             <SingleRadarChart axes={triAxes} scores={scores} size={240} radius={45} color="#FF3366" />
@@ -228,7 +228,7 @@ export default function EmotionRadarChart({ scores }) {
         {/* Emotional Balance Draggable Chart */}
         <DraggableChartGroup blobWidth={260} blobHeight={260}>
           <div className="flex flex-col items-center gap-2 w-full">
-            <div className="font-['Space_Mono'] text-[8px] text-[#00FF88]/80 tracking-[0.2em] uppercase font-bold">
+            <div className="font-['Space_Mono'] text-[12px] text-[#00FF88] tracking-[0.2em] uppercase font-extrabold">
               EMOTIONAL BALANCE
             </div>
             <SingleRadarChart axes={sqAxes} scores={scores} size={240} radius={45} color="#00FF88" />
@@ -251,11 +251,11 @@ export default function EmotionRadarChart({ scores }) {
         </div>
         <div
           style={{
-            color: "#CCFF00",
+            color: "#1A0050",
             fontFamily: "'Space Mono', monospace",
-            fontSize: 11,
+            fontWeight: 700,
+            fontSize: 12,
             marginTop: 4,
-            opacity: 0.8,
           }}
         >
           Emotion Confidence {Math.round(scores.confidence * 100)}%
