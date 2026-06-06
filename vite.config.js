@@ -12,6 +12,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/itunes-api/, ''),
       },
+      '/lyrics-api': {
+        target: 'https://lrclib.net/api',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/lyrics-api/, ''),
+      },
     },
   },
 })

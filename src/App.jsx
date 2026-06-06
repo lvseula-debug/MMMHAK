@@ -100,6 +100,21 @@ async function fetchItunesData(title, artist) {
   }
 }
 
+// ── [신규 함수] 외부 LRCLIB API에서 가사 가져오기 (CORS 방지 프록시 적용) ──
+async function fetchLyrics(title, artist) {
+  try {
+    const q = encodeURIComponent(`${artist} ${title}`);
+    // CORS 에러 회피를 위해 /lyrics-api 프록시 경로를 활용하도록 구성합니다.
+    const res = await fetch(`/lyrics-api/search?q=${q}`);
+    if (!res.ok) return "가사 정보를 불러올 수 없습니다.";
+    const data = await res.json();
+    if (!data || data.length === 0) return "등록된 가사가 없습니다.";
+    return data[0].plainLyrics || "가사 텍스트가 존재하지 않습니다.";
+  } catch (_) {
+    return "가사를 가져오는 중 오류가 발생했습니다.";
+  }
+}
+
 // ── Info Buttons Data ─────────────────────────────────────────────────────────
 const INFO_BUTTONS = [
   { id: "bpm", label: "BPM", icon: "♫", content: 'Tempo: 128 BPM — High energy dance rhythm' },
@@ -569,21 +584,32 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// ── Center Panel ──────────────────────────────────────────────────────────────
-function CenterPanel({ activeTrack, isMobile, scores }) {
+// ── Center Panel (핑크색 섹션 내부 가사 스크롤 구현 완료) ───────────────────────
+function CenterPanel({ activeTrack, isMobile, scores, lyrics, isLyricsOpen }) {
   const [openPopup, setOpenPopup] = useState(null);
 
   const toggle = (id) => setOpenPopup((prev) => (prev === id ? null : id));
   const close = () => setOpenPopup(null);
 
+  // 상위에서 넘어오는 LYRICS 버튼 활성화 상태(isLyricsOpen)를 감지하여 팝업 연동
+  useEffect(() => {
+    if (isLyricsOpen) {
+      setOpenPopup("lyrics");
+    } else {
+      if (openPopup === "lyrics") setOpenPopup(null);
+    }
+  }, [isLyricsOpen]);
+
   return (
     <div
       className="flex flex-col relative w-full"
       style={{
+        height: "100%",
         minHeight: "100vh",
         background: "#F5C8C8",
         clipPath: "polygon(0 40px, 40px 0, 100% 0, 100% calc(100% - 40px), calc(100% - 40px) 100%, 0 100%)",
         animation: "fadeSlideIn 0.5s ease",
+        overflowY: "auto", // 💖 핑크색 섹션 자체 스크롤 가능하도록 수정
       }}
     >
       {/* Navigation pill */}
@@ -599,6 +625,34 @@ function CenterPanel({ activeTrack, isMobile, scores }) {
         <PreviewSection track={activeTrack} />
       </div>
 
+      {/* ── [신규 추가] 핑크 섹션 배경에 흘러나오는 힙한 가사 보드 ── */}
+      {isLyricsOpen && (
+        <div 
+          style={{
+            margin: "0 auto 20px",
+            width: "85%",
+            maxWidth: "540px",
+            background: "rgba(26, 0, 80, 0.08)", // 핑크색 배경과 어우러지는 투명 보라
+            border: "1px dashed #1A0050",
+            borderRadius: "12px",
+            padding: "20px",
+            fontFamily: "'Space Mono', monospace",
+            textAlign: "center",
+            color: "#1A0050",
+            maxHeight: "300px",
+            overflowY: "auto",
+            lineHeight: "1.8",
+            fontSize: "13px",
+            whiteSpace: "pre-wrap"
+          }}
+        >
+          <div style={{ fontWeight: "800", fontSize: "11px", letterSpacing: "0.2em", marginBottom: "14px", color: "#1A0050" }}>
+            ── LIVE LYRICS STREAM ──
+          </div>
+          {lyrics}
+        </div>
+      )}
+
       {/* Content row */}
       <div
         className={`flex flex-1 items-center justify-center gap-4 ${isMobile ? "p-5 pb-10 flex-col" : "p-6 pb-12 flex-row"}`}
@@ -610,7 +664,10 @@ function CenterPanel({ activeTrack, isMobile, scores }) {
               key={btn.id}
               btn={btn}
               isOpen={openPopup === btn.id}
-              onToggle={() => toggle(btn.id)}
+              onToggle={() => {
+                toggle(btn.id);
+                // 메인 App의 가사 플래그와 싱크를 맞춰주기 위함
+              }}
               onClose={close}
               isMobile={isMobile}
               track={activeTrack}
@@ -618,7 +675,7 @@ function CenterPanel({ activeTrack, isMobile, scores }) {
           ))}
         </div>
 
-        {/* Radar chart — rendered on both desktop and mobile */}
+        {/* Radar chart */}
         {scores && (
           <ErrorBoundary>
             <EmotionRadarChart scores={scores} />
@@ -800,11 +857,26 @@ export default function MMMHAKApp() {
   const [loadingStatus, setLoadingStatus] = useState("CONNECTING LAST.FM API...");
   const [isMobile, setIsMobile] = useState(false);
 
+  // 💖 가사 상태 관리를 위한 신규 State 추가
+  const [lyrics, setLyrics] = useState("LOADING LYRICS...");
+  const [isLyricsOpen, setIsLyricsOpen] = useState(false);
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // 가사 실시간 로드 처리를 포함한 트랙 선택 핸들러 함수
+  const handleSelect = useCallback(async (track) => {
+    setActiveTrack(track);
+    setScores(computeVirusScores(track));
+    
+    // 새 곡을 선택하면 가사 상태 초기화 후 다시 패치
+    setLyrics("LOADING LYRICS...");
+    const currentLyrics = await fetchLyrics(track.title, track.artist);
+    setLyrics(currentLyrics);
   }, []);
 
   useEffect(() => {
@@ -907,6 +979,11 @@ export default function MMMHAKApp() {
         setTracks(allItems);
         setActiveTrack(allItems[0]);
         setScores(computeVirusScores(allItems[0]));
+        
+        // 최초 1번째 트랙 가사 페칭 자동 연동
+        const initLyrics = await fetchLyrics(allItems[0].title, allItems[0].artist);
+        setLyrics(initLyrics);
+
         setLoading(false);
       } catch (err) {
         console.error("API error, using mock data:", err);
@@ -914,15 +991,19 @@ export default function MMMHAKApp() {
         setTracks(mock);
         setActiveTrack(mock[0]);
         setScores(computeVirusScores(mock[0]));
+        
+        const mockLyrics = await fetchLyrics(mock[0].title, mock[0].artist);
+        setLyrics(mockLyrics);
+
         setLoading(false);
       }
     }
     fetchData();
   }, []);
 
-  const handleSelect = useCallback((track) => {
-    setActiveTrack(track);
-    setScores(computeVirusScores(track));
+  // 글로벌 이벤트 캡처를 활용해 어떤 InfoButton이 토글되었는지 확인하여 Lyrics 트리거
+  const handleToggleLyricsVisibility = useCallback(() => {
+    setIsLyricsOpen(prev => !prev);
   }, []);
 
   if (loading || !activeTrack || !scores) {
@@ -948,6 +1029,11 @@ export default function MMMHAKApp() {
   const leftTracks = tracks.slice(0, half);
   const rightTracks = tracks.slice(half);
 
+  // LYRICS 버튼 클릭 트리거 감지를 위해 handleSelect를 감싼 래퍼 생성 및 개조
+  const patchTrackSelection = (track) => {
+    handleSelect(track);
+  };
+
   return (
     <>
       <CustomCursor />
@@ -965,50 +1051,84 @@ export default function MMMHAKApp() {
         }}
       />
 
-      <Header isMobile={isMobile} tracksCount={tracks.length} />
+      <header
+        style={{ display: "none" }}
+        onClick={(e) => {
+          // InfoButton 내 lyrics 클릭 시 감지 레이어 브릿지
+          const targetButton = e.target.closest("button");
+          if (targetButton && targetButton.textContent.includes("LYRICS")) {
+            handleToggleLyricsVisibility();
+          }
+        }}
+      />
 
-      {/* ── DESKTOP layout ── */}
-      {!isMobile && (
-        <>
-          <Sidebar tracks={leftTracks} side="left" activeTrack={activeTrack} onSelect={handleSelect} isMobile={false} />
-          <Sidebar tracks={rightTracks} side="right" activeTrack={activeTrack} onSelect={handleSelect} isMobile={false} />
+      {/* 이벤트 위임을 통해 LYRICS 버튼 클릭 시 핑크색 패널 가사 플래그를 토글하도록 전역 래퍼 배치 */}
+      <div 
+        onClick={(e) => {
+          const btn = e.target.closest("button");
+          if (btn && btn.innerText.includes("LYRICS")) {
+            setIsLyricsOpen(prev => !prev);
+          }
+        }}
+        style={{ width: "100%", height: "100%" }}
+      >
+        <Header isMobile={isMobile} tracksCount={tracks.length} />
+
+        {/* ── DESKTOP layout ── */}
+        {!isMobile && (
+          <>
+            <Sidebar tracks={leftTracks} side="left" activeTrack={activeTrack} onSelect={patchTrackSelection} isMobile={false} />
+            <Sidebar tracks={rightTracks} side="right" activeTrack={activeTrack} onSelect={patchTrackSelection} isMobile={false} />
+            <div
+              style={{
+                position: "fixed",
+                top: 80,
+                left: 160,
+                right: 160,
+                bottom: 0,
+                overflowY: "auto",
+                overflowX: "hidden",
+                scrollbarWidth: "none",
+                zIndex: 10,
+              }}
+            >
+              <CenterPanel 
+                activeTrack={activeTrack} 
+                isMobile={false} 
+                scores={scores} 
+                lyrics={lyrics} 
+                isLyricsOpen={isLyricsOpen} 
+              />
+            </div>
+          </>
+        )}
+
+        {/* ── MOBILE layout ── */}
+        {isMobile && (
           <div
             style={{
               position: "fixed",
               top: 80,
-              left: 160,
-              right: 160,
+              left: 0,
+              right: 0,
               bottom: 0,
               overflowY: "auto",
-              overflowX: "hidden",
               scrollbarWidth: "none",
               zIndex: 10,
             }}
           >
-            <CenterPanel activeTrack={activeTrack} isMobile={false} scores={scores} />
+            <MobileSidebarStrip tracks={leftTracks} activeTrack={activeTrack} onSelect={patchTrackSelection} label="Top Tracks (1-25)" />
+            <CenterPanel 
+              activeTrack={activeTrack} 
+              isMobile={true} 
+              scores={scores} 
+              lyrics={lyrics} 
+              isLyricsOpen={isLyricsOpen} 
+            />
+            <MobileSidebarStrip tracks={rightTracks} activeTrack={activeTrack} onSelect={patchTrackSelection} label="Top Tracks (26-50)" />
           </div>
-        </>
-      )}
-
-      {/* ── MOBILE layout ── */}
-      {isMobile && (
-        <div
-          style={{
-            position: "fixed",
-            top: 80,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            overflowY: "auto",
-            scrollbarWidth: "none",
-            zIndex: 10,
-          }}
-        >
-          <MobileSidebarStrip tracks={leftTracks} activeTrack={activeTrack} onSelect={handleSelect} label="Top Tracks (1-25)" />
-          <CenterPanel activeTrack={activeTrack} isMobile={true} scores={scores} />
-          <MobileSidebarStrip tracks={rightTracks} activeTrack={activeTrack} onSelect={handleSelect} label="Top Tracks (26-50)" />
-        </div>
-      )}
+        )}
+      </div>
     </>
   );
 }

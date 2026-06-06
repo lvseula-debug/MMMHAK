@@ -152,8 +152,8 @@ function DraggableChartGroup({ children, blobWidth = 260, blobHeight = 260 }) {
         y: dragStart.current.py + (clientY - dragStart.current.my),
       });
     };
-    const onUp = () => { 
-      dragging.current = false; 
+    const onUp = () => {
+      dragging.current = false;
       setIsDragging(false);
     };
     window.addEventListener("mousemove", onMove, { passive: true });
