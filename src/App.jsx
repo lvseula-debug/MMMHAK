@@ -100,12 +100,12 @@ async function fetchItunesData(title, artist) {
   }
 }
 
-// ── [신규 함수] 외부 LRCLIB API에서 가사 가져오기 (CORS 방지 프록시 적용) ──
+// ── [신규 함수] 외부 LRCLIB API에서 가사 가져오기 ──
 async function fetchLyrics(title, artist) {
   try {
     const q = encodeURIComponent(`${artist} ${title}`);
-    // CORS 에러 회피를 위해 /lyrics-api 프록시 경로를 활용하도록 구성합니다.
-    const res = await fetch(`/lyrics-api/search?q=${q}`);
+    // 직접 외부 API 호출 (CORS 허용됨)
+    const res = await fetch(`https://lrclib.net/api/search?q=${q}`);
     if (!res.ok) return "가사 정보를 불러올 수 없습니다.";
     const data = await res.json();
     if (!data || data.length === 0) return "등록된 가사가 없습니다.";
@@ -632,8 +632,8 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isLyricsOpen }) {
             margin: "0 auto 20px",
             width: "85%",
             maxWidth: "540px",
-            background: "rgba(26, 0, 80, 0.08)", // 핑크색 배경과 어우러지는 투명 보라
-            border: "1px dashed #1A0050",
+            background: "#FFBABA",
+            border: "1px solid #1A0050",
             borderRadius: "12px",
             padding: "20px",
             fontFamily: "'Space Mono', monospace",
@@ -927,10 +927,11 @@ export default function MMMHAKApp() {
               const hasHappy = tags.some(t => ["happy", "upbeat", "dance", "party", "summer", "pop", "fun", "joy"].some(k => t.includes(k)));
               const hasCalm = tags.some(t => ["calm", "chill", "relax", "ambient", "peaceful", "acoustic"].some(k => t.includes(k)));
 
-              const valence = hasHappy ? 0.75 + Math.random() * 0.2
-                : hasSad ? 0.15 + Math.random() * 0.25
-                  : hasAngry ? 0.30 + Math.random() * 0.2
-                    : 0.45 + Math.random() * 0.3;
+              // 특징이 없을 때의 기본 정서가(Valence)를 0.35 ~ 0.55 수준으로 하향 조정
+              const valence = hasHappy ? 0.65 + Math.random() * 0.25
+                : hasSad ? 0.10 + Math.random() * 0.20
+                  : hasAngry ? 0.20 + Math.random() * 0.20
+                    : 0.35 + Math.random() * 0.20; // 디폴트 값을 낮춰 상향 평준화 방지
 
               const energy = hasAngry ? 0.75 + Math.random() * 0.2
                 : hasCalm ? 0.15 + Math.random() * 0.25
@@ -947,12 +948,16 @@ export default function MMMHAKApp() {
                 : hasCalm ? -10 - Math.random() * 5
                   : -5 - Math.random() * 4;
 
+              // 마이너 키(단조)일 때의 감정 억제력 강화
+              const modeModifier = mode === "minor" ? 0.6 : 1.0; 
+
               const lyrics_sentiment = {
-                anger: Math.max(0.01, parseFloat(((hasAngry ? 0.5 : 0.05) + (1 - valence) * 0.3 + energy * 0.15).toFixed(2))),
-                anxiety: Math.max(0.01, parseFloat(((hasAnxious ? 0.4 : 0.08) + (1 - valence) * 0.25 + (bpm > 130 ? 0.2 : 0)).toFixed(2))),
-                depression: Math.max(0.01, parseFloat(((hasSad ? 0.45 : 0.05) + (1 - valence) * 0.4 + (1 - energy) * 0.2).toFixed(2))),
-                joy: Math.max(0.01, parseFloat(((hasHappy ? 0.55 : 0.1) + valence * 0.35 + energy * 0.15).toFixed(2))),
-                stability: Math.max(0.01, parseFloat(((hasCalm ? 0.5 : 0.1) + (1 - energy) * 0.3 + valence * 0.25).toFixed(2))),
+                anger: Math.max(0.01, parseFloat(((hasAngry ? 0.5 : 0.05) + (1 - valence) * 0.3).toFixed(2))),
+                anxiety: Math.max(0.01, parseFloat(((hasAnxious ? 0.4 : 0.08) + (1 - valence) * 0.25).toFixed(2))),
+                depression: Math.max(0.01, parseFloat(((hasSad ? 0.5 : 0.05) + (1 - valence) * 0.4).toFixed(2))),
+                // 💡 마이너 곡이라면 joy 수치를 강제로 60% 수준으로 떨어뜨림
+                joy: Math.max(0.01, parseFloat((((hasHappy ? 0.6 : 0.1) + valence * 0.3) * modeModifier).toFixed(2))),
+                stability: Math.max(0.01, parseFloat(((hasCalm ? 0.5 : 0.15) + valence * 0.2).toFixed(2))),
               };
 
               return {
@@ -1066,7 +1071,7 @@ export default function MMMHAKApp() {
       <div 
         onClick={(e) => {
           const btn = e.target.closest("button");
-          if (btn && btn.innerText.includes("LYRICS")) {
+          if (btn && btn.textContent && btn.textContent.includes("LYRICS")) {
             setIsLyricsOpen(prev => !prev);
           }
         }}
