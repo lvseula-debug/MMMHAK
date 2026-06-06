@@ -680,8 +680,8 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isLyricsOpen, onTo
         <div 
           style={{
             margin: "0 auto 40px",
-            width: "85%",
-            maxWidth: "540px",
+            width: "90%",
+            maxWidth: "800px",
             background: "#FFBABA",
             border: "1px solid #1A0050",
             borderRadius: "12px",
