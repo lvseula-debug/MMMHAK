@@ -638,39 +638,36 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isLyricsOpen, onTo
         <PreviewSection track={activeTrack} />
       </div>
 
+      {/* Info buttons row (가로로 일렬 배치) */}
+      <div className="flex flex-row flex-wrap justify-center items-center gap-4 mt-6 px-4 relative z-50 w-full">
+        {INFO_BUTTONS.map((btn) => (
+          <InfoButton
+            key={btn.id}
+            btn={btn}
+            isOpen={openPopup === btn.id}
+            onToggle={() => {
+              const isOpening = openPopup !== btn.id;
+              toggle(btn.id);
+              if (btn.id === "lyrics") {
+                if (onToggleLyrics) onToggleLyrics(isOpening);
+              }
+            }}
+            onClose={() => {
+              close();
+              if (btn.id === "lyrics") {
+                if (onToggleLyrics) onToggleLyrics(false);
+              }
+            }}
+            isMobile={isMobile}
+            track={activeTrack}
+          />
+        ))}
+      </div>
 
-
-      {/* Content row */}
+      {/* Content row (Radar chart) */}
       <div
-        className={`flex flex-1 items-center justify-center gap-4 ${isMobile ? "p-5 pb-10 flex-col" : "p-6 pb-12 flex-row"}`}
+        className={`flex flex-1 items-center justify-center gap-4 ${isMobile ? "p-5 pb-10" : "p-6 pb-12"}`}
       >
-        {/* Info buttons column */}
-        <div className={`flex flex-col justify-center gap-1 relative z-50 shrink-0 ${isMobile ? "w-full max-w-[300px] flex-row flex-wrap" : ""}`}>
-          {INFO_BUTTONS.map((btn) => (
-            <InfoButton
-              key={btn.id}
-              btn={btn}
-              isOpen={openPopup === btn.id}
-              onToggle={() => {
-                const isOpening = openPopup !== btn.id;
-                toggle(btn.id);
-                if (btn.id === "lyrics") {
-                  if (onToggleLyrics) onToggleLyrics(isOpening);
-                }
-              }}
-              onClose={() => {
-                close();
-                if (btn.id === "lyrics") {
-                  if (onToggleLyrics) onToggleLyrics(false);
-                }
-              }}
-              isMobile={isMobile}
-              track={activeTrack}
-            />
-          ))}
-        </div>
-
-        {/* Radar chart */}
         {scores && (
           <ErrorBoundary>
             <EmotionRadarChart scores={scores} />
