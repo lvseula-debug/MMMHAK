@@ -240,11 +240,10 @@ export default function EmotionRadarChart({ scores }) {
       <div style={{ textAlign: "center", marginTop: 4 }}>
         <div
           style={{
-            color: classColor,
+            color: "#1A0050",
             fontFamily: "'Space Mono', monospace",
             fontWeight: 800,
             fontSize: 14,
-            textShadow: `0 0 8px ${classColor}`,
             letterSpacing: "0.1em",
           }}
         >
