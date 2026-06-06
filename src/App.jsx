@@ -100,18 +100,40 @@ async function fetchItunesData(title, artist) {
   }
 }
 
-// ── [신규 함수] 외부 LRCLIB API에서 가사 가져오기 ──
+// ── [신규 함수] 외부 API에서 가사 가져오기 ──
 async function fetchLyrics(title, artist) {
   try {
-    const q = encodeURIComponent(`${artist} ${title}`);
-    // 직접 외부 API 호출 (CORS 허용됨)
-    const res = await fetch(`https://lrclib.net/api/search?q=${q}`);
-    if (!res.ok) return "가사 정보를 불러올 수 없습니다.";
-    const data = await res.json();
-    if (!data || data.length === 0) return "등록된 가사가 없습니다.";
-    return data[0].plainLyrics || "가사 텍스트가 존재하지 않습니다.";
-  } catch (_) {
-    return "가사를 가져오는 중 오류가 발생했습니다.";
+    // 1차 시도: /api/get (더 정확함)
+    const getUrl = "https://lrclib.net/api/get?artist_name=" 
+      + encodeURIComponent(artist) 
+      + "&track_name=" 
+      + encodeURIComponent(title);
+    
+    const getRes = await fetch(getUrl);
+    if (getRes.ok) {
+      const getData = await getRes.json();
+      const lyrics = getData.plainLyrics || getData.syncedLyrics;
+      if (lyrics) return lyrics;
+    }
+
+    // 2차 시도: /api/search fallback
+    const searchUrl = "https://lrclib.net/api/search?track_name=" 
+      + encodeURIComponent(title) 
+      + "&artist_name=" 
+      + encodeURIComponent(artist);
+    
+    const searchRes = await fetch(searchUrl);
+    if (!searchRes.ok) return "No lyrics found for this track.";
+    
+    const searchData = await searchRes.json();
+    if (!searchData || searchData.length === 0) return "No lyrics found for this track.";
+    
+    const lyrics = searchData[0].plainLyrics || searchData[0].syncedLyrics;
+    return lyrics || "No lyrics found for this track.";
+
+  } catch (error) {
+    console.error("Lyrics fetch error:", error);
+    return "No lyrics found for this track.";
   }
 }
 
@@ -585,20 +607,11 @@ class ErrorBoundary extends React.Component {
 }
 
 // ── Center Panel (핑크색 섹션 내부 가사 스크롤 구현 완료) ───────────────────────
-function CenterPanel({ activeTrack, isMobile, scores, lyrics, isLyricsOpen }) {
+function CenterPanel({ activeTrack, isMobile, scores, lyrics, isLyricsOpen, onToggleLyrics }) {
   const [openPopup, setOpenPopup] = useState(null);
 
   const toggle = (id) => setOpenPopup((prev) => (prev === id ? null : id));
   const close = () => setOpenPopup(null);
-
-  // 상위에서 넘어오는 LYRICS 버튼 활성화 상태(isLyricsOpen)를 감지하여 팝업 연동
-  useEffect(() => {
-    if (isLyricsOpen) {
-      setOpenPopup("lyrics");
-    } else {
-      if (openPopup === "lyrics") setOpenPopup(null);
-    }
-  }, [isLyricsOpen]);
 
   return (
     <div
@@ -625,15 +638,55 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isLyricsOpen }) {
         <PreviewSection track={activeTrack} />
       </div>
 
-      {/* ── [신규 추가] 핑크 섹션 배경에 흘러나오는 힙한 가사 보드 ── */}
+
+
+      {/* Content row */}
+      <div
+        className={`flex flex-1 items-center justify-center gap-4 ${isMobile ? "p-5 pb-10 flex-col" : "p-6 pb-12 flex-row"}`}
+      >
+        {/* Info buttons column */}
+        <div className={`flex flex-col justify-center gap-1 relative z-50 shrink-0 ${isMobile ? "w-full max-w-[300px] flex-row flex-wrap" : ""}`}>
+          {INFO_BUTTONS.map((btn) => (
+            <InfoButton
+              key={btn.id}
+              btn={btn}
+              isOpen={openPopup === btn.id}
+              onToggle={() => {
+                const isOpening = openPopup !== btn.id;
+                toggle(btn.id);
+                if (btn.id === "lyrics") {
+                  if (onToggleLyrics) onToggleLyrics(isOpening);
+                }
+              }}
+              onClose={() => {
+                close();
+                if (btn.id === "lyrics") {
+                  if (onToggleLyrics) onToggleLyrics(false);
+                }
+              }}
+              isMobile={isMobile}
+              track={activeTrack}
+            />
+          ))}
+        </div>
+
+        {/* Radar chart */}
+        {scores && (
+          <ErrorBoundary>
+            <EmotionRadarChart scores={scores} />
+          </ErrorBoundary>
+        )}
+      </div>
+
+      {/* ── [신규 추가] 핑크 섹션 배경에 흘러나오는 힙한 가사 보드 (하단 배치) ── */}
       {isLyricsOpen && (
         <div 
           style={{
-            margin: "0 auto 20px",
+            margin: "0 auto 40px",
             width: "85%",
             maxWidth: "540px",
-            background: "#FFBABA",
-            border: "1px solid #1A0050",
+            background: "rgba(26, 0, 80, 0.08)",
+            border: "2px solid #FFBABA",
             borderRadius: "12px",
             padding: "20px",
             fontFamily: "'Space Mono', monospace",
@@ -652,36 +705,6 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isLyricsOpen }) {
           {lyrics}
         </div>
       )}
-
-      {/* Content row */}
-      <div
-        className={`flex flex-1 items-center justify-center gap-4 ${isMobile ? "p-5 pb-10 flex-col" : "p-6 pb-12 flex-row"}`}
-      >
-        {/* Info buttons column */}
-        <div className={`flex flex-col justify-center gap-1 relative z-50 shrink-0 ${isMobile ? "w-full max-w-[300px] flex-row flex-wrap" : ""}`}>
-          {INFO_BUTTONS.map((btn) => (
-            <InfoButton
-              key={btn.id}
-              btn={btn}
-              isOpen={openPopup === btn.id}
-              onToggle={() => {
-                toggle(btn.id);
-                // 메인 App의 가사 플래그와 싱크를 맞춰주기 위함
-              }}
-              onClose={close}
-              isMobile={isMobile}
-              track={activeTrack}
-            />
-          ))}
-        </div>
-
-        {/* Radar chart */}
-        {scores && (
-          <ErrorBoundary>
-            <EmotionRadarChart scores={scores} />
-          </ErrorBoundary>
-        )}
-      </div>
     </div>
   );
 }
@@ -1056,27 +1079,7 @@ export default function MMMHAKApp() {
         }}
       />
 
-      <header
-        style={{ display: "none" }}
-        onClick={(e) => {
-          // InfoButton 내 lyrics 클릭 시 감지 레이어 브릿지
-          const targetButton = e.target.closest("button");
-          if (targetButton && targetButton.textContent.includes("LYRICS")) {
-            handleToggleLyricsVisibility();
-          }
-        }}
-      />
-
-      {/* 이벤트 위임을 통해 LYRICS 버튼 클릭 시 핑크색 패널 가사 플래그를 토글하도록 전역 래퍼 배치 */}
-      <div 
-        onClick={(e) => {
-          const btn = e.target.closest("button");
-          if (btn && btn.textContent && btn.textContent.includes("LYRICS")) {
-            setIsLyricsOpen(prev => !prev);
-          }
-        }}
-        style={{ width: "100%", height: "100%" }}
-      >
+      <div style={{ width: "100%", height: "100%" }}>
         <Header isMobile={isMobile} tracksCount={tracks.length} />
 
         {/* ── DESKTOP layout ── */}
@@ -1102,7 +1105,8 @@ export default function MMMHAKApp() {
                 isMobile={false} 
                 scores={scores} 
                 lyrics={lyrics} 
-                isLyricsOpen={isLyricsOpen} 
+                isLyricsOpen={isLyricsOpen}
+                onToggleLyrics={setIsLyricsOpen}
               />
             </div>
           </>
@@ -1128,7 +1132,8 @@ export default function MMMHAKApp() {
               isMobile={true} 
               scores={scores} 
               lyrics={lyrics} 
-              isLyricsOpen={isLyricsOpen} 
+              isLyricsOpen={isLyricsOpen}
+              onToggleLyrics={setIsLyricsOpen}
             />
             <MobileSidebarStrip tracks={rightTracks} activeTrack={activeTrack} onSelect={patchTrackSelection} label="Top Tracks (26-50)" />
           </div>

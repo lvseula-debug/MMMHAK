@@ -1,12 +1,13 @@
 {
   "rewrites": [
-    {
-      "source": "/itunes-api/:path*",
-      "destination": "https://itunes.apple.com/:path*"
-    },
+    { "source": "/itunes-api/:path*", "destination": "https://itunes.apple.com/:path*" }
+  ],
+  "headers": [
     {
       "source": "/(.*)",
-      "destination": "/index.html"
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
     }
   ]
 }
