@@ -379,37 +379,7 @@ function PreviewSection({ track }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
 
-  // Draggable state
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const dragging = useRef(false);
-  const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
-
-  const onMouseDown = (e) => {
-    dragging.current = true;
-    setIsDragging(true);
-    dragStart.current = { mx: e.clientX, my: e.clientY, px: pos.x, py: pos.y };
-  };
-
-  useEffect(() => {
-    const onMouseMove = (e) => {
-      if (!dragging.current) return;
-      setPos({
-        x: dragStart.current.px + (e.clientX - dragStart.current.mx),
-        y: dragStart.current.py + (e.clientY - dragStart.current.my),
-      });
-    };
-    const onMouseUp = () => {
-      dragging.current = false;
-      setIsDragging(false);
-    };
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    };
-  }, []);
+  // Draggable state removed
 
   useEffect(() => {
     setPlaying(false);
@@ -437,7 +407,6 @@ function PreviewSection({ track }) {
 
   return (
     <div
-      onMouseDown={onMouseDown}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -447,9 +416,7 @@ function PreviewSection({ track }) {
         position: "relative",
         padding: "20px 10px 30px",
         minWidth: 0,
-        transform: `translate(${pos.x}px, ${pos.y}px)`,
-        cursor: isDragging ? "grabbing" : "grab",
-        zIndex: isDragging ? 100 : 10,
+        zIndex: 10,
         userSelect: "none",
       }}
     >
@@ -767,7 +734,9 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
             Sentiment: Joy {Math.round(activeTrack.lyrics_sentiment.joy * 100)}% · Anxiety {Math.round(activeTrack.lyrics_sentiment.anxiety * 100)}% · Depression {Math.round(activeTrack.lyrics_sentiment.depression * 100)}%
           </div>
         )}
-        {lyrics}
+        <div style={{ fontWeight: "700" }}>
+          {lyrics}
+        </div>
       </div>
     </div>
   );
