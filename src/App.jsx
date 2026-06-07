@@ -593,7 +593,7 @@ class ErrorBoundary extends React.Component {
 }
 
 // ── Center Panel (핑크색 섹션 내부 가사 스크롤 구현 완료) ───────────────────────
-function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onToggleGraph }) {
+function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onToggleGraph, onToggleSearch }) {
   const [openPopup, setOpenPopup] = useState(null);
 
   const toggle = (id) => setOpenPopup((prev) => (prev === id ? null : id));
@@ -612,12 +612,15 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
       }}
     >
       {/* Navigation pill */}
-      <div
-        className="self-start mt-8 ml-8 px-4 py-1.5 rounded-full bg-[#1A0050] text-[#CCFF00] text-[10px] font-bold tracking-[0.15em] uppercase"
-        style={{ fontFamily: "'Space Mono', monospace" }}
+      <button
+        onClick={() => onToggleSearch(true)}
+        className="self-start mt-8 ml-8 px-4 py-1.5 rounded-full bg-[#1A0050] text-[#CCFF00] text-[10px] font-bold tracking-[0.15em] uppercase border border-[#CCFF00] transition-all duration-200"
+        style={{ fontFamily: "'Space Mono', monospace", cursor: "pointer" }}
+        onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.05)"; e.currentTarget.style.boxShadow = "0 0 10px rgba(204,255,0,0.5)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "none"; }}
       >
-        Navigation
-      </div>
+        NAVIGATION 🔍
+      </button>
 
       {/* Top Center: Preview Section */}
       <div className="flex justify-center w-full mt-2">
@@ -876,6 +879,134 @@ export default function MMMHAKApp() {
   // 💖 가사 상태 관리를 위한 신규 State 추가
   const [lyrics, setLyrics] = useState("LOADING LYRICS...");
   const [isGraphOpen, setIsGraphOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const LASTFM_API_KEY = "8031c3fd85fae84e3a1970b02e22a231";
+  const LASTFM_BASE = "https://ws.audioscrobbler.com/2.0";
+
+  const processTracks = async (rawTracks) => {
+    const BATCH = 10;
+    let allItems = [];
+
+    for (let b = 0; b < rawTracks.length; b += BATCH) {
+      const batch = rawTracks.slice(b, b + BATCH);
+      setLoadingStatus(`🔍 LOADING ${b + 1}–${Math.min(b + BATCH, rawTracks.length)} / ${rawTracks.length}...`);
+
+      const batchItems = await Promise.all(
+        batch.map(async (raw, batchIdx) => {
+          const idx = b + batchIdx;
+          const playcount = parseInt(raw.playcount || "0", 10);
+          const listeners = parseInt(raw.listeners || "0", 10);
+
+          const artistName = typeof raw.artist === "string" ? raw.artist : raw.artist?.name || "Unknown Artist";
+
+          let tags = [];
+          try {
+            const infoRes = await fetch(`${LASTFM_BASE}/?method=track.getInfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artistName)}&track=${encodeURIComponent(raw.name)}&format=json`);
+            if (infoRes.ok) {
+              const infoData = await infoRes.json();
+              tags = (infoData?.track?.toptags?.tag || []).map(t => t.name.toLowerCase());
+            }
+          } catch (_) { }
+
+          const itunes = await fetchItunesData(raw.name, artistName);
+
+          const hasSad = tags.some(t => ["sad", "melancholy", "heartbreak", "depression", "dark", "emo", "blues"].some(k => t.includes(k)));
+          const hasAngry = tags.some(t => ["angry", "aggressive", "metal", "hardcore", "rage", "punk"].some(k => t.includes(k)));
+          const hasAnxious = tags.some(t => ["anxious", "nervous", "tense", "suspense", "dramatic"].some(k => t.includes(k)));
+          const hasHappy = tags.some(t => ["happy", "upbeat", "dance", "party", "summer", "pop", "fun", "joy"].some(k => t.includes(k)));
+          const hasCalm = tags.some(t => ["calm", "chill", "relax", "ambient", "peaceful", "acoustic"].some(k => t.includes(k)));
+
+          const valence = hasHappy ? 0.65 + Math.random() * 0.25
+            : hasSad ? 0.10 + Math.random() * 0.20
+              : hasAngry ? 0.20 + Math.random() * 0.20
+                : 0.35 + Math.random() * 0.20;
+
+          const energy = hasAngry ? 0.75 + Math.random() * 0.2
+            : hasCalm ? 0.15 + Math.random() * 0.25
+              : hasHappy ? 0.65 + Math.random() * 0.2
+                : 0.45 + Math.random() * 0.3;
+
+          const bpm = hasAngry ? 140 + Math.floor(Math.random() * 40)
+            : hasCalm ? 70 + Math.floor(Math.random() * 30)
+              : hasHappy ? 110 + Math.floor(Math.random() * 40)
+                : 95 + Math.floor(Math.random() * 60);
+
+          const mode = hasSad || hasAngry ? "minor" : "major";
+          const loudness = hasAngry ? -3 - Math.random() * 3
+            : hasCalm ? -10 - Math.random() * 5
+              : -5 - Math.random() * 4;
+
+          const modeModifier = mode === "minor" ? 0.6 : 1.0;
+
+          const lyrics_sentiment = {
+            anger: Math.max(0.01, parseFloat(((hasAngry ? 0.5 : 0.05) + (1 - valence) * 0.3).toFixed(2))),
+            anxiety: Math.max(0.01, parseFloat(((hasAnxious ? 0.4 : 0.08) + (1 - valence) * 0.25).toFixed(2))),
+            depression: Math.max(0.01, parseFloat(((hasSad ? 0.5 : 0.05) + (1 - valence) * 0.4).toFixed(2))),
+            joy: Math.max(0.01, parseFloat((((hasHappy ? 0.6 : 0.1) + valence * 0.3) * modeModifier).toFixed(2))),
+            stability: Math.max(0.01, parseFloat(((hasCalm ? 0.5 : 0.15) + valence * 0.2).toFixed(2))),
+          };
+
+          return {
+            id: `${artistName}_${raw.name}_${idx}`,
+            title: raw.name,
+            artist: artistName,
+            bpm,
+            mode,
+            valence: parseFloat(valence.toFixed(3)),
+            energy: parseFloat(energy.toFixed(3)),
+            loudness: parseFloat(loudness.toFixed(1)),
+            streams: playcount || (listeners * 3) || ((50 - idx) * 20000000 + 50000000),
+            listeners,
+            tags,
+            artworkUrl: itunes.artworkUrl,
+            previewUrl: itunes.previewUrl,
+            lyrics_sentiment,
+          };
+        })
+      );
+      allItems = [...allItems, ...batchItems];
+    }
+    return allItems;
+  };
+
+  const handleSearch = async (query) => {
+    if (!query.trim()) return;
+    setIsSearchOpen(false);
+    try {
+      setLoading(true);
+      setLoadingStatus(`🔍 SEARCHING FOR ${query.toUpperCase()}...`);
+
+      const searchRes = await fetch(`${LASTFM_BASE}/?method=track.search&track=${encodeURIComponent(query)}&api_key=${LASTFM_API_KEY}&format=json&limit=30`);
+      if (!searchRes.ok) throw new Error("Search request failed");
+
+      const searchData = await searchRes.json();
+      const rawTracks = searchData?.results?.trackmatches?.track || [];
+      if (rawTracks.length === 0) {
+        alert("No tracks found for your search.");
+        setLoading(false);
+        return;
+      }
+
+      setLoadingStatus(`🎵 ANALYZING ${rawTracks.length} SEARCH RESULTS...`);
+
+      const allItems = await processTracks(rawTracks);
+
+      if (allItems.length > 0) {
+        setTracks(allItems);
+        setActiveTrack(allItems[0]);
+        setScores(computeVirusScores(allItems[0]));
+        const initLyrics = await fetchLyrics(allItems[0].title, allItems[0].artist);
+        setLyrics(initLyrics);
+      }
+      setLoading(false);
+    } catch (err) {
+      console.error("Search error:", err);
+      alert("Failed to search tracks.");
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -897,9 +1028,6 @@ export default function MMMHAKApp() {
 
   useEffect(() => {
     async function fetchData() {
-      const LASTFM_API_KEY = "8031c3fd85fae84e3a1970b02e22a231";
-      const LASTFM_BASE = "https://ws.audioscrobbler.com/2.0";
-
       try {
         setLoading(true);
         setLoadingStatus("📡 FETCHING LAST.FM GLOBAL CHART...");
@@ -913,89 +1041,7 @@ export default function MMMHAKApp() {
 
         setLoadingStatus(`🎵 ANALYZING ${rawTracks.length} TRACKS...`);
 
-        const BATCH = 10;
-        let allItems = [];
-
-        for (let b = 0; b < rawTracks.length; b += BATCH) {
-          const batch = rawTracks.slice(b, b + BATCH);
-          setLoadingStatus(`🔍 LOADING ${b + 1}–${Math.min(b + BATCH, rawTracks.length)} / ${rawTracks.length}...`);
-
-          const batchItems = await Promise.all(
-            batch.map(async (raw, batchIdx) => {
-              const idx = b + batchIdx;
-              const playcount = parseInt(raw.playcount || "0", 10);
-              const listeners = parseInt(raw.listeners || "0", 10);
-
-              let tags = [];
-              try {
-                const infoRes = await fetch(`${LASTFM_BASE}/?method=track.getInfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(raw.artist.name)}&track=${encodeURIComponent(raw.name)}&format=json`);
-                if (infoRes.ok) {
-                  const infoData = await infoRes.json();
-                  tags = (infoData?.track?.toptags?.tag || []).map(t => t.name.toLowerCase());
-                }
-              } catch (_) { }
-
-              const itunes = await fetchItunesData(raw.name, raw.artist.name);
-
-              const hasSad = tags.some(t => ["sad", "melancholy", "heartbreak", "depression", "dark", "emo", "blues"].some(k => t.includes(k)));
-              const hasAngry = tags.some(t => ["angry", "aggressive", "metal", "hardcore", "rage", "punk"].some(k => t.includes(k)));
-              const hasAnxious = tags.some(t => ["anxious", "nervous", "tense", "suspense", "dramatic"].some(k => t.includes(k)));
-              const hasHappy = tags.some(t => ["happy", "upbeat", "dance", "party", "summer", "pop", "fun", "joy"].some(k => t.includes(k)));
-              const hasCalm = tags.some(t => ["calm", "chill", "relax", "ambient", "peaceful", "acoustic"].some(k => t.includes(k)));
-
-              // 특징이 없을 때의 기본 정서가(Valence)를 0.35 ~ 0.55 수준으로 하향 조정
-              const valence = hasHappy ? 0.65 + Math.random() * 0.25
-                : hasSad ? 0.10 + Math.random() * 0.20
-                  : hasAngry ? 0.20 + Math.random() * 0.20
-                    : 0.35 + Math.random() * 0.20; // 디폴트 값을 낮춰 상향 평준화 방지
-
-              const energy = hasAngry ? 0.75 + Math.random() * 0.2
-                : hasCalm ? 0.15 + Math.random() * 0.25
-                  : hasHappy ? 0.65 + Math.random() * 0.2
-                    : 0.45 + Math.random() * 0.3;
-
-              const bpm = hasAngry ? 140 + Math.floor(Math.random() * 40)
-                : hasCalm ? 70 + Math.floor(Math.random() * 30)
-                  : hasHappy ? 110 + Math.floor(Math.random() * 40)
-                    : 95 + Math.floor(Math.random() * 60);
-
-              const mode = hasSad || hasAngry ? "minor" : "major";
-              const loudness = hasAngry ? -3 - Math.random() * 3
-                : hasCalm ? -10 - Math.random() * 5
-                  : -5 - Math.random() * 4;
-
-              // 마이너 키(단조)일 때의 감정 억제력 강화
-              const modeModifier = mode === "minor" ? 0.6 : 1.0;
-
-              const lyrics_sentiment = {
-                anger: Math.max(0.01, parseFloat(((hasAngry ? 0.5 : 0.05) + (1 - valence) * 0.3).toFixed(2))),
-                anxiety: Math.max(0.01, parseFloat(((hasAnxious ? 0.4 : 0.08) + (1 - valence) * 0.25).toFixed(2))),
-                depression: Math.max(0.01, parseFloat(((hasSad ? 0.5 : 0.05) + (1 - valence) * 0.4).toFixed(2))),
-                // 💡 마이너 곡이라면 joy 수치를 강제로 60% 수준으로 떨어뜨림
-                joy: Math.max(0.01, parseFloat((((hasHappy ? 0.6 : 0.1) + valence * 0.3) * modeModifier).toFixed(2))),
-                stability: Math.max(0.01, parseFloat(((hasCalm ? 0.5 : 0.15) + valence * 0.2).toFixed(2))),
-              };
-
-              return {
-                id: `${raw.artist.name}_${raw.name}_${idx}`,
-                title: raw.name,
-                artist: raw.artist.name,
-                bpm,
-                mode,
-                valence: parseFloat(valence.toFixed(3)),
-                energy: parseFloat(energy.toFixed(3)),
-                loudness: parseFloat(loudness.toFixed(1)),
-                streams: playcount || (listeners * 3) || ((50 - idx) * 20000000 + 50000000),
-                listeners,
-                tags,
-                artworkUrl: itunes.artworkUrl,
-                previewUrl: itunes.previewUrl,
-                lyrics_sentiment,
-              };
-            })
-          );
-          allItems = [...allItems, ...batchItems];
-        }
+        let allItems = await processTracks(rawTracks);
 
         setTracks(allItems);
         setActiveTrack(allItems[0]);
@@ -1075,6 +1121,57 @@ export default function MMMHAKApp() {
       <div style={{ width: "100%", height: "100%" }}>
         <Header isMobile={isMobile} tracksCount={tracks.length} />
 
+        {/* Search Bar UI */}
+        {isSearchOpen && (
+          <div style={{
+            position: "fixed",
+            top: isMobile ? 80 : 0,
+            left: 0,
+            right: 0,
+            background: "#1A0050",
+            borderBottom: "2px solid #CCFF00",
+            zIndex: 500,
+            padding: "20px",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            animation: "fadeSlideIn 0.3s ease-out"
+          }}>
+            <input
+              type="text"
+              autoFocus
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(searchQuery); }}
+              placeholder="SEARCH TRACKS..."
+              style={{
+                flex: 1,
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                color: "#CCFF00",
+                fontFamily: "'Space Mono', monospace",
+                fontSize: isMobile ? "16px" : "24px",
+                letterSpacing: "0.1em",
+              }}
+            />
+            <button
+              onClick={() => setIsSearchOpen(false)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#CCFF00",
+                fontSize: "28px",
+                cursor: "pointer",
+                fontFamily: "'Space Mono', monospace",
+                lineHeight: 1
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {/* ── DESKTOP layout ── */}
         {!isMobile && (
           <>
@@ -1100,6 +1197,7 @@ export default function MMMHAKApp() {
                 lyrics={lyrics}
                 isGraphOpen={isGraphOpen}
                 onToggleGraph={setIsGraphOpen}
+                onToggleSearch={setIsSearchOpen}
               />
             </div>
           </>
