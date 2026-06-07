@@ -740,35 +740,35 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
 
       {/* ── [신규 추가] 핑크 섹션 배경에 흘러나오는 힙한 가사 보드 (하단 배치) ── */}
       <div
-          style={{
-            position: "absolute",
-            top: isMobile ? "680px" : "600px",
-            height: isMobile ? "800px" : "600px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "90%",
-            maxWidth: "800px",
-            background: "#F5C8C8",
-            border: "none",
-            borderRadius: "12px",
-            padding: "20px",
-            fontFamily: "'Space Mono', monospace",
-            textAlign: "center",
-            color: "#1A0050",
-            overflowY: "auto",
-            lineHeight: "1.8",
-            fontSize: "13px",
-            whiteSpace: "pre-wrap",
-            zIndex: 1
-          }}
-        >
-          {activeTrack?.lyrics_sentiment && (
-            <div style={{ fontSize: "12px", fontWeight: "700", marginBottom: "16px", color: "#CCFF00" }}>
-              Sentiment: Joy {Math.round(activeTrack.lyrics_sentiment.joy * 100)}% · Anxiety {Math.round(activeTrack.lyrics_sentiment.anxiety * 100)}% · Depression {Math.round(activeTrack.lyrics_sentiment.depression * 100)}%
-            </div>
-          )}
-          {lyrics}
-        </div>
+        style={{
+          position: "absolute",
+          top: isMobile ? "680px" : "600px",
+          height: isMobile ? "800px" : "600px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "90%",
+          maxWidth: "800px",
+          background: "#F5C8C8",
+          border: "none",
+          borderRadius: "12px",
+          padding: "20px",
+          fontFamily: "'Space Mono', monospace",
+          textAlign: "center",
+          color: "#1A0050",
+          overflowY: "auto",
+          lineHeight: "1.8",
+          fontSize: "13px",
+          whiteSpace: "pre-wrap",
+          zIndex: 1
+        }}
+      >
+        {activeTrack?.lyrics_sentiment && (
+          <div style={{ fontSize: "12px", fontWeight: "700", marginBottom: "16px", color: "#CCFF00" }}>
+            Sentiment: Joy {Math.round(activeTrack.lyrics_sentiment.joy * 100)}% · Anxiety {Math.round(activeTrack.lyrics_sentiment.anxiety * 100)}% · Depression {Math.round(activeTrack.lyrics_sentiment.depression * 100)}%
+          </div>
+        )}
+        {lyrics}
+      </div>
     </div>
   );
 }
@@ -1098,42 +1098,42 @@ export default function MMMHAKApp() {
 
   const fetchGlobalChart = async () => {
 
-      try {
-        setLoading(true);
-        setLoadingStatus("📡 FETCHING LAST.FM GLOBAL CHART...");
+    try {
+      setLoading(true);
+      setLoadingStatus("📡 FETCHING LAST.FM GLOBAL CHART...");
 
-        const chartRes = await fetch(`${LASTFM_BASE}/?method=chart.getTopTracks&api_key=${LASTFM_API_KEY}&format=json&limit=50`);
-        if (!chartRes.ok) throw new Error("Last.fm request failed");
+      const chartRes = await fetch(`${LASTFM_BASE}/?method=chart.getTopTracks&api_key=${LASTFM_API_KEY}&format=json&limit=50`);
+      if (!chartRes.ok) throw new Error("Last.fm request failed");
 
-        const chartData = await chartRes.json();
-        const rawTracks = chartData?.tracks?.track || [];
-        if (rawTracks.length === 0) throw new Error("No tracks found");
+      const chartData = await chartRes.json();
+      const rawTracks = chartData?.tracks?.track || [];
+      if (rawTracks.length === 0) throw new Error("No tracks found");
 
-        setLoadingStatus(`🎵 ANALYZING ${rawTracks.length} TRACKS...`);
+      setLoadingStatus(`🎵 ANALYZING ${rawTracks.length} TRACKS...`);
 
-        let allItems = await processTracks(rawTracks);
+      let allItems = await processTracks(rawTracks);
 
-        setTracks(allItems);
-        setActiveTrack(allItems[0]);
-        setScores(computeVirusScores(allItems[0]));
+      setTracks(allItems);
+      setActiveTrack(allItems[0]);
+      setScores(computeVirusScores(allItems[0]));
 
-        // 최초 1번째 트랙 가사 페칭 자동 연동
-        const initLyrics = await fetchLyrics(allItems[0].title, allItems[0].artist);
-        setLyrics(initLyrics);
+      // 최초 1번째 트랙 가사 페칭 자동 연동
+      const initLyrics = await fetchLyrics(allItems[0].title, allItems[0].artist);
+      setLyrics(initLyrics);
 
-        setLoading(false);
-      } catch (err) {
-        console.error("API error, using mock data:", err);
-        const mock = MOCK_TRACKS.map((t, idx) => ({ ...t, id: t.id + idx, streams: t.streams || 500000000, artworkUrl: null, previewUrl: null }));
-        setTracks(mock);
-        setActiveTrack(mock[0]);
-        setScores(computeVirusScores(mock[0]));
+      setLoading(false);
+    } catch (err) {
+      console.error("API error, using mock data:", err);
+      const mock = MOCK_TRACKS.map((t, idx) => ({ ...t, id: t.id + idx, streams: t.streams || 500000000, artworkUrl: null, previewUrl: null }));
+      setTracks(mock);
+      setActiveTrack(mock[0]);
+      setScores(computeVirusScores(mock[0]));
 
-        const mockLyrics = await fetchLyrics(mock[0].title, mock[0].artist);
-        setLyrics(mockLyrics);
+      const mockLyrics = await fetchLyrics(mock[0].title, mock[0].artist);
+      setLyrics(mockLyrics);
 
-        setLoading(false);
-      }
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

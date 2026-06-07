@@ -235,6 +235,7 @@ export default function EmotionRadarChart({ scores }) {
             <SingleRadarChart axes={sqAxes} scores={scores} size={240} radius={45} color="#00FF88" />
           </div>
         </DraggableChartGroup>
+      </div>
     </div>
   );
 }
