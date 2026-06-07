@@ -613,7 +613,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
     >
       {/* Navigation pill */}
       <div
-        className="self-start mt-7 ml-7 px-4 py-1.5 rounded-full bg-[#1A0050] text-[#CCFF00] text-[10px] font-bold tracking-[0.15em] uppercase"
+        className="self-start mt-12 ml-10 px-4 py-1.5 rounded-full bg-[#1A0050] text-[#CCFF00] text-[10px] font-bold tracking-[0.15em] uppercase"
         style={{ fontFamily: "'Space Mono', monospace" }}
       >
         Navigation
@@ -668,8 +668,8 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
       <div
           style={{
             position: "absolute",
-            top: isMobile ? "400px" : "460px",
-            bottom: "40px",
+            top: isMobile ? "560px" : "500px",
+            height: isMobile ? "800px" : "600px",
             left: "50%",
             transform: "translateX(-50%)",
             width: "90%",
