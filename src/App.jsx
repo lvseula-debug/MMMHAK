@@ -720,7 +720,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
       <div
           style={{
             position: "absolute",
-            top: isMobile ? "560px" : "500px",
+            top: isMobile ? "640px" : "560px",
             height: isMobile ? "800px" : "600px",
             left: "50%",
             transform: "translateX(-50%)",
@@ -740,40 +740,17 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
             zIndex: 1
           }}
         >
+          {scores && (
+            <div style={{ fontSize: "11px", fontWeight: "800", color: "#1A0050", letterSpacing: "0.1em", marginBottom: "16px", textTransform: "uppercase" }}>
+              Emotion Confidence {Math.round(scores.confidence * 100)}%
+            </div>
+          )}
           {activeTrack?.lyrics_sentiment && (
             <div style={{ fontSize: "12px", fontWeight: "700", marginBottom: "16px", color: "#FF3366" }}>
               Sentiment: Joy {Math.round(activeTrack.lyrics_sentiment.joy * 100)}% · Anxiety {Math.round(activeTrack.lyrics_sentiment.anxiety * 100)}% · Depression {Math.round(activeTrack.lyrics_sentiment.depression * 100)}%
             </div>
           )}
           {lyrics}
-
-          {/* Classification badge at the bottom of lyrics */}
-          {scores && (
-            <div style={{ textAlign: "center", marginTop: "30px", paddingTop: "20px", borderTop: "1px dashed rgba(26,0,80,0.2)" }}>
-              <div
-                style={{
-                  color: "#1A0050",
-                  fontFamily: "'Space Mono', monospace",
-                  fontWeight: 800,
-                  fontSize: 14,
-                  letterSpacing: "0.1em",
-                }}
-              >
-                {scores.classification}
-              </div>
-              <div
-                style={{
-                  color: "#1A0050",
-                  fontFamily: "'Space Mono', monospace",
-                  fontWeight: 700,
-                  fontSize: 12,
-                  marginTop: 4,
-                }}
-              >
-                Emotion Confidence {Math.round(scores.confidence * 100)}%
-              </div>
-            </div>
-          )}
         </div>
     </div>
   );
