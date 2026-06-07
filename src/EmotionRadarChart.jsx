@@ -2,29 +2,22 @@
 import React, { useEffect, useState, useRef } from "react";
 
 function SingleRadarChart({ axes, scores, size = 240, radius = 50, color = "#CCFF00" }) {
+  const [hovered, setHovered] = useState(null);
+
   if (!scores || !axes) return null; // Error handling: Ensure data exists
 
   const center = size / 2;
   const angleStep = (Math.PI * 2) / axes.length;
-  const [points, setPoints] = useState("");
-  const [hovered, setHovered] = useState(null);
+  const points = axes
+    .map((key, i) => {
+      const v = Math.min(Math.max(scores[key] ?? 0, 0), 1);
+      const r = v * radius;
+      const x = center + r * Math.sin(i * angleStep);
+      const y = center - r * Math.cos(i * angleStep);
+      return `${x},${y}`;
+    })
+    .join(" ");
 
-  useEffect(() => {
-    try {
-      const pts = axes
-        .map((key, i) => {
-          const v = Math.min(Math.max(scores[key] ?? 0, 0), 1);
-          const r = v * radius;
-          const x = center + r * Math.sin(i * angleStep);
-          const y = center - r * Math.cos(i * angleStep);
-          return `${x},${y}`;
-        })
-        .join(" ");
-      setPoints(pts);
-    } catch (err) {
-      console.error("Error computing radar points", err);
-    }
-  }, [scores, axes, radius, center, angleStep]);
 
   return (
     <div className="relative w-full max-w-[240px] aspect-square flex items-center justify-center">
