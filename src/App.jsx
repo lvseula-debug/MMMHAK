@@ -1081,16 +1081,22 @@ export default function MMMHAKApp() {
 
       setLoadingStatus(`🎵 ANALYZING ${rawTracks.length} SEARCH RESULTS...`);
 
-      const allItems = await processTracks(rawTracks);
-      const sortedItems = allItems.sort((a, b) => b.streams - a.streams);
-
-      if (sortedItems.length > 0) {
-        setTracks(sortedItems);
-        setActiveTrack(sortedItems[0]);
-        setScores(computeVirusScores(sortedItems[0]));
-        fetchLyrics(sortedItems[0].title, sortedItems[0].artist).then(setLyrics);
-      }
+      const firstItem = await processTracks([rawTracks[0]]);
+      setTracks(firstItem);
+      setActiveTrack(firstItem[0]);
+      setScores(computeVirusScores(firstItem[0]));
+      setLyrics("LOADING LYRICS...");
+      fetchLyrics(firstItem[0].title, firstItem[0].artist).then(setLyrics);
       setLoading(false);
+
+      if (rawTracks.length > 1) {
+        processTracks(rawTracks.slice(1)).then(rest => {
+          setTracks(prev => {
+            const combined = [...prev, ...rest];
+            return combined.sort((a, b) => b.streams - a.streams);
+          });
+        });
+      }
     } catch (err) {
       console.error("Search error:", err);
       alert("Failed to search tracks.");
@@ -1106,14 +1112,13 @@ export default function MMMHAKApp() {
   }, []);
 
   // 가사 실시간 로드 처리를 포함한 트랙 선택 핸들러 함수
-  const handleSelect = useCallback(async (track) => {
+  const handleSelect = useCallback((track) => {
     setActiveTrack(track);
     setScores(computeVirusScores(track));
 
-    // 새 곡을 선택하면 가사 상태 초기화 후 다시 패치
+    // 새 곡을 선택하면 가사 상태 초기화 후 비동기 패치
     setLyrics("LOADING LYRICS...");
-    const currentLyrics = await fetchLyrics(track.title, track.artist);
-    setLyrics(currentLyrics);
+    fetchLyrics(track.title, track.artist).then(setLyrics);
   }, []);
 
   const fetchGlobalChart = async () => {
@@ -1131,16 +1136,19 @@ export default function MMMHAKApp() {
 
       setLoadingStatus(`🎵 ANALYZING ${rawTracks.length} TRACKS...`);
 
-      let allItems = await processTracks(rawTracks);
-
-      setTracks(allItems);
-      setActiveTrack(allItems[0]);
-      setScores(computeVirusScores(allItems[0]));
-
-      // 최초 1번째 트랙 가사 페칭 자동 연동
-      fetchLyrics(allItems[0].title, allItems[0].artist).then(setLyrics);
-
+      const firstItem = await processTracks([rawTracks[0]]);
+      setTracks(firstItem);
+      setActiveTrack(firstItem[0]);
+      setScores(computeVirusScores(firstItem[0]));
+      setLyrics("LOADING LYRICS...");
+      fetchLyrics(firstItem[0].title, firstItem[0].artist).then(setLyrics);
       setLoading(false);
+
+      if (rawTracks.length > 1) {
+        processTracks(rawTracks.slice(1)).then(rest => {
+          setTracks(prev => [...prev, ...rest]);
+        });
+      }
     } catch (err) {
       console.error("API error, using mock data:", err);
       const mock = MOCK_TRACKS.map((t, idx) => ({ ...t, id: t.id + idx, streams: t.streams || 500000000, artworkUrl: null, previewUrl: null }));
