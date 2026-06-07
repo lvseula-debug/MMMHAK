@@ -104,11 +104,11 @@ async function fetchItunesData(title, artist) {
 async function fetchLyrics(title, artist) {
   try {
     // 1차 시도: /api/get (더 정확함)
-    const getUrl = "https://lrclib.net/api/get?artist_name=" 
-      + encodeURIComponent(artist) 
-      + "&track_name=" 
+    const getUrl = "https://lrclib.net/api/get?artist_name="
+      + encodeURIComponent(artist)
+      + "&track_name="
       + encodeURIComponent(title);
-    
+
     const getRes = await fetch(getUrl);
     if (getRes.ok) {
       const getData = await getRes.json();
@@ -117,17 +117,17 @@ async function fetchLyrics(title, artist) {
     }
 
     // 2차 시도: /api/search fallback
-    const searchUrl = "https://lrclib.net/api/search?track_name=" 
-      + encodeURIComponent(title) 
-      + "&artist_name=" 
+    const searchUrl = "https://lrclib.net/api/search?track_name="
+      + encodeURIComponent(title)
+      + "&artist_name="
       + encodeURIComponent(artist);
-    
+
     const searchRes = await fetch(searchUrl);
     if (!searchRes.ok) return "No lyrics found for this track.";
-    
+
     const searchData = await searchRes.json();
     if (!searchData || searchData.length === 0) return "No lyrics found for this track.";
-    
+
     const lyrics = searchData[0].plainLyrics || searchData[0].syncedLyrics;
     return lyrics || "No lyrics found for this track.";
 
@@ -407,8 +407,8 @@ function PreviewSection({ track }) {
         y: dragStart.current.py + (e.clientY - dragStart.current.my),
       });
     };
-    const onMouseUp = () => { 
-      dragging.current = false; 
+    const onMouseUp = () => {
+      dragging.current = false;
       setIsDragging(false);
     };
     window.addEventListener("mousemove", onMouseMove);
@@ -565,19 +565,6 @@ function PreviewSection({ track }) {
         </div>
       </div>
 
-      {/* Bottom waveform when playing */}
-      <div
-        style={{
-          position: "relative",
-          zIndex: 2,
-          marginTop: 14,
-          height: 36,
-          opacity: playing ? 1 : 0,
-          transition: "opacity 0.3s",
-        }}
-      >
-        <Waveform playing={playing} />
-      </div>
     </div>
   );
 }
@@ -677,9 +664,13 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isLyricsOpen, onTo
 
       {/* ── [신규 추가] 핑크 섹션 배경에 흘러나오는 힙한 가사 보드 (하단 배치) ── */}
       {isLyricsOpen && (
-        <div 
+        <div
           style={{
-            margin: "0 auto 40px",
+            position: "absolute",
+            top: isMobile ? "300px" : "360px",
+            bottom: "40px",
+            left: "50%",
+            transform: "translateX(-50%)",
             width: "90%",
             maxWidth: "800px",
             background: "#FFBABA",
@@ -689,11 +680,11 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isLyricsOpen, onTo
             fontFamily: "'Space Mono', monospace",
             textAlign: "center",
             color: "#1A0050",
-            maxHeight: "300px",
             overflowY: "auto",
             lineHeight: "1.8",
             fontSize: "13px",
-            whiteSpace: "pre-wrap"
+            whiteSpace: "pre-wrap",
+            zIndex: 1
           }}
         >
           <div style={{ fontWeight: "800", fontSize: "11px", letterSpacing: "0.2em", marginBottom: "14px", color: "#1A0050" }}>
@@ -892,7 +883,7 @@ export default function MMMHAKApp() {
   const handleSelect = useCallback(async (track) => {
     setActiveTrack(track);
     setScores(computeVirusScores(track));
-    
+
     // 새 곡을 선택하면 가사 상태 초기화 후 다시 패치
     setLyrics("LOADING LYRICS...");
     const currentLyrics = await fetchLyrics(track.title, track.artist);
@@ -969,7 +960,7 @@ export default function MMMHAKApp() {
                   : -5 - Math.random() * 4;
 
               // 마이너 키(단조)일 때의 감정 억제력 강화
-              const modeModifier = mode === "minor" ? 0.6 : 1.0; 
+              const modeModifier = mode === "minor" ? 0.6 : 1.0;
 
               const lyrics_sentiment = {
                 anger: Math.max(0.01, parseFloat(((hasAngry ? 0.5 : 0.05) + (1 - valence) * 0.3).toFixed(2))),
@@ -1004,7 +995,7 @@ export default function MMMHAKApp() {
         setTracks(allItems);
         setActiveTrack(allItems[0]);
         setScores(computeVirusScores(allItems[0]));
-        
+
         // 최초 1번째 트랙 가사 페칭 자동 연동
         const initLyrics = await fetchLyrics(allItems[0].title, allItems[0].artist);
         setLyrics(initLyrics);
@@ -1016,7 +1007,7 @@ export default function MMMHAKApp() {
         setTracks(mock);
         setActiveTrack(mock[0]);
         setScores(computeVirusScores(mock[0]));
-        
+
         const mockLyrics = await fetchLyrics(mock[0].title, mock[0].artist);
         setLyrics(mockLyrics);
 
@@ -1097,11 +1088,11 @@ export default function MMMHAKApp() {
                 zIndex: 10,
               }}
             >
-              <CenterPanel 
-                activeTrack={activeTrack} 
-                isMobile={false} 
-                scores={scores} 
-                lyrics={lyrics} 
+              <CenterPanel
+                activeTrack={activeTrack}
+                isMobile={false}
+                scores={scores}
+                lyrics={lyrics}
                 isLyricsOpen={isLyricsOpen}
                 onToggleLyrics={setIsLyricsOpen}
               />
@@ -1124,11 +1115,11 @@ export default function MMMHAKApp() {
             }}
           >
             <MobileSidebarStrip tracks={leftTracks} activeTrack={activeTrack} onSelect={patchTrackSelection} label="Top Tracks (1-25)" />
-            <CenterPanel 
-              activeTrack={activeTrack} 
-              isMobile={true} 
-              scores={scores} 
-              lyrics={lyrics} 
+            <CenterPanel
+              activeTrack={activeTrack}
+              isMobile={true}
+              scores={scores}
+              lyrics={lyrics}
               isLyricsOpen={isLyricsOpen}
               onToggleLyrics={setIsLyricsOpen}
             />
