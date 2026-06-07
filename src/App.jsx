@@ -316,8 +316,9 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track }) {
         <div
           style={{
             position: "absolute",
-            left: isMobile ? 0 : 165,
-            top: isMobile ? "calc(100% + 8px)" : 0,
+            left: "50%",
+            marginLeft: "-120px",
+            top: "calc(100% + 8px)",
             zIndex: 500,
             background: "#1A0050",
             color: "#fff",
