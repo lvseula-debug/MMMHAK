@@ -100,40 +100,41 @@ async function fetchItunesData(title, artist) {
   }
 }
 
-// ── [신규 함수] 외부 API에서 가사 가져오기 ──
+// ── 외부 API에서 가사 가져오기 (Timeout & 최적화 적용) ──
+async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return response;
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
+}
+
 async function fetchLyrics(title, artist) {
   try {
-    // 1차 시도: /api/get (더 정확함)
-    const getUrl = "https://lrclib.net/api/get?artist_name="
-      + encodeURIComponent(artist)
-      + "&track_name="
-      + encodeURIComponent(title);
-
-    const getRes = await fetch(getUrl);
-    if (getRes.ok) {
-      const getData = await getRes.json();
-      const lyrics = getData.plainLyrics || getData.syncedLyrics;
-      if (lyrics) return lyrics;
-    }
-
-    // 2차 시도: /api/search fallback
-    const searchUrl = "https://lrclib.net/api/search?track_name="
-      + encodeURIComponent(title)
-      + "&artist_name="
+    // get API는 정확한 매칭(duration 등)이 없으면 백엔드에서 오래 걸릴 수 있으므로,
+    // 바로 search API를 호출하여 가장 정확도가 높은 첫 번째 결과를 가져옵니다.
+    const searchUrl = "https://lrclib.net/api/search?track_name=" 
+      + encodeURIComponent(title) 
+      + "&artist_name=" 
       + encodeURIComponent(artist);
 
-    const searchRes = await fetch(searchUrl);
+    const searchRes = await fetchWithTimeout(searchUrl, {}, 4000);
     if (!searchRes.ok) return "No lyrics found for this track.";
 
     const searchData = await searchRes.json();
     if (!searchData || searchData.length === 0) return "No lyrics found for this track.";
 
     const lyrics = searchData[0].plainLyrics || searchData[0].syncedLyrics;
-    return lyrics || "No lyrics found for this track.";
+    return lyrics ? lyrics : "No lyrics found for this track.";
 
   } catch (error) {
     console.error("Lyrics fetch error:", error);
-    return "No lyrics found for this track.";
+    return "No lyrics found for this track (Timeout or Network Error).";
   }
 }
 
