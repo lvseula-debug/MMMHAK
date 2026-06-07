@@ -170,21 +170,47 @@ function ArtistCard({ track, onSelect, isActive }) {
         transition: "background 0.25s",
       }}
     >
-      <img
-        src={imgUrl}
-        alt={track.artist}
-        style={{
-          width: 120,
-          height: 90,
-          objectFit: "cover",
-          borderRadius: 8,
-          display: "block",
-          border: isActive || hovered ? "2px solid #CCFF00" : "2px solid transparent",
-          transform: isActive || hovered ? "scale(1.04)" : "scale(1)",
-          transition: "border 0.2s, transform 0.2s, box-shadow 0.2s",
-          boxShadow: isActive || hovered ? "0 0 16px rgba(204,255,0,0.45)" : "none",
-        }}
-      />
+      <div style={{ position: "relative", width: 120, height: 90 }}>
+        <img
+          src={imgUrl}
+          alt={track.artist}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            borderRadius: 8,
+            display: "block",
+            border: isActive || hovered ? "2px solid #CCFF00" : "2px solid transparent",
+            transform: isActive || hovered ? "scale(1.04)" : "scale(1)",
+            transition: "border 0.2s, transform 0.2s, box-shadow 0.2s",
+            boxShadow: isActive || hovered ? "0 0 16px rgba(204,255,0,0.45)" : "none",
+          }}
+        />
+        {hovered && (
+          <div style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(26,0,80,0.8)",
+            borderRadius: 8,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "8px",
+            color: "#CCFF00",
+            fontFamily: "'Space Mono', monospace",
+            fontSize: "10px",
+            fontWeight: "700",
+            textAlign: "center",
+            lineHeight: "1.2",
+            wordBreak: "break-word",
+            pointerEvents: "none",
+            transform: isActive || hovered ? "scale(1.04)" : "scale(1)",
+            border: "2px solid transparent"
+          }}>
+            {track.title}
+          </div>
+        )}
+      </div>
       <span
         style={{
           fontSize: 10,
@@ -794,24 +820,44 @@ function MobileSidebarStrip({ tracks, activeTrack, onSelect, label }) {
                 transition: "border 0.2s, box-shadow 0.2s",
               }}
             />
-            <span
-              style={{
-                fontSize: 8,
-                color: activeTrack?.id === track.id ? "#CCFF00" : "rgba(255,255,255,0.5)",
-                fontFamily: "'Space Mono', monospace",
-                maxWidth: 72,
-                textAlign: "center",
-                lineHeight: 1.2,
-                transition: "color 0.2s",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                display: "inline-block",
-                width: "100%",
-              }}
-            >
-              {track.artist}
-            </span>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", maxWidth: 72 }}>
+              <span
+                style={{
+                  fontSize: 8,
+                  fontWeight: 700,
+                  color: activeTrack?.id === track.id ? "#CCFF00" : "rgba(255,255,255,0.8)",
+                  fontFamily: "'Space Mono', monospace",
+                  textAlign: "center",
+                  lineHeight: 1.1,
+                  transition: "color 0.2s",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  display: "inline-block",
+                  width: "100%",
+                }}
+              >
+                {track.title}
+              </span>
+              <span
+                style={{
+                  fontSize: 7,
+                  color: activeTrack?.id === track.id ? "rgba(204,255,0,0.7)" : "rgba(255,255,255,0.4)",
+                  fontFamily: "'Space Mono', monospace",
+                  textAlign: "center",
+                  lineHeight: 1.1,
+                  transition: "color 0.2s",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  display: "inline-block",
+                  width: "100%",
+                  marginTop: 2,
+                }}
+              >
+                {track.artist}
+              </span>
+            </div>
           </div>
         ))}
       </div>
@@ -1021,7 +1067,11 @@ export default function MMMHAKApp() {
       if (!searchRes.ok) throw new Error("Search request failed");
 
       const searchData = await searchRes.json();
-      const rawTracks = searchData?.results?.trackmatches?.track || [];
+      let rawTracks = searchData?.results?.trackmatches?.track || [];
+      if (!Array.isArray(rawTracks)) {
+        rawTracks = [rawTracks];
+      }
+      
       if (rawTracks.length === 0) {
         alert("No tracks found for your search.");
         setLoading(false);
@@ -1031,12 +1081,13 @@ export default function MMMHAKApp() {
       setLoadingStatus(`🎵 ANALYZING ${rawTracks.length} SEARCH RESULTS...`);
 
       const allItems = await processTracks(rawTracks);
+      const sortedItems = allItems.sort((a, b) => b.streams - a.streams);
 
-      if (allItems.length > 0) {
-        setTracks(allItems);
-        setActiveTrack(allItems[0]);
-        setScores(computeVirusScores(allItems[0]));
-        const initLyrics = await fetchLyrics(allItems[0].title, allItems[0].artist);
+      if (sortedItems.length > 0) {
+        setTracks(sortedItems);
+        setActiveTrack(sortedItems[0]);
+        setScores(computeVirusScores(sortedItems[0]));
+        const initLyrics = await fetchLyrics(sortedItems[0].title, sortedItems[0].artist);
         setLyrics(initLyrics);
       }
       setLoading(false);
