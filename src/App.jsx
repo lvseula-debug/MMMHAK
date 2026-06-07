@@ -137,6 +137,18 @@ async function fetchLyrics(title, artist) {
   }
 }
 
+function generateImpactText(track, scores) {
+  if (!track || !scores) return "트랙 데이터를 분석 중입니다.";
+  const { bpm, mode } = track;
+  const { joy, depression, stability, anger } = scores;
+  if (joy > 0.6 && bpm > 110) return "높은 템포와 Joy 수치가 도파민을 분비시킵니다. 우울감을 떨치고 에너지를 끌어올리기 완벽한 트랙입니다.";
+  else if (mode === "minor" && stability > 0.5) return "Minor 키와 깊은 안정감이 혼자만의 사색에 잠기기 좋은 새벽의 무드를 조성합니다.";
+  else if (anger > 0.5 || track.energy > 0.7) return "강렬한 에너지가 억눌린 스트레스를 해소하고 강한 몰입감을 선사합니다.";
+  else if (depression > 0.5) return "차분하고 멜랑콜리한 선율이 복잡한 마음을 위로하고 깊은 공감을 이끌어냅니다.";
+  else if (stability > 0.6) return "부드러운 흐름이 긴장된 신경을 이완시키며, 편안한 휴식을 취하기 좋은 트랙입니다.";
+  else return "다양한 감정이 교차하는 트랙으로, 현재의 기분에 따라 새로운 매력을 발견할 수 있습니다.";
+}
+
 // ── Info Buttons Data ─────────────────────────────────────────────────────────
 const INFO_BUTTONS = [
   { id: "bpm", label: "BPM", icon: "♫", content: 'Tempo: 128 BPM — High energy dance rhythm' },
@@ -144,6 +156,7 @@ const INFO_BUTTONS = [
   { id: "energy", label: "ENERGY", icon: "♫", content: 'Energy Score: 0.88 / 1.0 — Intense, driving force' },
   { id: "plays", label: "PLAYS", icon: "◎", content: 'Total Plays: 980,000,000 — Global viral spread' },
   { id: "graph", label: "GRAPH", icon: "📈", content: 'Toggle radar charts showing track emotions and balance' },
+  { id: "mood", label: "MOOD", icon: "✨", content: "" },
 ];
 
 // ── Artist Card ───────────────────────────────────────────────────────────────
@@ -263,7 +276,7 @@ function Sidebar({ tracks, side, activeTrack, onSelect, isMobile }) {
 }
 
 // ── Info Button + Popup ───────────────────────────────────────────────────────
-function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track }) {
+function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores }) {
   const wrapRef = useRef(null);
 
   // Removed click-away closer as per user request
@@ -277,6 +290,7 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track }) {
     else if (btn.id === 'graph') {
       content = 'Toggle radar charts showing track emotions and balance';
     }
+    else if (btn.id === 'mood') content = generateImpactText(track, scores);
   }
 
   return (
@@ -691,6 +705,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
             }}
             isMobile={isMobile}
             track={activeTrack}
+            scores={scores}
           />
         ))}
       </div>
