@@ -101,7 +101,7 @@ async function fetchItunesData(title, artist) {
 }
 
 // ── 외부 API에서 가사 가져오기 (Timeout & 최적화 적용) ──
-async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -123,18 +123,24 @@ async function fetchLyrics(title, artist) {
       + "&artist_name=" 
       + encodeURIComponent(artist);
 
-    const searchRes = await fetchWithTimeout(searchUrl, {}, 4000);
-    if (!searchRes.ok) return "No lyrics found for this track.";
+    const searchRes = await fetchWithTimeout(searchUrl, {
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      }
+    }, 8000);
+    
+    if (!searchRes.ok) return "현재 이 곡의 가사를 제공할 수 없습니다.";
 
     const searchData = await searchRes.json();
-    if (!searchData || searchData.length === 0) return "No lyrics found for this track.";
+    if (!searchData || searchData.length === 0) return "현재 이 곡의 가사를 제공할 수 없습니다.";
 
     const lyrics = searchData[0].plainLyrics || searchData[0].syncedLyrics;
-    return lyrics ? lyrics : "No lyrics found for this track.";
+    return lyrics ? lyrics : "현재 이 곡의 가사를 제공할 수 없습니다.";
 
   } catch (error) {
     console.error("Lyrics fetch error:", error);
-    return "No lyrics found for this track (Timeout or Network Error).";
+    return "현재 이 곡의 가사를 제공할 수 없습니다.";
   }
 }
 
