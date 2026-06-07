@@ -717,7 +717,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
           {scores && (
             <div style={{
               position: "absolute",
-              top: isMobile ? "630px" : "550px",
+              top: isMobile ? "600px" : "520px",
               left: "50%",
               transform: "translateX(-50%)",
               zIndex: 20,
@@ -763,7 +763,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
         }}
       >
         {activeTrack?.lyrics_sentiment && (
-          <div style={{ fontSize: "12px", fontWeight: "700", marginBottom: "16px", color: "#CCFF00" }}>
+          <div style={{ fontSize: "15px", fontWeight: "800", marginBottom: "16px", color: "#CCFF00", textShadow: "0 0 5px rgba(204,255,0,0.3)" }}>
             Sentiment: Joy {Math.round(activeTrack.lyrics_sentiment.joy * 100)}% · Anxiety {Math.round(activeTrack.lyrics_sentiment.anxiety * 100)}% · Depression {Math.round(activeTrack.lyrics_sentiment.depression * 100)}%
           </div>
         )}
