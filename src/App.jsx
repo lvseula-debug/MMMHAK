@@ -704,23 +704,46 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
 
       {/* Content row (Radar chart) */}
       {isGraphOpen && (
-        <div
-          className={`flex flex-1 items-center justify-center gap-4 ${isMobile ? "p-5 pb-10" : "p-6 pb-12"}`}
-          style={{ position: "relative", zIndex: 10, pointerEvents: "none" }}
-        >
+        <>
+          <div
+            className={`flex flex-1 items-center justify-center gap-4 ${isMobile ? "p-5 pb-10" : "p-6 pb-12"}`}
+            style={{ position: "relative", zIndex: 10, pointerEvents: "none" }}
+          >
+            {scores && (
+              <ErrorBoundary>
+                <EmotionRadarChart scores={scores} />
+              </ErrorBoundary>
+            )}
+          </div>
           {scores && (
-            <ErrorBoundary>
-              <EmotionRadarChart scores={scores} />
-            </ErrorBoundary>
+            <div style={{
+              position: "absolute",
+              top: isMobile ? "630px" : "550px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 20,
+              fontSize: "12px",
+              fontWeight: "800",
+              color: "#CCFF00",
+              letterSpacing: "0.15em",
+              textTransform: "uppercase",
+              background: "#1A0050",
+              padding: "6px 16px",
+              borderRadius: "20px",
+              border: "1px solid #CCFF00",
+              boxShadow: "0 4px 15px rgba(0,0,0,0.5)"
+            }}>
+              Emotion Confidence {Math.round(scores.confidence * 100)}%
+            </div>
           )}
-        </div>
+        </>
       )}
 
       {/* ── [신규 추가] 핑크 섹션 배경에 흘러나오는 힙한 가사 보드 (하단 배치) ── */}
       <div
           style={{
             position: "absolute",
-            top: isMobile ? "640px" : "560px",
+            top: isMobile ? "680px" : "600px",
             height: isMobile ? "800px" : "600px",
             left: "50%",
             transform: "translateX(-50%)",
@@ -740,11 +763,6 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
             zIndex: 1
           }}
         >
-          {scores && (
-            <div style={{ fontSize: "11px", fontWeight: "800", color: "#1A0050", letterSpacing: "0.1em", marginBottom: "16px", textTransform: "uppercase" }}>
-              Emotion Confidence {Math.round(scores.confidence * 100)}%
-            </div>
-          )}
           {activeTrack?.lyrics_sentiment && (
             <div style={{ fontSize: "12px", fontWeight: "700", marginBottom: "16px", color: "#FF3366" }}>
               Sentiment: Joy {Math.round(activeTrack.lyrics_sentiment.joy * 100)}% · Anxiety {Math.round(activeTrack.lyrics_sentiment.anxiety * 100)}% · Depression {Math.round(activeTrack.lyrics_sentiment.depression * 100)}%
