@@ -100,7 +100,7 @@ async function fetchItunesData(title, artist) {
   }
 }
 
-// ── 외부 API에서 가사 가져오기 (Timeout & 최적화 적용) ──
+// ── 외부 API에서 가사 가져오기 (Timeout 적용, CORS 문제 방지를 위해 헤더 제거) ──
 async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
@@ -116,20 +116,26 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
 
 async function fetchLyrics(title, artist) {
   try {
-    // get API는 정확한 매칭(duration 등)이 없으면 백엔드에서 오래 걸릴 수 있으므로,
-    // 바로 search API를 호출하여 가장 정확도가 높은 첫 번째 결과를 가져옵니다.
-    const searchUrl = "https://lrclib.net/api/search?track_name=" 
-      + encodeURIComponent(title) 
-      + "&artist_name=" 
+    // 1차 시도: /api/get (가장 빠르고 정확함, 유저가 가장 만족했던 원래 로직)
+    const getUrl = "https://lrclib.net/api/get?artist_name="
+      + encodeURIComponent(artist)
+      + "&track_name="
+      + encodeURIComponent(title);
+
+    const getRes = await fetchWithTimeout(getUrl, {}, 8000);
+    if (getRes.ok) {
+      const getData = await getRes.json();
+      const lyrics = getData.plainLyrics || getData.syncedLyrics;
+      if (lyrics) return lyrics;
+    }
+
+    // 2차 시도: /api/search fallback
+    const searchUrl = "https://lrclib.net/api/search?track_name="
+      + encodeURIComponent(title)
+      + "&artist_name="
       + encodeURIComponent(artist);
 
-    const searchRes = await fetchWithTimeout(searchUrl, {
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-      }
-    }, 8000);
-    
+    const searchRes = await fetchWithTimeout(searchUrl, {}, 8000);
     if (!searchRes.ok) return "현재 이 곡의 가사를 제공할 수 없습니다.";
 
     const searchData = await searchRes.json();
