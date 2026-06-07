@@ -593,7 +593,7 @@ class ErrorBoundary extends React.Component {
 }
 
 // ── Center Panel (핑크색 섹션 내부 가사 스크롤 구현 완료) ───────────────────────
-function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onToggleGraph, onToggleSearch }) {
+function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onToggleGraph, onToggleSearch, isSearchOpen, searchQuery, setSearchQuery, onSearch }) {
   const [openPopup, setOpenPopup] = useState(null);
 
   const toggle = (id) => setOpenPopup((prev) => (prev === id ? null : id));
@@ -611,16 +611,70 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
         overflowY: "auto", // 💖 핑크색 섹션 자체 스크롤 가능하도록 수정
       }}
     >
-      {/* Navigation pill */}
-      <button
-        onClick={() => onToggleSearch(true)}
-        className="self-start mt-8 ml-8 px-4 py-1.5 rounded-full bg-[#1A0050] text-[#CCFF00] text-[10px] font-bold tracking-[0.15em] uppercase border border-[#CCFF00] transition-all duration-200"
-        style={{ fontFamily: "'Space Mono', monospace", cursor: "pointer" }}
-        onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.05)"; e.currentTarget.style.boxShadow = "0 0 10px rgba(204,255,0,0.5)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "none"; }}
-      >
-        NAVIGATION 🔍
-      </button>
+      {/* Navigation pill & Search Bar */}
+      <div style={{ position: "relative", alignSelf: "flex-start", marginLeft: "32px", marginTop: "32px", zIndex: 100 }}>
+        <button
+          onClick={() => onToggleSearch(!isSearchOpen)}
+          className="px-6 py-2 rounded-full bg-[#1A0050] text-[#CCFF00] text-[14px] font-bold tracking-[0.15em] uppercase border border-[#CCFF00] transition-all duration-200"
+          style={{ fontFamily: "'Space Mono', monospace", cursor: "pointer", width: "180px" }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.05)"; e.currentTarget.style.boxShadow = "0 0 10px rgba(204,255,0,0.5)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "none"; }}
+        >
+          NAVIGATION 🔍
+        </button>
+
+        {isSearchOpen && (
+          <div style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            marginTop: "12px",
+            background: "#1A0050",
+            border: "2px solid #CCFF00",
+            borderRadius: "12px",
+            padding: "10px 14px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            animation: "fadeSlideIn 0.2s ease-out",
+            width: "240px",
+            boxShadow: "0 0 15px rgba(204,255,0,0.2)"
+          }}>
+            <input
+              type="text"
+              autoFocus
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') onSearch(searchQuery); }}
+              placeholder="SEARCH..."
+              style={{
+                flex: 1,
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                color: "#CCFF00",
+                fontFamily: "'Space Mono', monospace",
+                fontSize: "14px",
+                letterSpacing: "0.05em",
+                width: "100%"
+              }}
+            />
+            <button
+              onClick={() => onToggleSearch(false)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#CCFF00",
+                fontSize: "20px",
+                cursor: "pointer",
+                lineHeight: 1
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Top Center: Preview Section */}
       <div className="flex justify-center w-full mt-2">
@@ -783,7 +837,7 @@ function MobileSidebarStrip({ tracks, activeTrack, onSelect, label }) {
 }
 
 // ── Header ────────────────────────────────────────────────────────────────────
-function Header({ isMobile, tracksCount }) {
+function Header({ isMobile, tracksCount, onLogoClick }) {
   return (
     <header
       style={{
@@ -803,6 +857,7 @@ function Header({ isMobile, tracksCount }) {
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
         <div
+          onClick={onLogoClick}
           style={{
             fontFamily: "'Playfair Display', serif",
             fontStyle: "italic",
@@ -811,6 +866,7 @@ function Header({ isMobile, tracksCount }) {
             color: "#fff",
             letterSpacing: "-0.02em",
             lineHeight: 1,
+            cursor: onLogoClick ? "pointer" : "default",
           }}
         >
           MMMHAK
@@ -1026,8 +1082,8 @@ export default function MMMHAKApp() {
     setLyrics(currentLyrics);
   }, []);
 
-  useEffect(() => {
-    async function fetchData() {
+  const fetchGlobalChart = async () => {
+
       try {
         setLoading(true);
         setLoadingStatus("📡 FETCHING LAST.FM GLOBAL CHART...");
@@ -1064,8 +1120,10 @@ export default function MMMHAKApp() {
 
         setLoading(false);
       }
-    }
-    fetchData();
+  };
+
+  useEffect(() => {
+    fetchGlobalChart();
   }, []);
 
   // 글로벌 이벤트 캡처를 활용해 어떤 InfoButton이 토글되었는지 확인하여 Graph 트리거
@@ -1119,58 +1177,7 @@ export default function MMMHAKApp() {
       />
 
       <div style={{ width: "100%", height: "100%" }}>
-        <Header isMobile={isMobile} tracksCount={tracks.length} />
-
-        {/* Search Bar UI */}
-        {isSearchOpen && (
-          <div style={{
-            position: "fixed",
-            top: isMobile ? 80 : 0,
-            left: 0,
-            right: 0,
-            background: "#1A0050",
-            borderBottom: "2px solid #CCFF00",
-            zIndex: 500,
-            padding: "20px",
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            animation: "fadeSlideIn 0.3s ease-out"
-          }}>
-            <input
-              type="text"
-              autoFocus
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(searchQuery); }}
-              placeholder="SEARCH TRACKS..."
-              style={{
-                flex: 1,
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                color: "#CCFF00",
-                fontFamily: "'Space Mono', monospace",
-                fontSize: isMobile ? "16px" : "24px",
-                letterSpacing: "0.1em",
-              }}
-            />
-            <button
-              onClick={() => setIsSearchOpen(false)}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#CCFF00",
-                fontSize: "28px",
-                cursor: "pointer",
-                fontFamily: "'Space Mono', monospace",
-                lineHeight: 1
-              }}
-            >
-              ×
-            </button>
-          </div>
-        )}
+        <Header isMobile={isMobile} tracksCount={tracks.length} onLogoClick={fetchGlobalChart} />
 
         {/* ── DESKTOP layout ── */}
         {!isMobile && (
@@ -1198,6 +1205,10 @@ export default function MMMHAKApp() {
                 isGraphOpen={isGraphOpen}
                 onToggleGraph={setIsGraphOpen}
                 onToggleSearch={setIsSearchOpen}
+                isSearchOpen={isSearchOpen}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                onSearch={handleSearch}
               />
             </div>
           </>
