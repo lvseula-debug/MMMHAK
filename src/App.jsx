@@ -706,7 +706,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
       {isGraphOpen && (
         <div
           className={`flex flex-1 items-center justify-center gap-4 ${isMobile ? "p-5 pb-10" : "p-6 pb-12"}`}
-          style={{ position: "relative", zIndex: 10 }}
+          style={{ position: "relative", zIndex: 10, pointerEvents: "none" }}
         >
           {scores && (
             <ErrorBoundary>
@@ -746,6 +746,34 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
             </div>
           )}
           {lyrics}
+
+          {/* Classification badge at the bottom of lyrics */}
+          {scores && (
+            <div style={{ textAlign: "center", marginTop: "30px", paddingTop: "20px", borderTop: "1px dashed rgba(26,0,80,0.2)" }}>
+              <div
+                style={{
+                  color: "#1A0050",
+                  fontFamily: "'Space Mono', monospace",
+                  fontWeight: 800,
+                  fontSize: 14,
+                  letterSpacing: "0.1em",
+                }}
+              >
+                {scores.classification}
+              </div>
+              <div
+                style={{
+                  color: "#1A0050",
+                  fontFamily: "'Space Mono', monospace",
+                  fontWeight: 700,
+                  fontSize: 12,
+                  marginTop: 4,
+                }}
+              >
+                Emotion Confidence {Math.round(scores.confidence * 100)}%
+              </div>
+            </div>
+          )}
         </div>
     </div>
   );

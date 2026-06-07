@@ -174,6 +174,7 @@ function DraggableChartGroup({ children, blobWidth = 260, blobHeight = 260 }) {
       style={{
         transform: `translate(${pos.x}px, ${pos.y}px)`,
         cursor: isDragging ? "grabbing" : "grab",
+        pointerEvents: "auto"
       }}
       onMouseDown={onMouseDown}
       onTouchStart={onMouseDown}
@@ -234,33 +235,6 @@ export default function EmotionRadarChart({ scores }) {
             <SingleRadarChart axes={sqAxes} scores={scores} size={240} radius={45} color="#00FF88" />
           </div>
         </DraggableChartGroup>
-      </div>
-
-      {/* Classification badge — stays fixed below */}
-      <div style={{ textAlign: "center", marginTop: 4 }}>
-        <div
-          style={{
-            color: "#1A0050",
-            fontFamily: "'Space Mono', monospace",
-            fontWeight: 800,
-            fontSize: 14,
-            letterSpacing: "0.1em",
-          }}
-        >
-          {scores.classification}
-        </div>
-        <div
-          style={{
-            color: "#1A0050",
-            fontFamily: "'Space Mono', monospace",
-            fontWeight: 700,
-            fontSize: 12,
-            marginTop: 4,
-          }}
-        >
-          Emotion Confidence {Math.round(scores.confidence * 100)}%
-        </div>
-      </div>
     </div>
   );
 }
