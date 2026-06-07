@@ -668,7 +668,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
       <div
           style={{
             position: "absolute",
-            top: isMobile ? "300px" : "360px",
+            top: isMobile ? "400px" : "460px",
             bottom: "40px",
             left: "50%",
             transform: "translateX(-50%)",
