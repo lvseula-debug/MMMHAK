@@ -612,11 +612,11 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
       }}
     >
       {/* Navigation pill & Search Bar */}
-      <div style={{ position: "relative", alignSelf: "flex-start", marginLeft: "32px", marginTop: "32px", zIndex: 100 }}>
+      <div style={{ position: "relative", alignSelf: "flex-start", marginLeft: isMobile ? "16px" : "32px", marginTop: isMobile ? "16px" : "32px", zIndex: 100 }}>
         <button
           onClick={() => onToggleSearch(!isSearchOpen)}
-          className="px-6 py-2 rounded-full bg-[#1A0050] text-[#CCFF00] text-[14px] font-bold tracking-[0.15em] uppercase border border-[#CCFF00] transition-all duration-200"
-          style={{ fontFamily: "'Space Mono', monospace", cursor: "pointer", width: "180px" }}
+          className={`${isMobile ? "px-4 py-1.5 text-[10px]" : "px-6 py-2 text-[14px]"} rounded-full bg-[#1A0050] text-[#CCFF00] font-bold tracking-[0.15em] uppercase border border-[#CCFF00] transition-all duration-200`}
+          style={{ fontFamily: "'Space Mono', monospace", cursor: "pointer", width: isMobile ? "130px" : "180px" }}
           onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.05)"; e.currentTarget.style.boxShadow = "0 0 10px rgba(204,255,0,0.5)"; }}
           onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "none"; }}
         >
@@ -625,20 +625,23 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
 
         {isSearchOpen && (
           <div style={{
-            position: "absolute",
-            top: "100%",
+            position: isMobile ? "fixed" : "absolute",
+            top: isMobile ? "80px" : "100%",
             left: 0,
-            marginTop: "12px",
+            right: isMobile ? 0 : "auto",
+            marginTop: isMobile ? 0 : "12px",
             background: "#1A0050",
-            border: "2px solid #CCFF00",
-            borderRadius: "12px",
-            padding: "10px 14px",
+            border: isMobile ? "none" : "2px solid #CCFF00",
+            borderBottom: "2px solid #CCFF00",
+            borderRadius: isMobile ? 0 : "12px",
+            padding: isMobile ? "16px 20px" : "10px 14px",
             display: "flex",
             alignItems: "center",
             gap: "8px",
             animation: "fadeSlideIn 0.2s ease-out",
-            width: "240px",
-            boxShadow: "0 0 15px rgba(204,255,0,0.2)"
+            width: isMobile ? "100%" : "240px",
+            boxShadow: isMobile ? "0 4px 15px rgba(0,0,0,0.5)" : "0 0 15px rgba(204,255,0,0.2)",
+            zIndex: 500
           }}>
             <input
               type="text"
