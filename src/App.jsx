@@ -240,14 +240,7 @@ function Sidebar({ tracks, side, activeTrack, onSelect, isMobile }) {
 function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track }) {
   const wrapRef = useRef(null);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) onClose();
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [isOpen, onClose]);
+  // Removed click-away closer as per user request
 
   let content = btn.content;
   if (track) {
@@ -559,7 +552,7 @@ function PreviewSection({ track }) {
         }}
       >
         {track?.artist || "Artist"}
-        <div style={{ fontSize: 10, fontWeight: 700, color: "#1A0050", marginTop: 4 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#CCFF00", marginTop: 4 }}>
           {track?.title || "Unknown Title"}
         </div>
       </div>
@@ -625,22 +618,21 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
 
         {isSearchOpen && (
           <div style={{
-            position: isMobile ? "fixed" : "absolute",
-            top: isMobile ? "80px" : "100%",
+            position: "absolute",
+            top: "100%",
             left: 0,
-            right: isMobile ? 0 : "auto",
-            marginTop: isMobile ? 0 : "12px",
+            marginTop: "12px",
             background: "#1A0050",
-            border: isMobile ? "none" : "2px solid #CCFF00",
-            borderBottom: "2px solid #CCFF00",
-            borderRadius: isMobile ? 0 : "12px",
+            border: "2px solid #CCFF00",
+            borderRadius: "12px",
             padding: isMobile ? "16px 20px" : "10px 14px",
             display: "flex",
             alignItems: "center",
             gap: "8px",
             animation: "fadeSlideIn 0.2s ease-out",
-            width: isMobile ? "100%" : "240px",
-            boxShadow: isMobile ? "0 4px 15px rgba(0,0,0,0.5)" : "0 0 15px rgba(204,255,0,0.2)",
+            width: isMobile ? "calc(100vw - 32px)" : "240px",
+            maxWidth: "320px",
+            boxShadow: "0 0 15px rgba(204,255,0,0.2)",
             zIndex: 500
           }}>
             <input
@@ -735,7 +727,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
             width: "90%",
             maxWidth: "800px",
             background: "#FFBABA",
-            border: "1px solid #1A0050",
+            border: "none",
             borderRadius: "12px",
             padding: "20px",
             fontFamily: "'Space Mono', monospace",
