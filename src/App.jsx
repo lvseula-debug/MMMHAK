@@ -543,7 +543,7 @@ function PreviewSection({ track }) {
           zIndex: 2,
           marginTop: 14,
           fontFamily: "'Space Mono', monospace",
-          fontSize: 12,
+          fontSize: 16,
           color: "#CCFF00",
           fontWeight: 700,
           letterSpacing: "0.1em",
@@ -552,7 +552,7 @@ function PreviewSection({ track }) {
         }}
       >
         {track?.artist || "Artist"}
-        <div style={{ fontSize: 10, fontWeight: 700, color: "#CCFF00", marginTop: 4 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#CCFF00", marginTop: 4 }}>
           {track?.title || "Unknown Title"}
         </div>
       </div>
@@ -599,7 +599,6 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
         height: "100%",
         minHeight: "100vh",
         background: "#F5C8C8",
-        clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 40px), calc(100% - 40px) 100%, 0 100%)",
         animation: "fadeSlideIn 0.5s ease",
         overflowY: "auto", // 💖 핑크색 섹션 자체 스크롤 가능하도록 수정
       }}
@@ -764,7 +763,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
           }}
         >
           {activeTrack?.lyrics_sentiment && (
-            <div style={{ fontSize: "12px", fontWeight: "700", marginBottom: "16px", color: "#FF3366" }}>
+            <div style={{ fontSize: "12px", fontWeight: "700", marginBottom: "16px", color: "#CCFF00" }}>
               Sentiment: Joy {Math.round(activeTrack.lyrics_sentiment.joy * 100)}% · Anxiety {Math.round(activeTrack.lyrics_sentiment.anxiety * 100)}% · Depression {Math.round(activeTrack.lyrics_sentiment.depression * 100)}%
             </div>
           )}
