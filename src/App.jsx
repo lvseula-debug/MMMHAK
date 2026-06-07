@@ -606,14 +606,14 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
         height: "100%",
         minHeight: "100vh",
         background: "#F5C8C8",
-        clipPath: "polygon(0 40px, 40px 0, 100% 0, 100% calc(100% - 40px), calc(100% - 40px) 100%, 0 100%)",
+        clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 40px), calc(100% - 40px) 100%, 0 100%)",
         animation: "fadeSlideIn 0.5s ease",
         overflowY: "auto", // 💖 핑크색 섹션 자체 스크롤 가능하도록 수정
       }}
     >
       {/* Navigation pill */}
       <div
-        className="self-start mt-12 ml-10 px-4 py-1.5 rounded-full bg-[#1A0050] text-[#CCFF00] text-[10px] font-bold tracking-[0.15em] uppercase"
+        className="self-start mt-8 ml-8 px-4 py-1.5 rounded-full bg-[#1A0050] text-[#CCFF00] text-[10px] font-bold tracking-[0.15em] uppercase"
         style={{ fontFamily: "'Space Mono', monospace" }}
       >
         Navigation
