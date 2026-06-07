@@ -726,7 +726,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
             transform: "translateX(-50%)",
             width: "90%",
             maxWidth: "800px",
-            background: "#FFBABA",
+            background: "#F5C8C8",
             border: "none",
             borderRadius: "12px",
             padding: "20px",
@@ -740,9 +740,6 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
             zIndex: 1
           }}
         >
-          <div style={{ fontWeight: "800", fontSize: "11px", letterSpacing: "0.2em", marginBottom: "14px", color: "#1A0050" }}>
-            ── LIVE LYRICS STREAM ──
-          </div>
           {activeTrack?.lyrics_sentiment && (
             <div style={{ fontSize: "12px", fontWeight: "700", marginBottom: "16px", color: "#FF3366" }}>
               Sentiment: Joy {Math.round(activeTrack.lyrics_sentiment.joy * 100)}% · Anxiety {Math.round(activeTrack.lyrics_sentiment.anxiety * 100)}% · Depression {Math.round(activeTrack.lyrics_sentiment.depression * 100)}%
