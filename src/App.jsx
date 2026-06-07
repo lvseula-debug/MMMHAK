@@ -746,7 +746,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
           border: "none",
           borderRadius: "12px",
           padding: "20px",
-          fontFamily: "'Space Mono', monospace",
+          fontFamily: "\"Pretendard Variable\", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, \"Helvetica Neue\", \"Segoe UI\", \"Apple SD Gothic Neo\", \"Noto Sans KR\", \"Malgun Gothic\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", sans-serif",
           textAlign: "center",
           color: "#1A0050",
           overflowY: "auto",
@@ -1088,8 +1088,7 @@ export default function MMMHAKApp() {
         setTracks(sortedItems);
         setActiveTrack(sortedItems[0]);
         setScores(computeVirusScores(sortedItems[0]));
-        const initLyrics = await fetchLyrics(sortedItems[0].title, sortedItems[0].artist);
-        setLyrics(initLyrics);
+        fetchLyrics(sortedItems[0].title, sortedItems[0].artist).then(setLyrics);
       }
       setLoading(false);
     } catch (err) {
@@ -1139,8 +1138,7 @@ export default function MMMHAKApp() {
       setScores(computeVirusScores(allItems[0]));
 
       // 최초 1번째 트랙 가사 페칭 자동 연동
-      const initLyrics = await fetchLyrics(allItems[0].title, allItems[0].artist);
-      setLyrics(initLyrics);
+      fetchLyrics(allItems[0].title, allItems[0].artist).then(setLyrics);
 
       setLoading(false);
     } catch (err) {
@@ -1150,8 +1148,7 @@ export default function MMMHAKApp() {
       setActiveTrack(mock[0]);
       setScores(computeVirusScores(mock[0]));
 
-      const mockLyrics = await fetchLyrics(mock[0].title, mock[0].artist);
-      setLyrics(mockLyrics);
+      fetchLyrics(mock[0].title, mock[0].artist).then(setLyrics);
 
       setLoading(false);
     }
