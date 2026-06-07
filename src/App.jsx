@@ -143,7 +143,7 @@ const INFO_BUTTONS = [
   { id: "key", label: "KEY", icon: "♪", content: 'Key: A minor — Creates tension and emotional depth' },
   { id: "energy", label: "ENERGY", icon: "♫", content: 'Energy Score: 0.88 / 1.0 — Intense, driving force' },
   { id: "plays", label: "PLAYS", icon: "◎", content: 'Total Plays: 980,000,000 — Global viral spread' },
-  { id: "lyrics", label: "LYRICS", icon: "♫", content: 'Sentiment: Joy 65% · Anxiety 12% · Depression 5%' },
+  { id: "graph", label: "GRAPH", icon: "📈", content: 'Toggle radar charts showing track emotions and balance' },
 ];
 
 // ── Artist Card ───────────────────────────────────────────────────────────────
@@ -255,9 +255,8 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track }) {
     else if (btn.id === 'key') content = `Key: ${track.mode === 'minor' ? 'Minor' : 'Major'} — ${track.mode === 'minor' ? 'Emotional depth' : 'Bright feel'}`;
     else if (btn.id === 'energy') content = `Energy Score: ${track.energy.toFixed(2)} / 1.0`;
     else if (btn.id === 'plays') content = `Total Plays: ${track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + 'M' : track.streams}`;
-    else if (btn.id === 'lyrics') {
-      const s = track.lyrics_sentiment;
-      content = `Sentiment: Joy ${Math.round(s.joy * 100)}% · Anxiety ${Math.round(s.anxiety * 100)}% · Depression ${Math.round(s.depression * 100)}%`;
+    else if (btn.id === 'graph') {
+      content = 'Toggle radar charts showing track emotions and balance';
     }
   }
 
@@ -594,7 +593,7 @@ class ErrorBoundary extends React.Component {
 }
 
 // ── Center Panel (핑크색 섹션 내부 가사 스크롤 구현 완료) ───────────────────────
-function CenterPanel({ activeTrack, isMobile, scores, lyrics, isLyricsOpen, onToggleLyrics }) {
+function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onToggleGraph }) {
   const [openPopup, setOpenPopup] = useState(null);
 
   const toggle = (id) => setOpenPopup((prev) => (prev === id ? null : id));
@@ -635,14 +634,14 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isLyricsOpen, onTo
             onToggle={() => {
               const isOpening = openPopup !== btn.id;
               toggle(btn.id);
-              if (btn.id === "lyrics") {
-                if (onToggleLyrics) onToggleLyrics(isOpening);
+              if (btn.id === "graph") {
+                if (onToggleGraph) onToggleGraph(isOpening);
               }
             }}
             onClose={() => {
               close();
-              if (btn.id === "lyrics") {
-                if (onToggleLyrics) onToggleLyrics(false);
+              if (btn.id === "graph") {
+                if (onToggleGraph) onToggleGraph(false);
               }
             }}
             isMobile={isMobile}
@@ -652,19 +651,21 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isLyricsOpen, onTo
       </div>
 
       {/* Content row (Radar chart) */}
-      <div
-        className={`flex flex-1 items-center justify-center gap-4 ${isMobile ? "p-5 pb-10" : "p-6 pb-12"}`}
-      >
-        {scores && (
-          <ErrorBoundary>
-            <EmotionRadarChart scores={scores} />
-          </ErrorBoundary>
-        )}
-      </div>
+      {isGraphOpen && (
+        <div
+          className={`flex flex-1 items-center justify-center gap-4 ${isMobile ? "p-5 pb-10" : "p-6 pb-12"}`}
+          style={{ position: "relative", zIndex: 10 }}
+        >
+          {scores && (
+            <ErrorBoundary>
+              <EmotionRadarChart scores={scores} />
+            </ErrorBoundary>
+          )}
+        </div>
+      )}
 
       {/* ── [신규 추가] 핑크 섹션 배경에 흘러나오는 힙한 가사 보드 (하단 배치) ── */}
-      {isLyricsOpen && (
-        <div
+      <div
           style={{
             position: "absolute",
             top: isMobile ? "300px" : "360px",
@@ -690,9 +691,13 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isLyricsOpen, onTo
           <div style={{ fontWeight: "800", fontSize: "11px", letterSpacing: "0.2em", marginBottom: "14px", color: "#1A0050" }}>
             ── LIVE LYRICS STREAM ──
           </div>
+          {activeTrack?.lyrics_sentiment && (
+            <div style={{ fontSize: "12px", fontWeight: "700", marginBottom: "16px", color: "#FF3366" }}>
+              Sentiment: Joy {Math.round(activeTrack.lyrics_sentiment.joy * 100)}% · Anxiety {Math.round(activeTrack.lyrics_sentiment.anxiety * 100)}% · Depression {Math.round(activeTrack.lyrics_sentiment.depression * 100)}%
+            </div>
+          )}
           {lyrics}
         </div>
-      )}
     </div>
   );
 }
@@ -870,7 +875,7 @@ export default function MMMHAKApp() {
 
   // 💖 가사 상태 관리를 위한 신규 State 추가
   const [lyrics, setLyrics] = useState("LOADING LYRICS...");
-  const [isLyricsOpen, setIsLyricsOpen] = useState(false);
+  const [isGraphOpen, setIsGraphOpen] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -1017,9 +1022,9 @@ export default function MMMHAKApp() {
     fetchData();
   }, []);
 
-  // 글로벌 이벤트 캡처를 활용해 어떤 InfoButton이 토글되었는지 확인하여 Lyrics 트리거
-  const handleToggleLyricsVisibility = useCallback(() => {
-    setIsLyricsOpen(prev => !prev);
+  // 글로벌 이벤트 캡처를 활용해 어떤 InfoButton이 토글되었는지 확인하여 Graph 트리거
+  const handleToggleGraphVisibility = useCallback(() => {
+    setIsGraphOpen(prev => !prev);
   }, []);
 
   if (loading || !activeTrack || !scores) {
@@ -1093,8 +1098,8 @@ export default function MMMHAKApp() {
                 isMobile={false}
                 scores={scores}
                 lyrics={lyrics}
-                isLyricsOpen={isLyricsOpen}
-                onToggleLyrics={setIsLyricsOpen}
+                isGraphOpen={isGraphOpen}
+                onToggleGraph={setIsGraphOpen}
               />
             </div>
           </>
@@ -1120,8 +1125,8 @@ export default function MMMHAKApp() {
               isMobile={true}
               scores={scores}
               lyrics={lyrics}
-              isLyricsOpen={isLyricsOpen}
-              onToggleLyrics={setIsLyricsOpen}
+              isGraphOpen={isGraphOpen}
+              onToggleGraph={setIsGraphOpen}
             />
             <MobileSidebarStrip tracks={rightTracks} activeTrack={activeTrack} onSelect={patchTrackSelection} label="Top Tracks (26-50)" />
           </div>
