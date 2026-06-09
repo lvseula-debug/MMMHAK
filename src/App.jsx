@@ -150,7 +150,7 @@ async function fetchLyrics(title, artist) {
   }
 }
 
-// 기존 generateStructuredInsights 함수를 대체합니다.
+// 기존 generateImpactText 함수를 대체합니다.
 function generateStructuredInsights(track, scores) {
   if (!track || !scores) return { vibe: "트랙 데이터를 분석 중입니다.", insight: "", profile: "" };
 
@@ -163,67 +163,32 @@ function generateStructuredInsights(track, scores) {
     anger: scores.anger
   };
   
+  // 값을 기준으로 내림차순 정렬
   const sortedEmotions = Object.entries(emotions).sort((a, b) => b[1] - a[1]);
-  const top1 = sortedEmotions[0][0]; // 1위 감정
-  const top2 = sortedEmotions[1][0]; // 2위 감정
+  const top1 = sortedEmotions[0][0];
+  const top2 = sortedEmotions[1][0];
 
+  // 한글 라벨 매핑
   const labels = { 
-    joy: "기쁨(Joy)", stability: "안정(Stability)", 
-    depression: "우울(Depression)", anxiety: "불안(Anxiety)", anger: "분노(Anger)" 
+    joy: "기쁨(Joy)", 
+    stability: "안정(Stability)", 
+    depression: "우울(Depression)", 
+    anxiety: "불안(Anxiety)", 
+    anger: "분노(Anger)" 
   };
 
-  // 2. 6단계 심박수(BPM) 구간 판별
-  let bpmTier = "";
-  const bpm = track.bpm;
-  if (bpm <= 65) bpmTier = "deep_rest";        // 수면 및 명상
-  else if (bpm <= 85) bpmTier = "resting";     // 안정 시 심박수
-  else if (bpm <= 105) bpmTier = "walking";    // 가벼운 산책
-  else if (bpm <= 125) bpmTier = "jogging";    // 빠른 걸음 (도파민 시작)
-  else if (bpm <= 150) bpmTier = "cardio";     // 유산소 (아드레날린 폭발)
-  else bpmTier = "overdrive";                  // 전력 질주 (극도의 흥분)
-
-  // 3. VIBE 생성 (Top 1 감정 + BPM 구간 결합)
+  // 2. VIBE 생성 (메인 무드)
   let vibe = "";
-  
-  switch (top1) {
-    case "joy":
-      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "심박수를 한계까지 끌어올리는 폭발적인 도파민 뱅어(Banger)입니다. 춤추기 완벽한 트랙입니다.";
-      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "경쾌한 발걸음을 만들어주는 산뜻한 그루브. 일상의 텐션을 기분 좋게 올려줍니다.";
-      else vibe = "입가에 여유로운 미소를 띠게 만드는 따뜻하고 긍정적인 무드의 트랙입니다.";
-      break;
+  if (top1 === "joy" && track.bpm > 110) vibe = "높은 템포와 긍정적인 에너지가 도파민을 분비시키는 폭발적인 트랙입니다.";
+  else if (top1 === "stability") vibe = "부드러운 흐름이 긴장된 신경을 이완시키며 편안한 휴식을 선사합니다.";
+  else if (top1 === "anger" || track.energy > 0.7) vibe = "강렬한 에너지가 억눌린 스트레스를 해소하고 강한 몰입감을 선사합니다.";
+  else if (top1 === "depression") vibe = "차분하고 멜랑콜리한 선율이 복잡한 마음을 위로하고 깊은 공감을 이끌어냅니다.";
+  else vibe = "다양한 감정이 교차하며, 현재의 기분에 따라 새로운 매력을 발견할 수 있는 입체적인 트랙입니다.";
 
-    case "depression":
-      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "빠른 템포 속에서 비극적인 감정이 폭발합니다. 빗속을 질주하며 억눌린 슬픔을 토해내는 듯한 카타르시스를 줍니다.";
-      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "걷잡을 수 없는 멜랑콜리함이 묻어납니다. 복잡한 생각과 함께 정처 없이 걷기 좋은 분위기입니다.";
-      else vibe = "시간이 멈춘 듯한 깊은 심연. 혼자만의 사색에 잠기거나 묵은 감정을 위로받기 완벽합니다.";
-      break;
+  // 3. GRAPH INSIGHT 생성 (Top 2 감정 활용)
+  const insight = `차트에서 **${labels[top1]}**와(과) **${labels[top2]}** 축이 가장 두드러지게 뻗어 있습니다. 이는 곡 전반에 걸쳐 두 감정선이 얽히며 메인 테마로 작용하고 있음을 시각적으로 보여줍니다.`;
 
-    case "anger":
-      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "혈관에 아드레날린을 직접 꽂는 듯한 파괴적인 에너지! 모든 스트레스를 박살 내는 강렬한 트랙입니다.";
-      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "날카롭고 냉소적인 그루브가 긴장감을 조성하며, 묘한 반항심을 불러일으킵니다.";
-      else vibe = "무겁고 압도적인 프레셔가 짓누르는 듯한, 다크하고 카리스마 넘치는 분위기를 뿜어냅니다.";
-      break;
-
-    case "stability":
-      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "빠른 속도감에도 불구하고 흔들림 없는 몰입(Flow) 상태를 만들어주는 세련된 드라이빙 트랙입니다.";
-      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "나른한 오후의 기분 좋은 산책처럼, 칠(Chill)하고 세련된 여유로움을 선사합니다.";
-      else vibe = "마치 명상에 빠지듯, 긴장된 신경을 부드럽게 이완시키며 가장 편안한 휴식을 유도합니다.";
-      break;
-
-    case "anxiety":
-      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "심장을 조여오는 듯한 아찔한 템포. 쫓기는 듯한 스릴과 서스펜스가 당신의 몰입도를 극대화합니다.";
-      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "어딘가 불안정하면서도 몽환적인 전개가 호기심을 자극하며, 계속해서 귀를 기울이게 만듭니다.";
-      else vibe = "숨을 죽이게 만드는 기묘하고 차가운 정적. 베일에 싸인 듯한 미스터리한 무드를 자아냅니다.";
-      break;
-
-    default:
-      vibe = "다양한 감정이 교차하는 트랙으로, 현재의 기분에 따라 새로운 매력을 발견할 수 있습니다.";
-  }
-
-  // 4. GRAPH INSIGHT 생성 (Top 2 감정 활용)
-  const insight = `차트에서 **${labels[top1]}**와(과) **${labels[top2]}** 축이 가장 두드러지게 뻗어 있습니다. 이는 곡 전반에 걸쳐 두 감정선이 얽히며 메인 테마로 작용하고 있음을 보여줍니다.`;
-
-  // 5. TRACK PROFILE 생성
+  // 4. TRACK PROFILE 생성
   const plays = track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + "M" : track.streams;
   const profile = `${track.bpm} BPM · ${track.mode === "minor" ? "Minor" : "Major"} Key · Energy ${track.energy.toFixed(2)} · ${plays} Plays`;
 
@@ -1167,136 +1132,61 @@ export default function MMMHAKApp() {
   const LASTFM_API_KEY = "8031c3fd85fae84e3a1970b02e22a231";
   const LASTFM_BASE = "https://ws.audioscrobbler.com/2.0";
 
-
-  // 🌟 1. Spotify 인증 토큰 발급 함수 (Vercel 서버리스 함수 호출)
-  const getSpotifyToken = async () => {
-    try {
-      // 프론트엔드에서 스포티파이에 직접 가지 않고, 우리 서버(api/get-token)로 요청합니다.
-      const response = await fetch("/api/get-token");
-      
-      if (!response.ok) {
-        throw new Error("서버에서 토큰을 가져오지 못했습니다.");
-      }
-      
-      const data = await response.json();
-      return data.access_token; // 진짜 스포티파이 토큰!
-    } catch (e) {
-      console.error("Spotify 토큰 발급 실패:", e);
-      return null;
-    }
-  };
-
-
   const processTracks = async (rawTracks) => {
     const BATCH = 10;
     let allItems = [];
-    
-    // 배치 시작 전 스포티파이 토큰 발급
-    const spToken = await getSpotifyToken();
 
     for (let b = 0; b < rawTracks.length; b += BATCH) {
       const batch = rawTracks.slice(b, b + BATCH);
       setLoadingStatus(`🔍 LOADING ${b + 1}–${Math.min(b + BATCH, rawTracks.length)} / ${rawTracks.length}...`);
 
-      // 🌟 2. 각 곡의 Spotify ID 가져오기 (병렬 검색)
-      const trackIdsAndTags = await Promise.all(
-        batch.map(async (raw) => {
-          const artistName = typeof raw.artist === "string" ? raw.artist : raw.artist?.name || "Unknown Artist";
-          let spId = null;
-          let tags = [];
+      const batchItems = await Promise.all(
+        batch.map(async (raw, batchIdx) => {
+          const idx = b + batchIdx;
+          const playcount = parseInt(raw.playcount || "0", 10);
+          const listeners = parseInt(raw.listeners || "0", 10);
 
-          // Last.fm 태그 가져오기 (가사 감정 분석용)
+          const artistName = typeof raw.artist === "string" ? raw.artist : raw.artist?.name || "Unknown Artist";
+
+          let tags = [];
           try {
             const infoRes = await fetch(`${LASTFM_BASE}/?method=track.getInfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artistName)}&track=${encodeURIComponent(raw.name)}&format=json`);
             if (infoRes.ok) {
               const infoData = await infoRes.json();
               tags = (infoData?.track?.toptags?.tag || []).map(t => t.name.toLowerCase());
             }
-          } catch (_) {}
+          } catch (_) { }
 
-          // Spotify 트랙 ID 검색
-          if (spToken) {
-            try {
-              const q = encodeURIComponent(`track:${raw.name} artist:${artistName}`);
-              const spRes = await fetch(`https://api.spotify.com/v1/search?q=${q}&type=track&limit=1`, {
-  headers: { Authorization: `Bearer ${spToken}` }
-});
-              if (spRes.ok) {
-                const spData = await spRes.json();
-                spId = spData.tracks?.items?.[0]?.id || null;
-              }
-            } catch (_) {}
-          }
-          return { raw, artistName, tags, spId };
-        })
-      );
-
-      // 🌟 3. Spotify Audio Features 한 번에(Bulk) 가져오기
-      let audioFeaturesMap = {};
-      const validSpIds = trackIdsAndTags.map(t => t.spId).filter(Boolean).join(",");
-      
-      if (validSpIds && spToken) {
-        try {
-          const afRes = await fetch(`https://api.spotify.com/v1/audio-features?ids=${validSpIds}`, {
-  headers: { Authorization: `Bearer ${spToken}` }
-});
-          if (afRes.ok) {
-            const afData = await afRes.json();
-            afData.audio_features.forEach(af => {
-              if (af) audioFeaturesMap[af.id] = af;
-            });
-          }
-        } catch (_) {}
-      }
-
-      // 🌟 4. 데이터 최종 병합
-      const batchItems = await Promise.all(
-        trackIdsAndTags.map(async ({ raw, artistName, tags, spId }, batchIdx) => {
-          const idx = b + batchIdx;
-          const playcount = parseInt(raw.playcount || "0", 10);
-          const listeners = parseInt(raw.listeners || "0", 10);
           const itunes = await fetchItunesData(raw.name, artistName);
-          
-          const af = audioFeaturesMap[spId]; // 실제 스포티파이 오디오 스펙
 
-          // Last.fm 태그 분류 (감정 기초 재료)
           const hasSad = tags.some(t => ["sad", "melancholy", "heartbreak", "depression", "dark", "emo", "blues"].some(k => t.includes(k)));
           const hasAngry = tags.some(t => ["angry", "aggressive", "metal", "hardcore", "rage", "punk"].some(k => t.includes(k)));
           const hasAnxious = tags.some(t => ["anxious", "nervous", "tense", "suspense", "dramatic"].some(k => t.includes(k)));
           const hasHappy = tags.some(t => ["happy", "upbeat", "dance", "party", "summer", "pop", "fun", "joy"].some(k => t.includes(k)));
           const hasCalm = tags.some(t => ["calm", "chill", "relax", "ambient", "peaceful", "acoustic"].some(k => t.includes(k)));
 
-          // Spotify 토큰 발급은 브라우저(CORS) 제한으로 인해 항상 실패하여 결국 이곳(Fallback)으로 빠집니다.
-          // 유저 피드백에 따라, 고정된 가짜 수치보다는 차라리 새로고침할 때마다 다이나믹하게 변하는 이전의 완전 랜덤 방식으로 원복합니다.
-          const fallbackBpm = hasAngry ? 140 + Math.floor(Math.random() * 40)
-            : hasCalm ? 70 + Math.floor(Math.random() * 30)
-              : hasHappy ? 110 + Math.floor(Math.random() * 40)
-                : 95 + Math.floor(Math.random() * 60);
-
-          const fallbackEnergy = hasAngry ? 0.75 + Math.random() * 0.2
-            : hasCalm ? 0.15 + Math.random() * 0.25
-              : hasHappy ? 0.65 + Math.random() * 0.2
-                : 0.45 + Math.random() * 0.3;
-
-          const fallbackValence = hasHappy ? 0.65 + Math.random() * 0.25
+          const valence = hasHappy ? 0.65 + Math.random() * 0.25
             : hasSad ? 0.10 + Math.random() * 0.20
               : hasAngry ? 0.20 + Math.random() * 0.20
                 : 0.35 + Math.random() * 0.20;
 
-          const fallbackLoudness = hasAngry ? -3 - Math.random() * 3
+          const energy = hasAngry ? 0.75 + Math.random() * 0.2
+            : hasCalm ? 0.15 + Math.random() * 0.25
+              : hasHappy ? 0.65 + Math.random() * 0.2
+                : 0.45 + Math.random() * 0.3;
+
+          const bpm = hasAngry ? 140 + Math.floor(Math.random() * 40)
+            : hasCalm ? 70 + Math.floor(Math.random() * 30)
+              : hasHappy ? 110 + Math.floor(Math.random() * 40)
+                : 95 + Math.floor(Math.random() * 60);
+
+          const mode = hasSad || hasAngry ? "minor" : "major";
+          const loudness = hasAngry ? -3 - Math.random() * 3
             : hasCalm ? -10 - Math.random() * 5
               : -5 - Math.random() * 4;
 
-          // Spotify 데이터가 있으면 적용, 없으면 리얼 랜덤(Fallback) 사용
-          const bpm = af && af.tempo ? Math.round(af.tempo) : fallbackBpm;
-          const energy = af && typeof af.energy === 'number' ? parseFloat(af.energy.toFixed(3)) : parseFloat(fallbackEnergy.toFixed(3));
-          const valence = af && typeof af.valence === 'number' ? parseFloat(af.valence.toFixed(3)) : parseFloat(fallbackValence.toFixed(3));
-          const mode = af && typeof af.mode === 'number' ? (af.mode === 1 ? "major" : "minor") : (hasSad || hasAngry ? "minor" : "major");
-          const loudness = af && typeof af.loudness === 'number' ? parseFloat(af.loudness.toFixed(1)) : parseFloat(fallbackLoudness.toFixed(1));
-
           const modeModifier = mode === "minor" ? 0.6 : 1.0;
 
-          // 실제 Valence와 Energy를 기반으로 감정 점수 계산
           const lyrics_sentiment = {
             anger: Math.max(0.01, parseFloat(((hasAngry ? 0.5 : 0.05) + (1 - valence) * 0.3).toFixed(2))),
             anxiety: Math.max(0.01, parseFloat(((hasAnxious ? 0.4 : 0.08) + (1 - valence) * 0.25).toFixed(2))),
@@ -1311,9 +1201,9 @@ export default function MMMHAKApp() {
             artist: artistName,
             bpm,
             mode,
-            valence,
-            energy,
-            loudness,
+            valence: parseFloat(valence.toFixed(3)),
+            energy: parseFloat(energy.toFixed(3)),
+            loudness: parseFloat(loudness.toFixed(1)),
             streams: playcount || (listeners * 3) || ((50 - idx) * 20000000 + 50000000),
             listeners,
             tags,
@@ -1556,4 +1446,3 @@ export default function MMMHAKApp() {
     </>
   );
 }
-
