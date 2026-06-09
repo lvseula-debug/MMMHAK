@@ -1,6 +1,5 @@
 // src/EmotionRadarChart.jsx
 import React, { useEffect, useState, useRef } from "react";
-
 function SingleRadarChart({ axes, scores, size = 240, radius = 50, color = "#CCFF00" }) {
   const [hovered, setHovered] = useState(null);
 
@@ -190,42 +189,27 @@ function DraggableChartGroup({ children, blobWidth = 260, blobHeight = 260 }) {
 }
 
 export default function EmotionRadarChart({ scores }) {
-  if (!scores) return null; // Prevent crash if scores is null
+  if (!scores) return null;
 
-  const triAxes = ["depression", "anxiety", "anger"];
-  const sqAxes = ["joy", "stability", "positive_score", "negative_score"];
-
-  const classColors = {
-    POSITIVE: "#00FF88",
-    NEGATIVE: "#FF3366",
-    MIXED: "#FFD54F",
-  };
-  const classColor = classColors[scores.classification] || "#FFF";
+  // 5가지 핵심 감정으로 축 구성 변경
+  const axes = ["joy", "stability", "depression", "anxiety", "anger"];
 
   return (
     <div className="flex flex-col items-center gap-4 mt-2 w-full">
-      <div className="flex flex-col md:flex-row gap-10 items-center justify-center p-4 w-full">
-        {/* Negative Emotions Draggable Chart */}
-        <DraggableChartGroup blobWidth={260} blobHeight={260}>
+      <div className="flex flex-col items-center justify-center p-4 w-full">
+        <DraggableChartGroup blobWidth={280} blobHeight={280}>
           <div className="flex flex-col items-center gap-2 w-full">
-            <div className="font-['Space_Mono'] text-[12px] text-[#FF3366] tracking-[0.2em] uppercase font-extrabold">
-              NEGATIVE EMOTIONS
+            <div className="font-['Space_Mono'] text-[14px] text-[#CCFF00] tracking-[0.2em] uppercase font-extrabold mb-2">
+              EMOTION LANDSCAPE
             </div>
-            <SingleRadarChart axes={triAxes} scores={scores} size={240} radius={45} color="#FF3366" />
-          </div>
-        </DraggableChartGroup>
-
-        {/* Divider */}
-        <div className="hidden md:block w-px h-[160px] bg-[#CCFF00]/15 shrink-0" />
-        <div className="block md:hidden h-px w-3/4 max-w-[200px] bg-[#CCFF00]/15 shrink-0" />
-
-        {/* Emotional Balance Draggable Chart */}
-        <DraggableChartGroup blobWidth={260} blobHeight={260}>
-          <div className="flex flex-col items-center gap-2 w-full">
-            <div className="font-['Space_Mono'] text-[12px] text-[#00FF88] tracking-[0.2em] uppercase font-extrabold">
-              EMOTIONAL BALANCE
-            </div>
-            <SingleRadarChart axes={sqAxes} scores={scores} size={240} radius={45} color="#00FF88" />
+            {/* 단일 오각형 차트 렌더링 */}
+            <SingleRadarChart 
+              axes={axes} 
+              scores={scores} 
+              size={260} 
+              radius={55} 
+              color="#CCFF00" 
+            />
           </div>
         </DraggableChartGroup>
       </div>
