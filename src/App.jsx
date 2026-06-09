@@ -1274,27 +1274,41 @@ export default function MMMHAKApp() {
           const hasHappy = tags.some(t => ["happy", "upbeat", "dance", "party", "summer", "pop", "fun", "joy"].some(k => t.includes(k)));
           const hasCalm = tags.some(t => ["calm", "chill", "relax", "ambient", "peaceful", "acoustic"].some(k => t.includes(k)));
 
-          // Spotify 데이터가 막혀있으므로(403 에러), 이전 방식의 자연스러운 랜덤(Math.random)으로 복구
-          const fallbackBpm = hasAngry ? 140 + Math.floor(Math.random() * 40)
-            : hasCalm ? 70 + Math.floor(Math.random() * 30)
-              : hasHappy ? 110 + Math.floor(Math.random() * 40)
-                : 95 + Math.floor(Math.random() * 60);
+          // 🌟 5. 시드 기반 고정 난수 생성기 (Math.sin 활용하여 자연스러운 분포도와 일관성을 동시 확보)
+          const getPseudoRandom = (str) => {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+              hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
+            }
+            const x = Math.sin(hash) * 10000;
+            return x - Math.floor(x);
+          };
 
-          const fallbackEnergy = hasAngry ? 0.75 + Math.random() * 0.2
-            : hasCalm ? 0.15 + Math.random() * 0.25
-              : hasHappy ? 0.65 + Math.random() * 0.2
-                : 0.45 + Math.random() * 0.3;
+          const trackSeed = raw.name + artistName;
+          const randVal = getPseudoRandom(trackSeed);
+          const randVal2 = getPseudoRandom(trackSeed + "alt");
 
-          const fallbackValence = hasHappy ? 0.65 + Math.random() * 0.25
-            : hasSad ? 0.10 + Math.random() * 0.20
-              : hasAngry ? 0.20 + Math.random() * 0.20
-                : 0.35 + Math.random() * 0.20;
+          // Spotify 데이터가 막혀있으므로(403 에러), 자연스러우면서도 새로고침 시 변하지 않는 고정 난수(Fallback) 적용
+          const fallbackBpm = hasAngry ? 140 + Math.floor(randVal * 40)
+            : hasCalm ? 70 + Math.floor(randVal * 30)
+              : hasHappy ? 110 + Math.floor(randVal * 40)
+                : 95 + Math.floor(randVal * 60);
 
-          const fallbackLoudness = hasAngry ? -3 - Math.random() * 3
-            : hasCalm ? -10 - Math.random() * 5
-              : -5 - Math.random() * 4;
+          const fallbackEnergy = hasAngry ? 0.75 + randVal2 * 0.2
+            : hasCalm ? 0.15 + randVal2 * 0.25
+              : hasHappy ? 0.65 + randVal2 * 0.2
+                : 0.45 + randVal2 * 0.3;
 
-          // Spotify 데이터가 있으면 적용, 없으면 리얼한 랜덤(Fallback) 사용
+          const fallbackValence = hasHappy ? 0.65 + randVal * 0.25
+            : hasSad ? 0.10 + randVal * 0.20
+              : hasAngry ? 0.20 + randVal * 0.20
+                : 0.35 + randVal * 0.20;
+
+          const fallbackLoudness = hasAngry ? -3 - randVal * 3
+            : hasCalm ? -10 - randVal * 5
+              : -5 - randVal * 4;
+
+          // Spotify 데이터가 있으면 적용, 없으면 리얼한 고정 난수(Fallback) 사용
           const bpm = af && af.tempo ? Math.round(af.tempo) : fallbackBpm;
           const energy = af && typeof af.energy === 'number' ? parseFloat(af.energy.toFixed(3)) : parseFloat(fallbackEnergy.toFixed(3));
           const valence = af && typeof af.valence === 'number' ? parseFloat(af.valence.toFixed(3)) : parseFloat(fallbackValence.toFixed(3));
