@@ -1307,12 +1307,17 @@ export default function MMMHAKApp() {
 
           const modeModifier = mode === "minor" ? 0.6 : 1.0;
 
+          // BPM과 Energy를 정규화하여 트랙의 강렬함(Intensity) 계산 (0.0 ~ 1.0)
+          const normalizedBpm = Math.min(Math.max((bpm - 60) / 100, 0), 1); // 60 BPM=0, 160 BPM=1
+          const intensity = (energy * 0.6) + (normalizedBpm * 0.4); 
+
           const lyrics_sentiment = {
-            anger: Math.max(0.01, parseFloat(((hasAngry ? 0.5 : 0.05) + (1 - valence) * 0.3).toFixed(2))),
-            anxiety: Math.max(0.01, parseFloat(((hasAnxious ? 0.4 : 0.08) + (1 - valence) * 0.25).toFixed(2))),
-            depression: Math.max(0.01, parseFloat(((hasSad ? 0.5 : 0.05) + (1 - valence) * 0.4).toFixed(2))),
-            joy: Math.max(0.01, parseFloat((((hasHappy ? 0.6 : 0.1) + valence * 0.3) * modeModifier).toFixed(2))),
-            stability: Math.max(0.01, parseFloat(((hasCalm ? 0.5 : 0.15) + valence * 0.2).toFixed(2))),
+            // 강렬함이 높을수록 분노, 기쁨, 불안 점수가 증폭되고 우울, 안정은 감소됨
+            anger: Math.max(0.01, parseFloat((((hasAngry ? 0.4 : 0.05) + (1 - valence) * 0.3) * (0.5 + intensity)).toFixed(2))),
+            anxiety: Math.max(0.01, parseFloat((((hasAnxious ? 0.3 : 0.08) + (1 - valence) * 0.25) * (0.5 + intensity)).toFixed(2))),
+            depression: Math.max(0.01, parseFloat((((hasSad ? 0.4 : 0.05) + (1 - valence) * 0.4) * (1.5 - intensity)).toFixed(2))),
+            joy: Math.max(0.01, parseFloat(((((hasHappy ? 0.5 : 0.1) + valence * 0.3) * modeModifier) * (0.5 + intensity)).toFixed(2))),
+            stability: Math.max(0.01, parseFloat((((hasCalm ? 0.4 : 0.15) + valence * 0.2) * (1.5 - intensity)).toFixed(2))),
           };
 
           return {
