@@ -1167,76 +1167,123 @@ export default function MMMHAKApp() {
   const LASTFM_API_KEY = "8031c3fd85fae84e3a1970b02e22a231";
   const LASTFM_BASE = "https://ws.audioscrobbler.com/2.0";
 
+  // 🌟 1. Spotify 인증 토큰 발급 함수
+  const getSpotifyToken = async () => {
+    // CRA(.env) 또는 Vite(.env) 환경 변수 지원 (process is not defined 에러 방지)
+    const clientId = (typeof process !== 'undefined' ? process.env.REACT_APP_SPOTIFY_CLIENT_ID : null) || import.meta.env.VITE_SPOTIFY_CLIENT_ID;
+    const clientSecret = (typeof process !== 'undefined' ? process.env.REACT_APP_SPOTIFY_CLIENT_SECRET : null) || import.meta.env.VITE_SPOTIFY_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      console.warn("⚠️ .env 파일에 Spotify API Key가 없습니다. 가짜 데이터를 사용합니다.");
+      return null;
+    }
+
+    try {
+      const response = await fetch("https://accounts.spotify.com/api/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: "Basic " + btoa(`${clientId}:${clientSecret}`),
+        },
+        body: "grant_type=client_credentials",
+      });
+      const data = await response.json();
+      return data.access_token; // 유효기간 1시간짜리 토큰
+    } catch (e) {
+      console.error("Spotify 토큰 발급 실패:", e);
+      return null;
+    }
+  };
+
   const processTracks = async (rawTracks) => {
     const BATCH = 10;
     let allItems = [];
-
-    // 🌟 1. 곡 제목 기반의 고정된 난수(0~1) 생성기 추가
-    const getPseudoRandom = (str) => {
-      let hash = 0;
-      for (let i = 0; i < str.length; i++) {
-        hash = str.charCodeAt(i) + ((hash << 5) - hash);
-      }
-      return (Math.abs(hash) % 1000) / 1000;
-    };
+    
+    // 배치 시작 전 스포티파이 토큰 발급
+    const spToken = await getSpotifyToken();
 
     for (let b = 0; b < rawTracks.length; b += BATCH) {
       const batch = rawTracks.slice(b, b + BATCH);
       setLoadingStatus(`🔍 LOADING ${b + 1}–${Math.min(b + BATCH, rawTracks.length)} / ${rawTracks.length}...`);
 
-      const batchItems = await Promise.all(
-        batch.map(async (raw, batchIdx) => {
-          const idx = b + batchIdx;
-          const playcount = parseInt(raw.playcount || "0", 10);
-          const listeners = parseInt(raw.listeners || "0", 10);
+      // 🌟 2. 각 곡의 Spotify ID 가져오기 (병렬 검색)
+      const trackIdsAndTags = await Promise.all(
+        batch.map(async (raw) => {
           const artistName = typeof raw.artist === "string" ? raw.artist : raw.artist?.name || "Unknown Artist";
-
+          let spId = null;
           let tags = [];
+
+          // Last.fm 태그 가져오기 (가사 감정 분석용)
           try {
             const infoRes = await fetch(`${LASTFM_BASE}/?method=track.getInfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artistName)}&track=${encodeURIComponent(raw.name)}&format=json`);
             if (infoRes.ok) {
               const infoData = await infoRes.json();
               tags = (infoData?.track?.toptags?.tag || []).map(t => t.name.toLowerCase());
             }
-          } catch (_) { }
+          } catch (_) {}
 
+          // Spotify 트랙 ID 검색
+          if (spToken) {
+            try {
+              const q = encodeURIComponent(`track:${raw.name} artist:${artistName}`);
+              const spRes = await fetch(`https://api.spotify.com/v1/search?q=${q}&type=track&limit=1`, {
+                headers: { Authorization: `Bearer ${spToken}` }
+              });
+              if (spRes.ok) {
+                const spData = await spRes.json();
+                spId = spData.tracks?.items?.[0]?.id || null;
+              }
+            } catch (_) {}
+          }
+          return { raw, artistName, tags, spId };
+        })
+      );
+
+      // 🌟 3. Spotify Audio Features 한 번에(Bulk) 가져오기
+      let audioFeaturesMap = {};
+      const validSpIds = trackIdsAndTags.map(t => t.spId).filter(Boolean).join(",");
+      
+      if (validSpIds && spToken) {
+        try {
+          const afRes = await fetch(`https://api.spotify.com/v1/audio-features?ids=${validSpIds}`, {
+            headers: { Authorization: `Bearer ${spToken}` }
+          });
+          if (afRes.ok) {
+            const afData = await afRes.json();
+            afData.audio_features.forEach(af => {
+              if (af) audioFeaturesMap[af.id] = af;
+            });
+          }
+        } catch (_) {}
+      }
+
+      // 🌟 4. 데이터 최종 병합
+      const batchItems = await Promise.all(
+        trackIdsAndTags.map(async ({ raw, artistName, tags, spId }, batchIdx) => {
+          const idx = b + batchIdx;
+          const playcount = parseInt(raw.playcount || "0", 10);
+          const listeners = parseInt(raw.listeners || "0", 10);
           const itunes = await fetchItunesData(raw.name, artistName);
+          
+          const af = audioFeaturesMap[spId]; // 실제 스포티파이 오디오 스펙
 
+          // Last.fm 태그 분류 (감정 기초 재료)
           const hasSad = tags.some(t => ["sad", "melancholy", "heartbreak", "depression", "dark", "emo", "blues"].some(k => t.includes(k)));
           const hasAngry = tags.some(t => ["angry", "aggressive", "metal", "hardcore", "rage", "punk"].some(k => t.includes(k)));
           const hasAnxious = tags.some(t => ["anxious", "nervous", "tense", "suspense", "dramatic"].some(k => t.includes(k)));
           const hasHappy = tags.some(t => ["happy", "upbeat", "dance", "party", "summer", "pop", "fun", "joy"].some(k => t.includes(k)));
           const hasCalm = tags.some(t => ["calm", "chill", "relax", "ambient", "peaceful", "acoustic"].some(k => t.includes(k)));
 
-          // 🌟 2. 곡 고유의 문자열(시드)로 고정된 난수 추출
-          const trackSeed = raw.name + artistName;
-          const randVal = getPseudoRandom(trackSeed);
-          const randVal2 = getPseudoRandom(trackSeed + "alt"); // 두 번째 고정 난수
-
-          // 🌟 3. Math.random() 대신 randVal 사용으로 항상 같은 값 유지
-          const valence = hasHappy ? 0.65 + randVal * 0.25
-            : hasSad ? 0.10 + randVal * 0.20
-              : hasAngry ? 0.20 + randVal * 0.20
-                : 0.35 + randVal * 0.20;
-
-          const energy = hasAngry ? 0.75 + randVal2 * 0.2
-            : hasCalm ? 0.15 + randVal2 * 0.25
-              : hasHappy ? 0.65 + randVal2 * 0.2
-                : 0.45 + randVal2 * 0.3;
-
-          const bpm = hasAngry ? 140 + Math.floor(randVal * 40)
-            : hasCalm ? 70 + Math.floor(randVal * 30)
-              : hasHappy ? 110 + Math.floor(randVal * 40)
-                : 95 + Math.floor(randVal * 60);
-
-          const mode = hasSad || hasAngry ? "minor" : "major";
-          
-          const loudness = hasAngry ? -3 - randVal * 3
-            : hasCalm ? -10 - randVal * 5
-              : -5 - randVal * 4;
+          // Spotify 데이터가 있으면 적용, 없으면 기본값(난수 배제) 사용
+          const bpm = af ? Math.round(af.tempo) : (hasAngry ? 140 : hasCalm ? 80 : hasHappy ? 120 : 100);
+          const energy = af ? parseFloat(af.energy.toFixed(3)) : (hasAngry ? 0.8 : hasCalm ? 0.3 : 0.6);
+          const valence = af ? parseFloat(af.valence.toFixed(3)) : (hasHappy ? 0.8 : hasSad ? 0.2 : 0.5);
+          const mode = af ? (af.mode === 1 ? "major" : "minor") : (hasSad || hasAngry ? "minor" : "major");
+          const loudness = af ? parseFloat(af.loudness.toFixed(1)) : -5.0;
 
           const modeModifier = mode === "minor" ? 0.6 : 1.0;
 
+          // 실제 Valence와 Energy를 기반으로 감정 점수 계산
           const lyrics_sentiment = {
             anger: Math.max(0.01, parseFloat(((hasAngry ? 0.5 : 0.05) + (1 - valence) * 0.3).toFixed(2))),
             anxiety: Math.max(0.01, parseFloat(((hasAnxious ? 0.4 : 0.08) + (1 - valence) * 0.25).toFixed(2))),
@@ -1251,9 +1298,9 @@ export default function MMMHAKApp() {
             artist: artistName,
             bpm,
             mode,
-            valence: parseFloat(valence.toFixed(3)),
-            energy: parseFloat(energy.toFixed(3)),
-            loudness: parseFloat(loudness.toFixed(1)),
+            valence,
+            energy,
+            loudness,
             streams: playcount || (listeners * 3) || ((50 - idx) * 20000000 + 50000000),
             listeners,
             tags,
