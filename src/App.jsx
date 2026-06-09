@@ -1279,23 +1279,40 @@ export default function MMMHAKApp() {
           const randVal = getPseudoRandom(trackSeed);
           const randVal2 = getPseudoRandom(trackSeed + "alt");
 
-          const fallbackBpm = hasAngry ? 140 + Math.floor(randVal * 40)
-            : hasCalm ? 70 + Math.floor(randVal * 30)
-              : hasHappy ? 110 + Math.floor(randVal * 40)
-                : 95 + Math.floor(randVal * 60);
+          // 스포티파이 Audio-Features API가 403으로 막혀있어, 장르 및 태그 기반으로 더 정교하게 BPM과 에너지를 추정합니다.
+          const genre = (itunes?.primaryGenreName || "").toLowerCase();
+          
+          const isHighTempoGenre = ["dance", "electronic", "rock", "metal", "punk", "house", "edm", "upbeat"].some(g => genre.includes(g) || tags.some(t => t.includes(g)));
+          const isLowTempoGenre = ["r&b", "soul", "ballad", "acoustic", "classical", "jazz", "ambient", "chill", "downtempo", "lo-fi"].some(g => genre.includes(g) || tags.some(t => t.includes(g)));
+          
+          let baseBpm = 100;
+          let baseEnergy = 0.5;
 
-          const fallbackEnergy = hasAngry ? 0.75 + randVal2 * 0.2
-            : hasCalm ? 0.15 + randVal2 * 0.25
-              : hasHappy ? 0.65 + randVal2 * 0.2
-                : 0.45 + randVal2 * 0.3;
+          if (isHighTempoGenre || hasAngry) {
+            baseBpm = 130 + Math.floor(randVal * 40); // 130 ~ 170
+            baseEnergy = 0.75 + randVal2 * 0.2; // 0.75 ~ 0.95
+          } else if (isLowTempoGenre || hasCalm || hasSad) {
+            baseBpm = 65 + Math.floor(randVal * 30); // 65 ~ 95
+            baseEnergy = 0.2 + randVal2 * 0.25; // 0.2 ~ 0.45
+          } else if (hasHappy) {
+            baseBpm = 110 + Math.floor(randVal * 25); // 110 ~ 135
+            baseEnergy = 0.6 + randVal2 * 0.2; // 0.6 ~ 0.8
+          } else {
+            // 일반 팝/인디/힙합 등 중도 템포
+            baseBpm = 90 + Math.floor(randVal * 35); // 90 ~ 125
+            baseEnergy = 0.45 + randVal2 * 0.3; // 0.45 ~ 0.75
+          }
+
+          const fallbackBpm = baseBpm;
+          const fallbackEnergy = baseEnergy;
 
           const fallbackValence = hasHappy ? 0.65 + randVal * 0.25
             : hasSad ? 0.10 + randVal * 0.20
               : hasAngry ? 0.20 + randVal * 0.20
-                : 0.35 + randVal * 0.20;
+                : 0.35 + randVal * 0.30;
 
-          const fallbackLoudness = hasAngry ? -3 - randVal * 3
-            : hasCalm ? -10 - randVal * 5
+          const fallbackLoudness = hasAngry || isHighTempoGenre ? -3 - randVal * 3
+            : hasCalm || isLowTempoGenre ? -10 - randVal * 5
               : -5 - randVal * 4;
 
           // 실제 스포티파이 데이터가 있으면 적용하고, 없으면 안전한 고정값(Fallback) 사용
