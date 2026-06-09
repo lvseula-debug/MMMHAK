@@ -168,15 +168,6 @@ function generateStructuredInsights(track, scores) {
   const top1 = sortedEmotions[0][0];
   const top2 = sortedEmotions[1][0];
 
-  // 한글 라벨 매핑
-  const labels = { 
-    joy: "기쁨(Joy)", 
-    stability: "안정(Stability)", 
-    depression: "우울(Depression)", 
-    anxiety: "불안(Anxiety)", 
-    anger: "분노(Anger)" 
-  };
-
   // 2. VIBE 생성 (메인 무드)
   let vibe = "";
   if (top1 === "joy" && track.bpm > 110) vibe = "높은 템포와 긍정적인 에너지가 도파민을 분비시키는 폭발적인 트랙입니다.";
@@ -186,7 +177,7 @@ function generateStructuredInsights(track, scores) {
   else vibe = "다양한 감정이 교차하며, 현재의 기분에 따라 새로운 매력을 발견할 수 있는 입체적인 트랙입니다.";
 
   // 3. GRAPH INSIGHT 생성 (Top 2 감정 활용)
-  const insight = `차트에서 **${labels[top1]}**와(과) **${labels[top2]}** 축이 가장 두드러지게 뻗어 있습니다. 이는 곡 전반에 걸쳐 두 감정선이 얽히며 메인 테마로 작용하고 있음을 시각적으로 보여줍니다.`;
+  const insight = `차트에서 **${top1.toUpperCase()}**와(과) **${top2.toUpperCase()}** 축이 가장 두드러지게 뻗어 있습니다. 이는 곡 전반에 걸쳐 두 감정선이 얽히며 메인 테마로 작용하고 있음을 시각적으로 보여줍니다.`;
 
   // 4. TRACK PROFILE 생성
   const plays = track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + "M" : track.streams;
@@ -359,14 +350,23 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores })
     else if (btn.id === 'mood' && scores) {
       const insights = generateStructuredInsights(track, scores);
       content = (
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "4px" }}>
+        <div style={{ 
+          display: "flex", 
+          flexDirection: "column", 
+          gap: "10px", 
+          marginTop: "4px",
+          fontFamily: "'Nanum Myeongjo', serif",
+          fontStyle: "italic",
+          lineHeight: "1.6",
+          wordBreak: "keep-all"
+        }}>
           <div>
-            <span style={{ color: "#CCFF00", fontWeight: 700 }}>VIBE:</span> {insights.vibe}
+            <span style={{ color: "#CCFF00", fontWeight: 700, fontFamily: "'Space Mono', monospace", fontStyle: "normal" }}>VIBE:</span> {insights.vibe}
           </div>
           <div>
-            <span style={{ color: "#00FF88", fontWeight: 700 }}>GRAPH INSIGHT:</span> {insights.insight}
+            <span style={{ color: "#00FF88", fontWeight: 700, fontFamily: "'Space Mono', monospace", fontStyle: "normal" }}>GRAPH INSIGHT:</span> {insights.insight}
           </div>
-          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.6)", marginTop: "4px" }}>
+          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.6)", marginTop: "4px", fontFamily: "'Space Mono', monospace", fontStyle: "normal" }}>
             {insights.profile}
           </div>
         </div>
