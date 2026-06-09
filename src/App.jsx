@@ -898,8 +898,9 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
       <div
         style={{
           position: "relative",
-          margin: "20px auto 40px auto",
-          height: isMobile ? "800px" : "600px",
+          margin: "20px auto 80px auto",
+          height: "auto",
+          minHeight: isMobile ? "1000px" : "600px",
           width: "90%",
           maxWidth: "800px",
           background: "#F5C8C8",
@@ -1430,7 +1431,7 @@ export default function MMMHAKApp() {
               zIndex: 10,
             }}
           >
-            <MobileSidebarStrip tracks={leftTracks} activeTrack={activeTrack} onSelect={patchTrackSelection} label="Top Tracks (1-25)" />
+            <MobileSidebarStrip tracks={tracks} activeTrack={activeTrack} onSelect={patchTrackSelection} label="Top Tracks" />
             <CenterPanel
               activeTrack={activeTrack}
               isMobile={true}
@@ -1439,7 +1440,6 @@ export default function MMMHAKApp() {
               isGraphOpen={isGraphOpen}
               onToggleGraph={setIsGraphOpen}
             />
-            <MobileSidebarStrip tracks={rightTracks} activeTrack={activeTrack} onSelect={patchTrackSelection} label="Top Tracks (26-50)" />
           </div>
         )}
       </div>
