@@ -334,7 +334,26 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores })
     else if (btn.id === 'energy') content = `Energy Score: ${track.energy.toFixed(2)} / 1.0`;
     else if (btn.id === 'plays') content = `Total Plays: ${track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + 'M' : track.streams}`;
     else if (btn.id === 'graph') {
-      content = 'Toggle radar charts showing track emotions and balance';
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div>Toggle radar charts showing track emotions and balance</div>
+          {scores && (
+            <div style={{
+              background: "rgba(204,255,0,0.1)",
+              border: "1px solid rgba(204,255,0,0.3)",
+              borderRadius: "8px",
+              padding: "8px",
+              color: "#CCFF00",
+              fontWeight: "700",
+              fontSize: "11px",
+              textAlign: "center",
+              marginTop: "4px"
+            }}>
+              EMOTION CONFIDENCE: {Math.round(scores.confidence * 100)}%
+            </div>
+          )}
+        </div>
+      );
     }
     // 🌟 새로 추가된 MOOD 로직
     else if (btn.id === 'mood' && scores) {
@@ -778,49 +797,24 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
 
       {/* Content row (Radar chart) */}
       {isGraphOpen && (
-        <>
-          <div
-            className={`flex flex-1 items-center justify-center gap-4 ${isMobile ? "p-5 pb-10" : "p-6 pb-12"}`}
-            style={{ position: "relative", zIndex: 10, pointerEvents: "none" }}
-          >
-            {scores && (
-              <ErrorBoundary>
-                <EmotionRadarChart scores={scores} />
-              </ErrorBoundary>
-            )}
-          </div>
+        <div
+          className={`flex flex-1 items-center justify-center gap-4 ${isMobile ? "p-5 pb-10" : "p-6 pb-12"}`}
+          style={{ position: "relative", zIndex: 10, pointerEvents: "none" }}
+        >
           {scores && (
-            <div style={{
-              position: "absolute",
-              top: isMobile ? "600px" : "520px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: 20,
-              fontSize: "12px",
-              fontWeight: "800",
-              color: "#CCFF00",
-              letterSpacing: "0.15em",
-              textTransform: "uppercase",
-              background: "#1A0050",
-              padding: "6px 16px",
-              borderRadius: "20px",
-              border: "1px solid #CCFF00",
-              boxShadow: "0 4px 15px rgba(0,0,0,0.5)"
-            }}>
-              Emotion Confidence {Math.round(scores.confidence * 100)}%
-            </div>
+            <ErrorBoundary>
+              <EmotionRadarChart scores={scores} />
+            </ErrorBoundary>
           )}
-        </>
+        </div>
       )}
 
       {/* ── [신규 추가] 핑크 섹션 배경에 흘러나오는 힙한 가사 보드 (하단 배치) ── */}
       <div
         style={{
-          position: "absolute",
-          top: isMobile ? "680px" : "600px",
+          position: "relative",
+          margin: "20px auto 40px auto",
           height: isMobile ? "800px" : "600px",
-          left: "50%",
-          transform: "translateX(-50%)",
           width: "90%",
           maxWidth: "800px",
           background: "#F5C8C8",
