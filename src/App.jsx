@@ -1180,13 +1180,13 @@ export default function MMMHAKApp() {
 
     try {
       const response = await fetch("https://accounts.spotify.com/api/token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Authorization: "Basic " + btoa(`${clientId}:${clientSecret}`),
-        },
-        body: "grant_type=client_credentials",
-      });
+  method: "POST",
+  headers: {
+    "Content-Type": "application/x-www-form-urlencoded",
+    Authorization: "Basic " + btoa(`${clientId}:${clientSecret}`),
+  },
+  body: "grant_type=client_credentials",
+});
       const data = await response.json();
       return data.access_token; // 유효기간 1시간짜리 토큰
     } catch (e) {
@@ -1227,8 +1227,8 @@ export default function MMMHAKApp() {
             try {
               const q = encodeURIComponent(`track:${raw.name} artist:${artistName}`);
               const spRes = await fetch(`https://api.spotify.com/v1/search?q=${q}&type=track&limit=1`, {
-                headers: { Authorization: `Bearer ${spToken}` }
-              });
+  headers: { Authorization: `Bearer ${spToken}` }
+});
               if (spRes.ok) {
                 const spData = await spRes.json();
                 spId = spData.tracks?.items?.[0]?.id || null;
@@ -1246,8 +1246,8 @@ export default function MMMHAKApp() {
       if (validSpIds && spToken) {
         try {
           const afRes = await fetch(`https://api.spotify.com/v1/audio-features?ids=${validSpIds}`, {
-            headers: { Authorization: `Bearer ${spToken}` }
-          });
+  headers: { Authorization: `Bearer ${spToken}` }
+});
           if (afRes.ok) {
             const afData = await afRes.json();
             afData.audio_features.forEach(af => {
