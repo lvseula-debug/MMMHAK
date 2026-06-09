@@ -610,6 +610,10 @@ class ErrorBoundary extends React.Component {
 function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onToggleGraph, onToggleSearch, isSearchOpen, searchQuery, setSearchQuery, onSearch }) {
   const [openPopup, setOpenPopup] = useState(null);
 
+  useEffect(() => {
+    setOpenPopup(null);
+  }, [activeTrack?.id]);
+
   const toggle = (id) => setOpenPopup((prev) => (prev === id ? null : id));
   const close = () => setOpenPopup(null);
 
@@ -1100,7 +1104,7 @@ export default function MMMHAKApp() {
       if (!Array.isArray(rawTracks)) {
         rawTracks = [rawTracks];
       }
-      
+
       if (rawTracks.length === 0) {
         alert("No tracks found for your search.");
         setLoading(false);
@@ -1147,6 +1151,8 @@ export default function MMMHAKApp() {
     // 새 곡을 선택하면 가사 상태 초기화 후 비동기 패치
     setLyrics("LOADING LYRICS...");
     fetchLyrics(track.title, track.artist).then(setLyrics);
+    setIsGraphOpen(false);
+    setIsSearchOpen(false);
   }, []);
 
   const fetchGlobalChart = async () => {
