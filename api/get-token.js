@@ -9,20 +9,24 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 서버(Vercel)에서 스포티파이로 토큰 요청 (CORS 에러 안 남!)
+    // 서버(Vercel)에서 스포티파이로 토큰 요청 (CORS 에러 발생하지 않음)
     const response = await fetch("https://accounts.spotify.com/api/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        // Node.js 환경에서 Base64 인코딩
+        // Node.js 환경이므로 Buffer를 이용해 Base64 인코딩
         Authorization: "Basic " + Buffer.from(`${clientId}:${clientSecret}`).toString("base64"),
       },
       body: "grant_type=client_credentials",
     });
 
+    if (!response.ok) {
+      throw new Error("Spotify Token fetch failed");
+    }
+
     const data = await response.json();
     
-    // 성공적으로 받아온 토큰을 우리 앱(프론트엔드)으로 전달
+    // 성공적으로 받아온 토큰을 프론트엔드로 전달
     res.status(200).json(data);
   } catch (error) {
     console.error("Token fetch error:", error);
