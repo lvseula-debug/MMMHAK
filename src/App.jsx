@@ -497,11 +497,10 @@ function Waveform({ playing }) {
 }
 
 // ── Preview Section ───────────────────────────────────────────────────────────
+// ── Preview Section ───────────────────────────────────────────────────────────
 function PreviewSection({ track }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
-
-  // Draggable state removed
 
   useEffect(() => {
     setPlaying(false);
@@ -526,6 +525,9 @@ function PreviewSection({ track }) {
   };
 
   const imgUrl = track?.artworkUrl?.replace("100x100", "400x400") || `https://picsum.photos/160/160?random=${track?.id || 1}`;
+
+  // 스포티파이, 애플뮤직 검색 쿼리 생성
+  const searchQuery = encodeURIComponent(`${track?.artist || ""} ${track?.title || ""}`);
 
   return (
     <div
@@ -605,6 +607,7 @@ function PreviewSection({ track }) {
             : "0 8px 32px rgba(26,0,80,0.5)",
           border: "2px solid rgba(26,0,80,0.25)",
           transition: "box-shadow 0.3s, transform 0.2s",
+          transform: playing ? "scale(1.02)" : "scale(1)",
         }}
       >
         <img
@@ -647,6 +650,85 @@ function PreviewSection({ track }) {
         <div style={{ fontSize: 14, fontWeight: 700, color: "#CCFF00", marginTop: 4 }}>
           {track?.title || "Unknown Title"}
         </div>
+      </div>
+
+      {/* ── [NEW] 외부 풀버전 듣기 링크 버튼 (Spotify & Apple Music) ── */}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 2,
+          display: "flex",
+          gap: "10px",
+          marginTop: "18px",
+          flexWrap: "wrap",
+          justifyContent: "center",
+        }}
+      >
+        <a
+          href={`https://open.spotify.com/search/${searchQuery}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-hover="true"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: "8px 14px",
+            borderRadius: "20px",
+            border: "1px solid rgba(29, 185, 84, 0.6)", // 스포티파이 브랜드 컬러
+            color: "#1DB954",
+            textDecoration: "none",
+            fontFamily: "'Space Mono', monospace",
+            fontSize: "9px",
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            cursor: "none",
+            transition: "all 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "rgba(29, 185, 84, 0.1)";
+            e.currentTarget.style.boxShadow = "0 0 12px rgba(29, 185, 84, 0.35)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.boxShadow = "none";
+          }}
+        >
+          <span style={{ fontSize: "12px" }}>🟢</span> SPOTIFY
+        </a>
+
+        <a
+          href={`https://music.apple.com/search?term=${searchQuery}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-hover="true"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: "8px 14px",
+            borderRadius: "20px",
+            border: "1px solid rgba(250, 36, 60, 0.6)", // 애플뮤직 브랜드 컬러
+            color: "#FA243C",
+            textDecoration: "none",
+            fontFamily: "'Space Mono', monospace",
+            fontSize: "9px",
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            cursor: "none",
+            transition: "all 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "rgba(250, 36, 60, 0.1)";
+            e.currentTarget.style.boxShadow = "0 0 12px rgba(250, 36, 60, 0.35)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.boxShadow = "none";
+          }}
+        >
+          <span style={{ fontSize: "12px" }}>🔴</span> APPLE MUSIC
+        </a>
       </div>
 
     </div>
