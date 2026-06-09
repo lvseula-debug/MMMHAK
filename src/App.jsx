@@ -1274,12 +1274,44 @@ export default function MMMHAKApp() {
           const hasHappy = tags.some(t => ["happy", "upbeat", "dance", "party", "summer", "pop", "fun", "joy"].some(k => t.includes(k)));
           const hasCalm = tags.some(t => ["calm", "chill", "relax", "ambient", "peaceful", "acoustic"].some(k => t.includes(k)));
 
-          // Spotify 데이터가 있으면 적용, 없으면 기본값(난수 배제) 사용
-          const bpm = af ? Math.round(af.tempo) : (hasAngry ? 140 : hasCalm ? 80 : hasHappy ? 120 : 100);
-          const energy = af ? parseFloat(af.energy.toFixed(3)) : (hasAngry ? 0.8 : hasCalm ? 0.3 : 0.6);
-          const valence = af ? parseFloat(af.valence.toFixed(3)) : (hasHappy ? 0.8 : hasSad ? 0.2 : 0.5);
-          const mode = af ? (af.mode === 1 ? "major" : "minor") : (hasSad || hasAngry ? "minor" : "major");
-          const loudness = af ? parseFloat(af.loudness.toFixed(1)) : -5.0;
+          // 🌟 5. 시드 기반 고정 난수 생성 (Spotify API가 차단되었거나 실패했을 때를 대비한 Fallback)
+          const getPseudoRandom = (str) => {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+              hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            return (Math.abs(hash) % 1000) / 1000;
+          };
+
+          const trackSeed = raw.name + artistName;
+          const randVal = getPseudoRandom(trackSeed);
+          const randVal2 = getPseudoRandom(trackSeed + "alt");
+
+          const fallbackBpm = hasAngry ? 140 + Math.floor(randVal * 40)
+            : hasCalm ? 70 + Math.floor(randVal * 30)
+              : hasHappy ? 110 + Math.floor(randVal * 40)
+                : 95 + Math.floor(randVal * 60);
+
+          const fallbackEnergy = hasAngry ? 0.75 + randVal2 * 0.2
+            : hasCalm ? 0.15 + randVal2 * 0.25
+              : hasHappy ? 0.65 + randVal2 * 0.2
+                : 0.45 + randVal2 * 0.3;
+
+          const fallbackValence = hasHappy ? 0.65 + randVal * 0.25
+            : hasSad ? 0.10 + randVal * 0.20
+              : hasAngry ? 0.20 + randVal * 0.20
+                : 0.35 + randVal * 0.20;
+
+          const fallbackLoudness = hasAngry ? -3 - randVal * 3
+            : hasCalm ? -10 - randVal * 5
+              : -5 - randVal * 4;
+
+          // Spotify 데이터가 있으면 적용, 없으면 리얼한 고정 난수(Fallback) 사용
+          const bpm = af && af.tempo ? Math.round(af.tempo) : fallbackBpm;
+          const energy = af && typeof af.energy === 'number' ? parseFloat(af.energy.toFixed(3)) : parseFloat(fallbackEnergy.toFixed(3));
+          const valence = af && typeof af.valence === 'number' ? parseFloat(af.valence.toFixed(3)) : parseFloat(fallbackValence.toFixed(3));
+          const mode = af && typeof af.mode === 'number' ? (af.mode === 1 ? "major" : "minor") : (hasSad || hasAngry ? "minor" : "major");
+          const loudness = af && typeof af.loudness === 'number' ? parseFloat(af.loudness.toFixed(1)) : parseFloat(fallbackLoudness.toFixed(1));
 
           const modeModifier = mode === "minor" ? 0.6 : 1.0;
 
