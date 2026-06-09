@@ -150,11 +150,10 @@ async function fetchLyrics(title, artist) {
   }
 }
 
-// 기존 generateImpactText 함수를 대체합니다.
 function generateStructuredInsights(track, scores) {
   if (!track || !scores) return { vibe: "트랙 데이터를 분석 중입니다.", insight: "", profile: "" };
 
-  // 1. 5대 감정 추출 및 정렬 (Top 2 찾기)
+  // 1. 최고 감정 추출
   const emotions = {
     joy: scores.joy,
     stability: scores.stability,
@@ -168,18 +167,59 @@ function generateStructuredInsights(track, scores) {
   const top1 = sortedEmotions[0][0];
   const top2 = sortedEmotions[1][0];
 
-  // 2. VIBE 생성 (메인 무드)
+  // 한글 라벨 매핑 (다시 추가 요청됨)
+  const labels = { 
+    joy: "기쁨(Joy)", 
+    stability: "안정(Stability)", 
+    depression: "우울(Depression)", 
+    anxiety: "불안(Anxiety)", 
+    anger: "분노(Anger)" 
+  };
+
+  // 2. 6단계 심박수(BPM) 구간 판별
+  let bpmTier = "";
+  const bpm = track.bpm;
+  if (bpm <= 65) bpmTier = "deep_rest";        // 수면 및 명상
+  else if (bpm <= 85) bpmTier = "resting";     // 안정 시 심박수
+  else if (bpm <= 105) bpmTier = "walking";    // 가벼운 산책
+  else if (bpm <= 125) bpmTier = "jogging";    // 빠른 걸음
+  else if (bpm <= 150) bpmTier = "cardio";     // 유산소 (아드레날린 폭발)
+  else bpmTier = "overdrive";                  // 전력 질주 (극도의 흥분)
+
+  // 3. VIBE 텍스트 생성 (교차 분석)
   let vibe = "";
-  if (top1 === "joy" && track.bpm > 110) vibe = "높은 템포와 긍정적인 에너지가 도파민을 분비시키는 폭발적인 트랙입니다.";
-  else if (top1 === "stability") vibe = "부드러운 흐름이 긴장된 신경을 이완시키며 편안한 휴식을 선사합니다.";
-  else if (top1 === "anger" || track.energy > 0.7) vibe = "강렬한 에너지가 억눌린 스트레스를 해소하고 강한 몰입감을 선사합니다.";
-  else if (top1 === "depression") vibe = "차분하고 멜랑콜리한 선율이 복잡한 마음을 위로하고 깊은 공감을 이끌어냅니다.";
-  else vibe = "다양한 감정이 교차하며, 현재의 기분에 따라 새로운 매력을 발견할 수 있는 입체적인 트랙입니다.";
+  switch (top1) {
+    case "joy":
+      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "심박수를 한계까지 끌어올리는 폭발적인 도파민 뱅어(Banger)입니다. 춤추기 완벽한 트랙입니다.";
+      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "경쾌한 발걸음을 만들어주는 산뜻한 그루브. 일상의 텐션을 기분 좋게 올려줍니다.";
+      else vibe = "입가에 여유로운 미소를 띠게 만드는 따뜻하고 긍정적인 무드의 트랙입니다.";
+      break;
+    case "depression":
+      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "빠른 템포 속에서 비극적인 감정이 폭발합니다. 빗속을 질주하며 억눌린 슬픔을 토해내는 듯한 카타르시스를 줍니다.";
+      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "걷잡을 수 없는 멜랑콜리함이 묻어납니다. 복잡한 생각과 함께 정처 없이 걷기 좋은 분위기입니다.";
+      else vibe = "시간이 멈춘 듯한 깊은 심연. 혼자만의 사색에 잠기거나 묵은 감정을 위로받기 완벽합니다.";
+      break;
+    case "anger":
+      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "혈관에 아드레날린을 직접 꽂는 듯한 파괴적인 에너지! 모든 스트레스를 박살 내는 강렬한 트랙입니다.";
+      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "날카롭고 냉소적인 그루브가 긴장감을 조성하며, 묘한 반항심을 불러일으킵니다.";
+      else vibe = "무겁고 압도적인 프레셔가 짓누르는 듯한, 다크하고 카리스마 넘치는 분위기를 뿜어냅니다.";
+      break;
+    case "stability":
+      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "빠른 속도감에도 불구하고 흔들림 없는 몰입(Flow) 상태를 만들어주는 세련된 드라이빙 트랙입니다.";
+      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "나른한 오후의 기분 좋은 산책처럼, 칠(Chill)하고 세련된 여유로움을 선사합니다.";
+      else vibe = "마치 명상에 빠지듯, 긴장된 신경을 부드럽게 이완시키며 가장 편안한 휴식을 유도합니다.";
+      break;
+    case "anxiety":
+      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "심장을 조여오는 듯한 아찔한 템포. 쫓기는 듯한 스릴과 서스펜스가 당신의 몰입도를 극대화합니다.";
+      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "어딘가 불안정하면서도 몽환적인 전개가 호기심을 자극하며, 계속해서 귀를 기울이게 만듭니다.";
+      else vibe = "숨을 죽이게 만드는 기묘하고 차가운 정적. 베일에 싸인 듯한 미스터리한 무드를 자아냅니다.";
+      break;
+    default:
+      vibe = "다양한 감정이 교차하는 트랙으로, 현재의 기분에 따라 새로운 매력을 발견할 수 있습니다.";
+  }
 
-  // 3. GRAPH INSIGHT 생성 (Top 2 감정 활용)
-  const insight = `차트에서 **${top1.toUpperCase()}**와(과) **${top2.toUpperCase()}** 축이 가장 두드러지게 뻗어 있습니다. 이는 곡 전반에 걸쳐 두 감정선이 얽히며 메인 테마로 작용하고 있음을 시각적으로 보여줍니다.`;
-
-  // 4. TRACK PROFILE 생성
+  // 4. GRAPH INSIGHT 및 PROFILE 생성
+  const insight = `차트에서 **${labels[top1]}**와(과) **${labels[top2]}** 축이 가장 두드러지게 뻗어 있습니다. 이는 곡 전반에 걸쳐 두 감정선이 얽히며 메인 테마로 작용하고 있음을 시각적으로 보여줍니다.`;
   const plays = track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + "M" : track.streams;
   const profile = `${track.bpm} BPM · ${track.mode === "minor" ? "Minor" : "Major"} Key · Energy ${track.energy.toFixed(2)} · ${plays} Plays`;
 
