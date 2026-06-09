@@ -590,6 +590,8 @@ function PreviewSection({ track }) {
 
       {/* Square artist photo */}
       <div
+        data-hover="true"
+        onClick={togglePlay}
         style={{
           position: "relative",
           zIndex: 2,
@@ -597,11 +599,12 @@ function PreviewSection({ track }) {
           height: 160,
           borderRadius: 10,
           overflow: "hidden",
+          cursor: "none",
           boxShadow: playing
             ? "0 8px 40px rgba(26,0,80,0.6), 0 0 0 3px #CCFF00"
             : "0 8px 32px rgba(26,0,80,0.5)",
           border: "2px solid rgba(26,0,80,0.25)",
-          transition: "box-shadow 0.3s",
+          transition: "box-shadow 0.3s, transform 0.2s",
         }}
       >
         <img
