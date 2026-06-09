@@ -1167,33 +1167,25 @@ export default function MMMHAKApp() {
   const LASTFM_API_KEY = "8031c3fd85fae84e3a1970b02e22a231";
   const LASTFM_BASE = "https://ws.audioscrobbler.com/2.0";
 
-  // 🌟 1. Spotify 인증 토큰 발급 함수
+
+  // 🌟 1. Spotify 인증 토큰 발급 함수 (Vercel 서버리스 함수 호출)
   const getSpotifyToken = async () => {
-    // CRA(.env) 또는 Vite(.env) 환경 변수 지원 (process is not defined 에러 방지)
-    const clientId = (typeof process !== 'undefined' ? process.env.REACT_APP_SPOTIFY_CLIENT_ID : null) || import.meta.env.VITE_SPOTIFY_CLIENT_ID;
-    const clientSecret = (typeof process !== 'undefined' ? process.env.REACT_APP_SPOTIFY_CLIENT_SECRET : null) || import.meta.env.VITE_SPOTIFY_CLIENT_SECRET;
-
-    if (!clientId || !clientSecret) {
-      console.warn("⚠️ .env 파일에 Spotify API Key가 없습니다. 가짜 데이터를 사용합니다.");
-      return null;
-    }
-
     try {
-      const response = await fetch("https://accounts.spotify.com/api/token", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/x-www-form-urlencoded",
-    Authorization: "Basic " + btoa(`${clientId}:${clientSecret}`),
-  },
-  body: "grant_type=client_credentials",
-});
+      // 프론트엔드에서 스포티파이에 직접 가지 않고, 우리 서버(api/get-token)로 요청합니다.
+      const response = await fetch("/api/get-token");
+      
+      if (!response.ok) {
+        throw new Error("서버에서 토큰을 가져오지 못했습니다.");
+      }
+      
       const data = await response.json();
-      return data.access_token; // 유효기간 1시간짜리 토큰
+      return data.access_token; // 진짜 스포티파이 토큰!
     } catch (e) {
       console.error("Spotify 토큰 발급 실패:", e);
       return null;
     }
   };
+
 
   const processTracks = async (rawTracks) => {
     const BATCH = 10;
@@ -1564,3 +1556,4 @@ export default function MMMHAKApp() {
     </>
   );
 }
+
