@@ -1171,6 +1171,15 @@ export default function MMMHAKApp() {
     const BATCH = 10;
     let allItems = [];
 
+    // 🌟 1. 곡 제목 기반의 고정된 난수(0~1) 생성기 추가
+    const getPseudoRandom = (str) => {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      return (Math.abs(hash) % 1000) / 1000;
+    };
+
     for (let b = 0; b < rawTracks.length; b += BATCH) {
       const batch = rawTracks.slice(b, b + BATCH);
       setLoadingStatus(`🔍 LOADING ${b + 1}–${Math.min(b + BATCH, rawTracks.length)} / ${rawTracks.length}...`);
@@ -1180,7 +1189,6 @@ export default function MMMHAKApp() {
           const idx = b + batchIdx;
           const playcount = parseInt(raw.playcount || "0", 10);
           const listeners = parseInt(raw.listeners || "0", 10);
-
           const artistName = typeof raw.artist === "string" ? raw.artist : raw.artist?.name || "Unknown Artist";
 
           let tags = [];
@@ -1200,25 +1208,32 @@ export default function MMMHAKApp() {
           const hasHappy = tags.some(t => ["happy", "upbeat", "dance", "party", "summer", "pop", "fun", "joy"].some(k => t.includes(k)));
           const hasCalm = tags.some(t => ["calm", "chill", "relax", "ambient", "peaceful", "acoustic"].some(k => t.includes(k)));
 
-          const valence = hasHappy ? 0.65 + Math.random() * 0.25
-            : hasSad ? 0.10 + Math.random() * 0.20
-              : hasAngry ? 0.20 + Math.random() * 0.20
-                : 0.35 + Math.random() * 0.20;
+          // 🌟 2. 곡 고유의 문자열(시드)로 고정된 난수 추출
+          const trackSeed = raw.name + artistName;
+          const randVal = getPseudoRandom(trackSeed);
+          const randVal2 = getPseudoRandom(trackSeed + "alt"); // 두 번째 고정 난수
 
-          const energy = hasAngry ? 0.75 + Math.random() * 0.2
-            : hasCalm ? 0.15 + Math.random() * 0.25
-              : hasHappy ? 0.65 + Math.random() * 0.2
-                : 0.45 + Math.random() * 0.3;
+          // 🌟 3. Math.random() 대신 randVal 사용으로 항상 같은 값 유지
+          const valence = hasHappy ? 0.65 + randVal * 0.25
+            : hasSad ? 0.10 + randVal * 0.20
+              : hasAngry ? 0.20 + randVal * 0.20
+                : 0.35 + randVal * 0.20;
 
-          const bpm = hasAngry ? 140 + Math.floor(Math.random() * 40)
-            : hasCalm ? 70 + Math.floor(Math.random() * 30)
-              : hasHappy ? 110 + Math.floor(Math.random() * 40)
-                : 95 + Math.floor(Math.random() * 60);
+          const energy = hasAngry ? 0.75 + randVal2 * 0.2
+            : hasCalm ? 0.15 + randVal2 * 0.25
+              : hasHappy ? 0.65 + randVal2 * 0.2
+                : 0.45 + randVal2 * 0.3;
+
+          const bpm = hasAngry ? 140 + Math.floor(randVal * 40)
+            : hasCalm ? 70 + Math.floor(randVal * 30)
+              : hasHappy ? 110 + Math.floor(randVal * 40)
+                : 95 + Math.floor(randVal * 60);
 
           const mode = hasSad || hasAngry ? "minor" : "major";
-          const loudness = hasAngry ? -3 - Math.random() * 3
-            : hasCalm ? -10 - Math.random() * 5
-              : -5 - Math.random() * 4;
+          
+          const loudness = hasAngry ? -3 - randVal * 3
+            : hasCalm ? -10 - randVal * 5
+              : -5 - randVal * 4;
 
           const modeModifier = mode === "minor" ? 0.6 : 1.0;
 
