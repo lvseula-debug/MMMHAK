@@ -1178,7 +1178,7 @@ export default function MMMHAKApp() {
   // 🌟 1. Spotify 인증 토큰 발급 함수 (Vercel 서버리스 함수 호출)
   const getSpotifyToken = async () => {
     try {
-      const response = await fetch("/api/get-token");
+      const response = await fetch("https://mmmhak.vercel.app/api/get-token");
       if (!response.ok) throw new Error("서버에서 토큰을 가져오지 못했습니다.");
       const data = await response.json();
       return data.access_token;
@@ -1399,7 +1399,8 @@ export default function MMMHAKApp() {
         processTracks(rawTracks.slice(1)).then(rest => {
           setTracks(prev => {
             const combined = [...prev, ...rest];
-            return combined.sort((a, b) => b.streams - a.streams);
+            const unique = Array.from(new Map(combined.map(t => [t.title, t])).values());
+            return unique.sort((a, b) => b.streams - a.streams);
           });
         });
       }
@@ -1418,15 +1419,82 @@ export default function MMMHAKApp() {
   }, []);
 
   // 가사 실시간 로드 처리를 포함한 트랙 선택 핸들러 함수
-  const handleSelect = useCallback((track) => {
+  const handleSelect = useCallback(async (track) => {
     setActiveTrack(track);
+    // 1. 통신 지연이나 에러를 대비해 기존 로직으로 임시 점수 세팅 (Fallback)
     setScores(computeVirusScores(track));
 
     // 새 곡을 선택하면 가사 상태 초기화 후 비동기 패치
     setLyrics("LOADING LYRICS...");
-    fetchLyrics(track.title, track.artist).then(setLyrics);
     setIsGraphOpen(false);
     setIsSearchOpen(false);
+
+    try {
+      const fetchedLyrics = await fetchLyrics(track.title, track.artist);
+      setLyrics(fetchedLyrics);
+
+      if (fetchedLyrics === "현재 이 곡의 가사를 제공할 수 없습니다.") {
+        return;
+      }
+
+      // 2. 제미나이 분석 API 호출
+      const analyzeRes = await fetch("http://127.0.0.1:8000/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lyrics: fetchedLyrics })
+      });
+
+      if (!analyzeRes.ok) throw new Error("Gemini API error");
+
+      const geminiScores = await analyzeRes.json();
+      console.log('Gemini Data:', geminiScores);
+
+      // 3. 차트 구조에 맞게 Gemini 분석 결과를 덮어씌움
+      setScores(prevScores => {
+        const { bpm, mode, valence, streams } = track;
+        const bpmNorm = Math.min(bpm, 200) / 200;
+        const tempoStress = bpmNorm > 0.75 ? (bpmNorm - 0.75) * 4 : bpmNorm < 0.4 ? (0.4 - bpmNorm) * 2 : 0;
+        const contagion = Math.log10(Math.max(streams, 10)) / Math.log10(3000000000);
+
+        // 추출 로직: 응답 구조가 다를 수 있음을 대비해 안전하게 값 추출 (문자열 변환 방지)
+        const getVal = (key) => {
+          const val = geminiScores[key] ?? geminiScores.emotions?.[key] ?? prevScores[key];
+          return Number(val) || 0;
+        };
+
+        const spread = {
+          joy: getVal('joy'),
+          depression: getVal('depression'),
+          anger: getVal('anger'),
+          anxiety: getVal('anxiety'),
+          stability: getVal('stability'),
+        };
+
+        const viralRisk = Object.values(spread).reduce((sum, v) => sum + v, 0) / 5 * contagion;
+        const positive_score = Math.min(spread.joy * 0.45 + spread.stability * 0.25 + valence * 0.30, 1);
+        const negative_score = Math.min(spread.depression * 0.40 + spread.anxiety * 0.35 + spread.anger * 0.25, 1);
+        const polarity = positive_score - negative_score;
+        const confidence = Math.abs(polarity);
+        const classification = polarity > 0.25 ? "POSITIVE" : polarity < -0.25 ? "NEGATIVE" : "MIXED";
+
+        return {
+          ...prevScores, // 기존 데이터 유지 (InfoButton 등 에러 방지)
+          ...spread,     // 제미나이 감정 데이터 병합
+          positive_score,
+          negative_score,
+          polarity,
+          confidence,
+          classification,
+          discomfort: (spread.anger * 0.4 + spread.anxiety * 0.35 + spread.depression * 0.25),
+          contagion,
+          viralRisk,
+          streams,
+        };
+      });
+    } catch (err) {
+      console.error("Analysis fallback:", err);
+      // 통신 에러 발생 시 초기 세팅해둔 computeVirusScores(track) 값이 그대로 유지됨
+    }
   }, []);
 
   const fetchGlobalChart = async () => {
@@ -1446,25 +1514,22 @@ export default function MMMHAKApp() {
 
       const firstItem = await processTracks([rawTracks[0]]);
       setTracks(firstItem);
-      setActiveTrack(firstItem[0]);
-      setScores(computeVirusScores(firstItem[0]));
-      setLyrics("LOADING LYRICS...");
-      fetchLyrics(firstItem[0].title, firstItem[0].artist).then(setLyrics);
+      handleSelect(firstItem[0]);
       setLoading(false);
 
       if (rawTracks.length > 1) {
         processTracks(rawTracks.slice(1)).then(rest => {
-          setTracks(prev => [...prev, ...rest]);
+          setTracks(prev => {
+            const combined = [...prev, ...rest];
+            return Array.from(new Map(combined.map(t => [t.title, t])).values());
+          });
         });
       }
     } catch (err) {
       console.error("API error, using mock data:", err);
       const mock = MOCK_TRACKS.map((t, idx) => ({ ...t, id: t.id + idx, streams: t.streams || 500000000, artworkUrl: null, previewUrl: null }));
       setTracks(mock);
-      setActiveTrack(mock[0]);
-      setScores(computeVirusScores(mock[0]));
-
-      fetchLyrics(mock[0].title, mock[0].artist).then(setLyrics);
+      handleSelect(mock[0]);
 
       setLoading(false);
     }
