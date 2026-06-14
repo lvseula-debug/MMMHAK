@@ -5,8 +5,8 @@ import EmotionRadarChart from "./EmotionRadarChart";
 const MUSIC_PLACEHOLDER = "/default_album_art.png";
 
 const getApiBaseUrl = () => {
-  if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
   }
   const hostname = window.location.hostname;
   if (hostname === "localhost" || hostname === "127.0.0.1") {
