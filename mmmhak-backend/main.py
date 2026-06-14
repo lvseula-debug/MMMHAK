@@ -32,6 +32,11 @@ class AnalyzeRequest(BaseModel):
 def read_root():
     return {"status": "ok", "message": "MMMHAK 주방 오픈!"}
 
+@app.get("/log")
+def log_frontend(msg: str):
+    print("FRONTEND ERROR:", msg)
+    return {"status": "logged"}
+
 @app.post("/api/analyze")
 async def analyze_lyrics(request: AnalyzeRequest):
     if not HF_API_KEY:

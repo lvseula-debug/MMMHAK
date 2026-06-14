@@ -1134,114 +1134,142 @@ export default function MMMHAKApp() {
   const LASTFM_API_KEY = "8031c3fd85fae84e3a1970b02e22a231";
   const LASTFM_BASE = "https://ws.audioscrobbler.com/2.0";
 
+  // 🎵 1. 더 안전해진 아이튠즈 우회 함수 (에러 방어력 MAX)
+  const fetchItunesData = async (title, artist) => {
+    try {
+      const safeTitle = title || "";
+      const safeArtist = artist || "";
+      const q = encodeURIComponent(`${safeTitle} ${safeArtist}`);
+
+      const res = await fetch(`http://127.0.0.1:8000/api/itunes?term=${q}&limit=5`);
+      if (!res.ok) return { artworkUrl: null, previewUrl: null };
+
+      const data = await res.json();
+      const results = data.results || [];
+
+      const match = results.find(r =>
+        r.artistName?.toLowerCase().includes(safeArtist.toLowerCase().split(' ')[0]) ||
+        r.trackName?.toLowerCase().includes(safeTitle.toLowerCase().split(' ')[0])
+      ) || results[0];
+
+      if (!match) return { artworkUrl: null, previewUrl: null };
+
+      return {
+        artworkUrl: match.artworkUrl100?.replace('100x100bb', '400x400bb') || null,
+        previewUrl: match.previewUrl || null,
+      };
+    } catch (error) {
+      console.error('iTunes proxy fetch error:', error);
+      return { artworkUrl: null, previewUrl: null };
+    }
+  };
+
+  // 🚀 2. 백그라운드 50곡 처리를 보장하는 프로세스 함수
   const processTracks = async (rawTracks) => {
     const BATCH = 10;
     let allItems = [];
 
-    // 스포티파이 토큰 발급 로직 완전 삭제!
-
     for (let b = 0; b < rawTracks.length; b += BATCH) {
       const batch = rawTracks.slice(b, b + BATCH);
-      setLoadingStatus(`🔍 LOADING ${b + 1}–${Math.min(b + BATCH, rawTracks.length)} / ${rawTracks.length}...`);
 
-      const batchItems = await Promise.all(
-        batch.map(async (raw, batchIdx) => {
-          const idx = b + batchIdx;
-          const artistName = typeof raw.artist === "string" ? raw.artist : raw.artist?.name || "Unknown Artist";
-          const playcount = parseInt(raw.playcount || "0", 10);
-          const listeners = parseInt(raw.listeners || "0", 10);
+      try {
+        const batchItems = await Promise.all(
+          batch.map(async (raw, batchIdx) => {
+            const idx = b + batchIdx;
+            const artistName = typeof raw.artist === 'string' ? raw.artist : raw.artist?.name || 'Unknown Artist';
+            const playcount = parseInt(raw.playcount || '0', 10);
+            const listeners = parseInt(raw.listeners || '0', 10);
 
-          // 1. Last.fm 장르 태그 가져오기
-          let tags = [];
-          try {
-            const infoRes = await fetch(`${LASTFM_BASE}/?method=track.getInfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artistName)}&track=${encodeURIComponent(raw.name)}&format=json`);
-            if (infoRes.ok) {
-              const infoData = await infoRes.json();
-              tags = (infoData?.track?.toptags?.tag || []).map(t => t.name.toLowerCase());
+            let tags = [];
+            try {
+              const infoRes = await fetch(`${LASTFM_BASE}/?method=track.getInfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artistName)}&track=${encodeURIComponent(raw.name)}&format=json`);
+              if (infoRes.ok) {
+                const infoData = await infoRes.json();
+                tags = (infoData?.track?.toptags?.tag || []).map(t => t.name.toLowerCase());
+              }
+            } catch (_) { }
+
+            const itunes = await fetchItunesData(raw.name, artistName);
+
+            const hasSad = tags.some(t => ['sad', 'melancholy', 'heartbreak', 'depression', 'dark', 'emo', 'blues'].some(k => t.includes(k)));
+            const hasAngry = tags.some(t => ['angry', 'aggressive', 'metal', 'hardcore', 'rage', 'punk'].some(k => t.includes(k)));
+            const hasAnxious = tags.some(t => ['anxious', 'nervous', 'tense', 'suspense', 'dramatic'].some(k => t.includes(k)));
+            const hasHappy = tags.some(t => ['happy', 'upbeat', 'dance', 'party', 'summer', 'pop', 'fun', 'joy'].some(k => t.includes(k)));
+            const hasCalm = tags.some(t => ['calm', 'chill', 'relax', 'ambient', 'peaceful', 'acoustic'].some(k => t.includes(k)));
+
+            const getPseudoRandom = (str) => {
+              let hash = 0;
+              for (let i = 0; i < str.length; i++) {
+                hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
+              }
+              const x = Math.sin(hash) * 10000;
+              return x - Math.floor(x);
+            };
+
+            const trackSeed = raw.name + artistName;
+            const randVal = getPseudoRandom(trackSeed);
+            const randVal2 = getPseudoRandom(trackSeed + 'alt');
+
+            const genreStr = tags.join(' ');
+            const isHighTempoGenre = ['dance', 'electronic', 'rock', 'metal', 'punk', 'house', 'edm', 'upbeat'].some(g => genreStr.includes(g));
+            const isLowTempoGenre = ['r&b', 'soul', 'ballad', 'acoustic', 'classical', 'jazz', 'ambient', 'chill', 'downtempo', 'lo-fi'].some(g => genreStr.includes(g));
+
+            let baseBpm = 100;
+            let baseEnergy = 0.5;
+
+            if (isHighTempoGenre || hasAngry) {
+              baseBpm = 130 + Math.floor(randVal * 40);
+              baseEnergy = 0.75 + randVal2 * 0.2;
+            } else if (isLowTempoGenre || hasCalm || hasSad) {
+              baseBpm = 65 + Math.floor(randVal * 30);
+              baseEnergy = 0.2 + randVal2 * 0.25;
+            } else if (hasHappy) {
+              baseBpm = 110 + Math.floor(randVal * 25);
+              baseEnergy = 0.6 + randVal2 * 0.2;
+            } else {
+              baseBpm = 90 + Math.floor(randVal * 35);
+              baseEnergy = 0.45 + randVal2 * 0.3;
             }
-          } catch (_) { }
 
-          // 2. 아이튠즈 커버 및 미리듣기 즉시 가져오기
-          const itunes = await fetchItunesData(raw.name, artistName);
+            const valence = hasHappy ? 0.65 + randVal * 0.25 : hasSad ? 0.10 + randVal * 0.20 : hasAngry ? 0.20 + randVal * 0.20 : 0.35 + randVal * 0.30;
+            const loudness = hasAngry || isHighTempoGenre ? -3 - randVal * 3 : hasCalm || isLowTempoGenre ? -10 - randVal * 5 : -5 - randVal * 4;
+            const mode = (hasSad || hasAngry) ? 'minor' : 'major';
 
-          // 3. 기존의 훌륭한 자체 추정(Fallback) 로직을 메인 엔진으로 승격!
-          const hasSad = tags.some(t => ["sad", "melancholy", "heartbreak", "depression", "dark", "emo", "blues"].some(k => t.includes(k)));
-          const hasAngry = tags.some(t => ["angry", "aggressive", "metal", "hardcore", "rage", "punk"].some(k => t.includes(k)));
-          const hasAnxious = tags.some(t => ["anxious", "nervous", "tense", "suspense", "dramatic"].some(k => t.includes(k)));
-          const hasHappy = tags.some(t => ["happy", "upbeat", "dance", "party", "summer", "pop", "fun", "joy"].some(k => t.includes(k)));
-          const hasCalm = tags.some(t => ["calm", "chill", "relax", "ambient", "peaceful", "acoustic"].some(k => t.includes(k)));
+            const modeModifier = mode === 'minor' ? 0.6 : 1.0;
+            const normalizedBpm = Math.min(Math.max((baseBpm - 60) / 100, 0), 1);
+            const intensity = (baseEnergy * 0.6) + (normalizedBpm * 0.4);
 
-          // 곡마다 고정된 고유 난수 생성기 (새로고침해도 수치 안 바뀌게)
-          const getPseudoRandom = (str) => {
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) {
-              hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
-            }
-            const x = Math.sin(hash) * 10000;
-            return x - Math.floor(x);
-          };
+            const lyrics_sentiment = {
+              anger: Math.max(0.01, parseFloat((((hasAngry ? 0.4 : 0.05) + (1 - valence) * 0.3) * (0.5 + intensity)).toFixed(2))),
+              anxiety: Math.max(0.01, parseFloat((((hasAnxious ? 0.3 : 0.08) + (1 - valence) * 0.25) * (0.5 + intensity)).toFixed(2))),
+              depression: Math.max(0.01, parseFloat((((hasSad ? 0.4 : 0.05) + (1 - valence) * 0.4) * (1.5 - intensity)).toFixed(2))),
+              joy: Math.max(0.01, parseFloat(((((hasHappy ? 0.5 : 0.1) + valence * 0.3) * modeModifier) * (0.5 + intensity)).toFixed(2))),
+              stability: Math.max(0.01, parseFloat((((hasCalm ? 0.4 : 0.15) + valence * 0.2) * (1.5 - intensity)).toFixed(2))),
+            };
 
-          const trackSeed = raw.name + artistName;
-          const randVal = getPseudoRandom(trackSeed);
-          const randVal2 = getPseudoRandom(trackSeed + "alt");
+            return {
+              id: `${artistName}_${raw.name}_${idx}`,
+              title: raw.name,
+              artist: artistName,
+              bpm: baseBpm,
+              mode,
+              valence: parseFloat(valence.toFixed(3)),
+              energy: parseFloat(baseEnergy.toFixed(3)),
+              loudness: parseFloat(loudness.toFixed(1)),
+              streams: playcount || (listeners * 3) || ((50 - idx) * 20000000 + 50000000),
+              listeners,
+              tags,
+              artworkUrl: itunes.artworkUrl,
+              previewUrl: itunes.previewUrl,
+              lyrics_sentiment,
+            };
+          })
+        );
+        allItems = [...allItems, ...batchItems];
+      } catch (err) {
+        console.error(`Batch processing error at index ${b}:`, err);
+      }
 
-          const genreStr = tags.join(" ");
-          const isHighTempoGenre = ["dance", "electronic", "rock", "metal", "punk", "house", "edm", "upbeat"].some(g => genreStr.includes(g));
-          const isLowTempoGenre = ["r&b", "soul", "ballad", "acoustic", "classical", "jazz", "ambient", "chill", "downtempo", "lo-fi"].some(g => genreStr.includes(g));
-
-          let baseBpm = 100;
-          let baseEnergy = 0.5;
-
-          if (isHighTempoGenre || hasAngry) {
-            baseBpm = 130 + Math.floor(randVal * 40);
-            baseEnergy = 0.75 + randVal2 * 0.2;
-          } else if (isLowTempoGenre || hasCalm || hasSad) {
-            baseBpm = 65 + Math.floor(randVal * 30);
-            baseEnergy = 0.2 + randVal2 * 0.25;
-          } else if (hasHappy) {
-            baseBpm = 110 + Math.floor(randVal * 25);
-            baseEnergy = 0.6 + randVal2 * 0.2;
-          } else {
-            baseBpm = 90 + Math.floor(randVal * 35);
-            baseEnergy = 0.45 + randVal2 * 0.3;
-          }
-
-          const valence = hasHappy ? 0.65 + randVal * 0.25 : hasSad ? 0.10 + randVal * 0.20 : hasAngry ? 0.20 + randVal * 0.20 : 0.35 + randVal * 0.30;
-          const loudness = hasAngry || isHighTempoGenre ? -3 - randVal * 3 : hasCalm || isLowTempoGenre ? -10 - randVal * 5 : -5 - randVal * 4;
-          const mode = (hasSad || hasAngry) ? "minor" : "major";
-
-          const modeModifier = mode === "minor" ? 0.6 : 1.0;
-          const normalizedBpm = Math.min(Math.max((baseBpm - 60) / 100, 0), 1);
-          const intensity = (baseEnergy * 0.6) + (normalizedBpm * 0.4);
-
-          const lyrics_sentiment = {
-            anger: Math.max(0.01, parseFloat((((hasAngry ? 0.4 : 0.05) + (1 - valence) * 0.3) * (0.5 + intensity)).toFixed(2))),
-            anxiety: Math.max(0.01, parseFloat((((hasAnxious ? 0.3 : 0.08) + (1 - valence) * 0.25) * (0.5 + intensity)).toFixed(2))),
-            depression: Math.max(0.01, parseFloat((((hasSad ? 0.4 : 0.05) + (1 - valence) * 0.4) * (1.5 - intensity)).toFixed(2))),
-            joy: Math.max(0.01, parseFloat(((((hasHappy ? 0.5 : 0.1) + valence * 0.3) * modeModifier) * (0.5 + intensity)).toFixed(2))),
-            stability: Math.max(0.01, parseFloat((((hasCalm ? 0.4 : 0.15) + valence * 0.2) * (1.5 - intensity)).toFixed(2))),
-          };
-
-          return {
-            id: `${artistName}_${raw.name}_${idx}`,
-            title: raw.name,
-            artist: artistName,
-            bpm: baseBpm,
-            mode,
-            valence: parseFloat(valence.toFixed(3)),
-            energy: parseFloat(baseEnergy.toFixed(3)),
-            loudness: parseFloat(loudness.toFixed(1)),
-            streams: playcount || (listeners * 3) || ((50 - idx) * 20000000 + 50000000),
-            listeners,
-            tags,
-            artworkUrl: itunes.artworkUrl,
-            previewUrl: itunes.previewUrl,
-            lyrics_sentiment,
-          };
-        })
-      );
-      allItems = [...allItems, ...batchItems];
-      // API 속도 조절: 스포티파이가 빠졌으므로 대기 시간을 아주 살짝만 줍니다.
       await new Promise(resolve => setTimeout(resolve, 50));
     }
     return allItems;
@@ -1324,13 +1352,10 @@ export default function MMMHAKApp() {
     setIsSearchOpen(false);
 
     try {
-      const fetchedLyrics = await fetchLyrics(track.title, track.artist); // 수정됨: track.name -> track.title
+      const fetchedLyrics = await fetchLyrics(track.title, track.artist);
       setLyrics(fetchedLyrics);
 
       if (fetchedLyrics !== "현재 이 곡의 가사를 제공할 수 없습니다.") {
-        // 💡 중요: 프론트엔드의 이 부분은 건드리지 않았습니다!
-        // 나중에 백엔드의 이 주소(/api/analyze) 안에서 제미나이를 허깅페이스로 바꿔치기만 하면
-        // 프론트엔드는 자기가 받는 데이터가 제미나이인지 허깅페이스인지 눈치채지 못하고 차트를 완벽하게 그려냅니다.
         const analyzeRes = await fetch("http://127.0.0.1:8000/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1389,6 +1414,7 @@ export default function MMMHAKApp() {
     }
   }, []);
 
+  // 🌟 3. 글로벌 차트 50곡을 백그라운드에서 안전하게 로드
   const fetchGlobalChart = async () => {
     try {
       setLoading(true);
@@ -1401,7 +1427,7 @@ export default function MMMHAKApp() {
       const rawTracks = chartData?.tracks?.track || [];
       if (rawTracks.length === 0) throw new Error("No tracks found");
 
-      setLoadingStatus(`🎵 ANALYZING ${rawTracks.length} TRACKS...`);
+      setLoadingStatus(`🎵 LOADED ${rawTracks.length} TRACKS. STARTING ANALYSIS...`);
 
       const firstItem = await processTracks([rawTracks[0]]);
       setTracks(firstItem);
@@ -1409,16 +1435,18 @@ export default function MMMHAKApp() {
       setLoading(false);
 
       if (rawTracks.length > 1) {
-        processTracks(rawTracks.slice(1)).then(rest => {
-          setTracks(prev => {
-            const combined = [...prev, ...rest];
-            return Array.from(new Map(combined.map(t => [t.title, t])).values());
-          });
-        });
+        processTracks(rawTracks.slice(1))
+          .then(rest => {
+            setTracks(prev => {
+              const combined = [...prev, ...rest];
+              const unique = Array.from(new Map(combined.map(t => [t.id, t])).values());
+              return unique.sort((a, b) => b.streams - a.streams);
+            });
+          })
+          .catch(err => console.error("Background loading error:", err));
       }
     } catch (err) {
       console.error("API error, using mock data:", err);
-      // MOCK_TRACKS가 정의되어 있다고 가정합니다.
       const mock = typeof MOCK_TRACKS !== 'undefined' ? MOCK_TRACKS.map((t, idx) => ({ ...t, id: t.id + idx, streams: t.streams || 500000000, artworkUrl: null, previewUrl: null })) : [];
       if (mock.length > 0) {
         setTracks(mock);

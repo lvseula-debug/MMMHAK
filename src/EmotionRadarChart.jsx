@@ -203,12 +203,12 @@ export default function EmotionRadarChart({ scores }) {
               EMOTION LANDSCAPE
             </div>
             {/* 단일 오각형 차트 렌더링 */}
-            <SingleRadarChart 
-              axes={axes} 
-              scores={scores} 
-              size={260} 
-              radius={55} 
-              color="#CCFF00" 
+            <SingleRadarChart
+              axes={axes}
+              scores={scores}
+              size={260}
+              radius={55}
+              color="#CCFF00"
             />
           </div>
         </DraggableChartGroup>
