@@ -1,7 +1,7 @@
 import requests
 import json
 
-API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-mnli"
+API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-mnli"
 
 import os
 from dotenv import load_dotenv

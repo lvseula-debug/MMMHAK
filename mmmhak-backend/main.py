@@ -46,7 +46,7 @@ async def analyze_lyrics(request: AnalyzeRequest):
         raise HTTPException(status_code=500, detail="HUGGINGFACE_API_KEY가 누락되었습니다.")
 
     # 2. API 정보 설정
-    api_url = "https://api-inference.huggingface.co/models/facebook/bart-large-mnli"
+    api_url = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-mnli"
     headers = {"Authorization": f"Bearer {hf_key}"}
 
     # 3. 입력값 안전 처리 (2000자 슬라이싱)
