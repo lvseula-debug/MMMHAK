@@ -2,7 +2,18 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import "./App.css";
 import EmotionRadarChart from "./EmotionRadarChart";
 
-const MUSIC_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'><rect width='100%' height='100%' fill='%231A0050'/><circle cx='200' cy='200' r='140' fill='%2313003c' stroke='%23CCFF00' stroke-width='2' opacity='0.3'/><circle cx='200' cy='200' r='100' fill='%230f0030' stroke='%23CCFF00' stroke-width='1.5' stroke-dasharray='5,5' opacity='0.4'/><circle cx='200' cy='200' r='50' fill='%231A0050' stroke='%23CCFF00' stroke-width='2'/><circle cx='200' cy='200' r='15' fill='%23CCFF00'/><path d='M190 150 L230 135 L230 200 A20 15 0 1 1 200 215 A20 15 0 0 1 230 200 L230 155 L190 170 L190 220 A20 15 0 1 1 160 235 A20 15 0 0 1 190 220 Z' fill='%23CCFF00' opacity='0.9'/></svg>";
+const MUSIC_PLACEHOLDER = "/default_album_art.png";
+
+const getApiBaseUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  const hostname = window.location.hostname;
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return "http://127.0.0.1:8000";
+  }
+  return `http://${hostname}:8000`;
+};
 
 // ── Custom Cursor ─────────────────────────────────────────────────────────────
 function CustomCursor() {
@@ -87,17 +98,13 @@ function computeVirusScores(track) {
 async function fetchItunesData(title, artist) {
   try {
     const q = encodeURIComponent(`${title} ${artist}`);
-
-    // Vercel 등 HTTPS 배포 환경에서의 Mixed Content 및 로컬 서버 부재 오류 방지를 위해
-    // iTunes Search API를 브라우저에서 직접 CORS 호출합니다.
-    const res = await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=5`);
+    const res = await fetch(`${getApiBaseUrl()}/api/itunes?term=${q}&limit=5`);
 
     if (!res.ok) return { artworkUrl: null, previewUrl: null };
 
     const data = await res.json();
     const results = data.results || [];
 
-    // 회원님의 훌륭한 매칭 로직 유지
     const match = results.find(r =>
       r.artistName?.toLowerCase().includes(artist.toLowerCase().split(" ")[0]) ||
       r.trackName?.toLowerCase().includes(title.toLowerCase().split(" ")[0])
@@ -106,7 +113,7 @@ async function fetchItunesData(title, artist) {
     if (!match) return { artworkUrl: null, previewUrl: null };
 
     return {
-      artworkUrl: match.artworkUrl100?.replace("100x100bb", "400x400bb") || null, // bb를 붙여주는 것이 더 안정적입니다.
+      artworkUrl: match.artworkUrl100?.replace("100x100bb", "400x400bb") || null,
       previewUrl: match.previewUrl || null,
     };
   } catch (error) {
@@ -1165,7 +1172,7 @@ export default function MMMHAKApp() {
     const fetchWithTerm = async (term) => {
       try {
         const q = encodeURIComponent(term);
-        const res = await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=5`);
+        const res = await fetch(`${getApiBaseUrl()}/api/itunes?term=${q}&limit=5`);
         if (!res.ok) return [];
         const data = await res.json();
         return data.results || [];
@@ -1417,16 +1424,7 @@ export default function MMMHAKApp() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const getApiBaseUrl = () => {
-    if (import.meta.env.VITE_API_URL) {
-      return import.meta.env.VITE_API_URL;
-    }
-    const hostname = window.location.hostname;
-    if (hostname === "localhost" || hostname === "127.0.0.1") {
-      return "http://127.0.0.1:8000";
-    }
-    return `http://${hostname}:8000`;
-  };
+
 
   const fetchLyrics = async (title, artist) => {
     try {
@@ -1654,6 +1652,7 @@ export default function MMMHAKApp() {
         {/* ── MOBILE layout ── */}
         {isMobile && (
           <div
+            className="mobile-scroll-container"
             style={{
               position: "fixed",
               top: 80,
@@ -1663,6 +1662,7 @@ export default function MMMHAKApp() {
               overflowY: "auto",
               scrollbarWidth: "none",
               zIndex: 10,
+              touchAction: "pan-y",
             }}
           >
             <MobileSidebarStrip tracks={tracks} activeTrack={activeTrack} onSelect={patchTrackSelection} label="Top Tracks" />

@@ -19,3 +19,10 @@ div[data-hover]:hover {
   border-color: #CCFF00 !important;
   box-shadow: 0 0 16px rgba(204,255,0,0.45) !important;
 }
+
+/* Mobile scroll container support */
+.mobile-scroll-container {
+  overflow-y: auto !important;
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch !important;
+}
