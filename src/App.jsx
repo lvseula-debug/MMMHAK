@@ -15,6 +15,24 @@ const getApiBaseUrl = () => {
   return `http://${hostname}:8000`;
 };
 
+const getLocalCache = (key) => {
+  try {
+    const val = localStorage.getItem(key);
+    return val ? JSON.parse(val) : {};
+  } catch (_) {
+    return {};
+  }
+};
+
+const setLocalCache = (key, data) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (_) {}
+};
+
+let itunesCache = getLocalCache("mm_itunes_cache");
+let lastfmCache = getLocalCache("mm_lastfm_cache");
+
 // ── Custom Cursor ─────────────────────────────────────────────────────────────
 function CustomCursor() {
   const cursorRef = useRef(null);
@@ -1241,8 +1259,8 @@ export default function MMMHAKApp() {
   };
 
   // 🚀 2. 백그라운드 50곡 처리를 보장하는 프로세스 함수
-  const processTracks = async (rawTracks, startIdx = 0) => {
-    const BATCH = 10;
+  const processTracks = async (rawTracks, startIdx = 0, onBatchComplete = null) => {
+    const BATCH = 15;
     let allItems = [];
 
     for (let b = 0; b < rawTracks.length; b += BATCH) {
@@ -1255,27 +1273,35 @@ export default function MMMHAKApp() {
             const artistName = typeof raw.artist === 'string' ? raw.artist : raw.artist?.name || 'Unknown Artist';
             const playcount = parseInt(raw.playcount || '0', 10);
             const listeners = parseInt(raw.listeners || '0', 10);
+            const cacheKey = `${artistName}_${raw.name}`.toLowerCase();
 
+            // 1. Last.fm 캐시 적용
             let tags = [];
             let lastfmCover = null;
-            try {
-              const infoRes = await fetch(`${LASTFM_BASE}/?method=track.getInfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artistName)}&track=${encodeURIComponent(raw.name)}&format=json`);
-              if (infoRes.ok) {
-                const infoData = await infoRes.json();
-                tags = (infoData?.track?.toptags?.tag || []).map(t => t.name.toLowerCase());
-
-                // 1차 백업: track.getInfo의 album.image
-                const albumImages = infoData?.track?.album?.image;
-                if (Array.isArray(albumImages) && albumImages.length > 0) {
-                  const largeImg = albumImages.find(img => img.size === 'extralarge') || albumImages[albumImages.length - 1];
-                  if (largeImg && largeImg['#text'] && !largeImg['#text'].includes('default_album')) {
-                    lastfmCover = largeImg['#text'];
+            if (lastfmCache[cacheKey]) {
+              tags = lastfmCache[cacheKey].tags;
+              lastfmCover = lastfmCache[cacheKey].cover;
+            } else {
+              try {
+                const infoRes = await fetch(`${LASTFM_BASE}/?method=track.getInfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artistName)}&track=${encodeURIComponent(raw.name)}&format=json`);
+                if (infoRes.ok) {
+                  const infoData = await infoRes.json();
+                  tags = (infoData?.track?.toptags?.tag || []).map(t => t.name.toLowerCase());
+                  const albumImages = infoData?.track?.album?.image;
+                  if (Array.isArray(albumImages) && albumImages.length > 0) {
+                    const largeImg = albumImages.find(img => img.size === 'extralarge') || albumImages[albumImages.length - 1];
+                    if (largeImg && largeImg['#text'] && !largeImg['#text'].includes('default_album')) {
+                      lastfmCover = largeImg['#text'];
+                    }
                   }
+                  // 캐시 갱신
+                  lastfmCache[cacheKey] = { tags, cover: lastfmCover };
+                  setLocalCache("mm_lastfm_cache", lastfmCache);
                 }
-              }
-            } catch (_) { }
+              } catch (_) {}
+            }
 
-            // 2차 백업: raw.image
+            // 2. raw.image 백업
             if (!lastfmCover && Array.isArray(raw.image) && raw.image.length > 0) {
               const largeImg = raw.image.find(img => img.size === 'extralarge') || raw.image[raw.image.length - 1];
               if (largeImg && largeImg['#text'] && !largeImg['#text'].includes('default_album')) {
@@ -1283,7 +1309,16 @@ export default function MMMHAKApp() {
               }
             }
 
-            const itunes = await fetchItunesData(raw.name, artistName);
+            // 3. iTunes 캐시 적용
+            let itunes = null;
+            if (itunesCache[cacheKey]) {
+              itunes = itunesCache[cacheKey];
+            } else {
+              itunes = await fetchItunesData(raw.name, artistName);
+              itunesCache[cacheKey] = itunes;
+              setLocalCache("mm_itunes_cache", itunesCache);
+            }
+
             const artworkUrl = itunes.artworkUrl || lastfmCover || null;
 
             const hasSad = tags.some(t => ['sad', 'melancholy', 'heartbreak', 'depression', 'dark', 'emo', 'blues'].some(k => t.includes(k)));
@@ -1361,12 +1396,16 @@ export default function MMMHAKApp() {
             };
           })
         );
+
         allItems = [...allItems, ...batchItems];
+        if (onBatchComplete) {
+          onBatchComplete(batchItems);
+        }
       } catch (err) {
         console.error(`Batch processing error at index ${b}:`, err);
       }
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise(resolve => setTimeout(resolve, 10));
     }
     return allItems;
   };
@@ -1407,14 +1446,14 @@ export default function MMMHAKApp() {
       setLoading(false);
 
       if (rawTracks.length > 1) {
-        processTracks(rawTracks.slice(1), 1).then(rest => {
+        processTracks(rawTracks.slice(1), 1, (batchItems) => {
           if (myRequestId !== requestIdRef.current) return;
           setTracks(prev => {
-            const combined = [...prev, ...rest];
+            const combined = [...prev, ...batchItems];
             const unique = Array.from(new Map(combined.map(t => [t.id, t])).values());
             return unique.sort((a, b) => a.rank - b.rank);
           });
-        });
+        }).catch(err => console.error("Background loading error:", err));
       }
     } catch (err) {
       console.error("Search error:", err);
@@ -1543,16 +1582,14 @@ export default function MMMHAKApp() {
       setLoading(false);
 
       if (rawTracks.length > 1) {
-        processTracks(rawTracks.slice(1), 1)
-          .then(rest => {
-            if (myRequestId !== requestIdRef.current) return;
-            setTracks(prev => {
-              const combined = [...prev, ...rest];
-              const unique = Array.from(new Map(combined.map(t => [t.id, t])).values());
-              return unique.sort((a, b) => a.rank - b.rank);
-            });
-          })
-          .catch(err => console.error("Background loading error:", err));
+        processTracks(rawTracks.slice(1), 1, (batchItems) => {
+          if (myRequestId !== requestIdRef.current) return;
+          setTracks(prev => {
+            const combined = [...prev, ...batchItems];
+            const unique = Array.from(new Map(combined.map(t => [t.id, t])).values());
+            return unique.sort((a, b) => a.rank - b.rank);
+          });
+        }).catch(err => console.error("Background loading error:", err));
       }
     } catch (err) {
       console.error("API error, using mock data:", err);
