@@ -39,14 +39,20 @@ def log_frontend(msg: str):
 
 @app.post("/api/analyze")
 async def analyze_lyrics(request: AnalyzeRequest):
-    if not HF_API_KEY:
-        raise HTTPException(status_code=500, detail="HUGGINGFACE_API_KEY가 .env에 없습니다.")
+    # 1. 환경변수 로드
+    hf_key = os.getenv("HUGGINGFACE_API_KEY")
+    if not hf_key:
+        print("ERROR: HUGGINGFACE_API_KEY가 환경변수(.env)에 설정되어 있지 않습니다.")
+        raise HTTPException(status_code=500, detail="HUGGINGFACE_API_KEY가 누락되었습니다.")
 
-    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
-    
-    # 텍스트가 너무 길면 허깅페이스가 힘들어하므로 앞부분(약 1000자)만 잘라서 보냅니다.
-    safe_lyrics = request.lyrics[:1000]
+    # 2. API 정보 설정
+    api_url = "https://api-inference.huggingface.co/models/facebook/bart-large-mnli"
+    headers = {"Authorization": f"Bearer {hf_key}"}
 
+    # 3. 입력값 안전 처리 (2000자 슬라이싱)
+    safe_lyrics = request.lyrics[:2000]
+
+    # 4. 파라미터 설정
     payload = {
         "inputs": safe_lyrics,
         "parameters": {
@@ -54,24 +60,37 @@ async def analyze_lyrics(request: AnalyzeRequest):
         }
     }
 
+    # 6. 예외 처리
     try:
-        response = requests.post(HF_API_URL, headers=headers, json=payload)
+        response = requests.post(api_url, headers=headers, json=payload)
+        
+        # 에러 응답인 경우 출력 및 예외 발생
+        if response.status_code != 200:
+            print(f"HuggingFace API Response Error (Status Code {response.status_code}): {response.text}")
+            raise HTTPException(status_code=500, detail=f"HuggingFace API Error: {response.text}")
+            
         data = response.json()
+        
+        # 허깅페이스 모델 로딩(콜드스타트) 에러 방어
+        if isinstance(data, dict) and "error" in data:
+            print(f"HuggingFace API Cold Start or General Error: {data}")
+            raise HTTPException(status_code=503, detail=f"AI가 준비 중입니다. 잠시 후 다시 시도해 주세요. ({data['error']})")
 
-        # 허깅페이스 콜드스타트(로딩) 에러 방어
-        if "error" in data:
-            raise HTTPException(status_code=503, detail=f"AI가 잠에서 깨는 중입니다. 10초 뒤 다시 눌러주세요! ({data['error']})")
-
-        # 허깅페이스의 배열 응답을 프론트엔드용 JSON 딕셔너리로 변환
-        if "labels" in data and "scores" in data:
+        # 5. 응답 데이터 파싱
+        if isinstance(data, dict) and "labels" in data and "scores" in data:
             result = {label: round(score, 3) for label, score in zip(data["labels"], data["scores"])}
             return result
         else:
-            raise HTTPException(status_code=500, detail="허깅페이스 응답 형식이 이상합니다.")
-            
+            print(f"HuggingFace Invalid JSON Response Format: {data}")
+            raise HTTPException(status_code=500, detail="허깅페이스 응답 형식이 올바르지 않습니다.")
+
     except Exception as e:
-        print(f"HuggingFace Error: {e}")
-        raise HTTPException(status_code=500, detail="감정 분석 중 오류가 발생했습니다.")
+        if isinstance(e, HTTPException):
+            raise e
+        import traceback
+        print(f"Internal Exception during lyrics analysis: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="감정 분석 요청 중 오류가 발생했습니다.")
 
 @app.get("/api/lyrics")
 async def get_lyrics(title: str, artist: str):
