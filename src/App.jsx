@@ -889,7 +889,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
       {isGraphOpen && (
         <div
           className={`flex flex-1 flex-col items-center justify-center gap-4 ${isMobile ? "p-5 pb-10" : "p-6 pb-12"}`}
-          style={{ position: "relative", zIndex: 10, pointerEvents: "none", minHeight: isMobile ? "380px" : "480px", width: "100%" }}
+          style={{ position: "relative", zIndex: 10, pointerEvents: "none" }}
         >
           {lyrics === "LOADING LYRICS..." && (
             <div style={{
@@ -1448,7 +1448,7 @@ export default function MMMHAKApp() {
 
           const getVal = (key) => {
             const val = aiScores[key] ?? aiScores.emotions?.[key] ?? prevScores[key];
-            return Number(val) || 0;
+            return Math.min(Math.max((Number(val) || 0) * 1.5, 0.3), 1.0);
           };
 
           const spread = {

@@ -1,7 +1,7 @@
 // src/EmotionRadarChart.jsx
 import React, { useEffect, useState, useRef } from "react";
 
-function SingleRadarChart({ axes, scores, size = 380, radius = 120, color = "#CCFF00" }) {
+function SingleRadarChart({ axes, scores, size = 240, radius = 50, color = "#CCFF00" }) {
   const [hovered, setHovered] = useState(null);
 
   if (!scores || !axes) return null; // Error handling: Ensure data exists
@@ -19,7 +19,7 @@ function SingleRadarChart({ axes, scores, size = 380, radius = 120, color = "#CC
     .join(" ");
 
   return (
-    <div className="relative w-full max-w-[340px] sm:max-w-[380px] md:max-w-[420px] aspect-square flex items-center justify-center">
+    <div className="relative w-full max-w-[240px] aspect-square flex items-center justify-center">
       <svg className="w-full h-auto overflow-visible" viewBox={`0 0 ${size} ${size}`}>
         {/* concentric grid */}
         {[...Array(5)].map((_, idx) => {
@@ -37,7 +37,7 @@ function SingleRadarChart({ axes, scores, size = 380, radius = 120, color = "#CC
               points={pts}
               fill="none"
               stroke="rgba(204,255,0,0.18)"
-              strokeWidth={1.0}
+              strokeWidth={0.8}
             />
           );
         })}
@@ -47,10 +47,10 @@ function SingleRadarChart({ axes, scores, size = 380, radius = 120, color = "#CC
             key={i}
             x1={center}
             y1={center}
-            x2={center + (radius + 15) * Math.sin(i * angleStep)}
-            y2={center - (radius + 15) * Math.cos(i * angleStep)}
+            x2={center + (radius + 12) * Math.sin(i * angleStep)}
+            y2={center - (radius + 12) * Math.cos(i * angleStep)}
             stroke="rgba(204,255,0,0.25)"
-            strokeWidth={0.8}
+            strokeWidth={0.6}
           />
         ))}
         {/* data polygon */}
@@ -58,8 +58,8 @@ function SingleRadarChart({ axes, scores, size = 380, radius = 120, color = "#CC
           points={points}
           fill={`${color}33`}
           stroke={color}
-          strokeWidth={2.5}
-          style={{ filter: `drop-shadow(0 0 10px ${color})`, transition: "points 0.4s" }}
+          strokeWidth={2}
+          style={{ filter: `drop-shadow(0 0 8px ${color})`, transition: "points 0.4s" }}
         />
         {/* dot at each vertex */}
         {axes.map((key, i) => {
@@ -72,15 +72,15 @@ function SingleRadarChart({ axes, scores, size = 380, radius = 120, color = "#CC
               key={key + "_dot"}
               cx={x}
               cy={y}
-              r={4}
+              r={3}
               fill={color}
-              style={{ filter: `drop-shadow(0 0 5px ${color})` }}
+              style={{ filter: `drop-shadow(0 0 4px ${color})` }}
             />
           );
         })}
         {/* labels */}
         {axes.map((key, i) => {
-          const labelR = radius + 26;
+          const labelR = radius + 22;
           const x = center + labelR * Math.sin(i * angleStep);
           const y = center - labelR * Math.cos(i * angleStep);
           return (
@@ -90,7 +90,7 @@ function SingleRadarChart({ axes, scores, size = 380, radius = 120, color = "#CC
               y={y}
               fill="#CCFF00"
               fontFamily="'Space Mono', monospace"
-              fontSize={11}
+              fontSize={9}
               textAnchor="middle"
               dominantBaseline="central"
               onMouseEnter={() => setHovered(key)}
@@ -104,7 +104,7 @@ function SingleRadarChart({ axes, scores, size = 380, radius = 120, color = "#CC
       </svg>
       {hovered && (
         <div
-          className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-[#1A0050]/95 text-[#CCFF00] px-2 py-1 rounded text-[11px] whitespace-nowrap z-10 border border-[#CCFF00]/40"
+          className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#1A0050]/95 text-[#CCFF00] px-2 py-1 rounded text-[10px] whitespace-nowrap z-10 border border-[#CCFF00]/40"
           style={{
             fontFamily: "'Space Mono', monospace",
             pointerEvents: "none",
@@ -118,15 +118,17 @@ function SingleRadarChart({ axes, scores, size = 380, radius = 120, color = "#CC
   );
 }
 
-function DraggableChartGroup({ children }) {
+function DraggableChartGroup({ children, blobWidth = 260, blobHeight = 260 }) {
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const dragging = useRef(false);
   const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
 
   const onMouseDown = (e) => {
+    // Only drag on desktop where touch isn't prioritized, but allow touch for mobile
     dragging.current = true;
     setIsDragging(true);
+    // Support both mouse and touch events
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     dragStart.current = { mx: clientX, my: clientY, px: pos.x, py: pos.y };
@@ -160,7 +162,7 @@ function DraggableChartGroup({ children }) {
 
   return (
     <div
-      className="relative z-10 flex justify-center items-center select-none w-full max-w-[360px] sm:max-w-[400px] md:max-w-[440px] aspect-square mx-auto"
+      className="relative z-10 flex justify-center items-center select-none w-full max-w-[260px] mx-auto"
       style={{
         transform: `translate(${pos.x}px, ${pos.y}px)`,
         cursor: isDragging ? "grabbing" : "grab",
@@ -169,15 +171,17 @@ function DraggableChartGroup({ children }) {
       onMouseDown={onMouseDown}
       onTouchStart={onMouseDown}
     >
-      {/* Purple blob background - responsive using w-full h-full */}
+      {/* Purple blob background */}
       <div
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#1A0050] rounded-full z-0 opacity-96 pointer-events-none w-full h-full"
         style={{
+          maxWidth: blobWidth,
+          maxHeight: blobHeight,
           animation: "float-blob 8s ease-in-out infinite",
         }}
       />
       {/* Chart content on top of blob */}
-      <div className="relative z-10 p-5 w-full flex items-center justify-center">
+      <div className="relative z-10 p-4 w-full">
         {children}
       </div>
     </div>
@@ -193,7 +197,7 @@ export default function EmotionRadarChart({ scores }) {
   return (
     <div className="flex flex-col items-center gap-4 mt-2 w-full">
       <div className="flex flex-col items-center justify-center p-4 w-full">
-        <DraggableChartGroup>
+        <DraggableChartGroup blobWidth={280} blobHeight={280}>
           <div className="flex flex-col items-center gap-2 w-full">
             <div className="font-['Space_Mono'] text-[14px] text-[#CCFF00] tracking-[0.2em] uppercase font-extrabold mb-2">
               EMOTION LANDSCAPE
@@ -202,8 +206,8 @@ export default function EmotionRadarChart({ scores }) {
             <SingleRadarChart
               axes={axes}
               scores={scores}
-              size={380}
-              radius={120}
+              size={260}
+              radius={55}
               color="#CCFF00"
             />
           </div>
@@ -211,4 +215,4 @@ export default function EmotionRadarChart({ scores }) {
       </div>
     </div>
   );
-}
+}
