@@ -86,8 +86,9 @@ async function fetchItunesData(title, artist) {
   try {
     const q = encodeURIComponent(`${title} ${artist}`);
 
-    // 💡 핵심 수정 파트: 주소를 우리 파이썬 서버의 우회로 주소로 변경합니다!
-    const res = await fetch(`http://127.0.0.1:8000/api/itunes?term=${q}&limit=5`);
+    // Vercel 등 HTTPS 배포 환경에서의 Mixed Content 및 로컬 서버 부재 오류 방지를 위해
+    // iTunes Search API를 브라우저에서 직접 CORS 호출합니다.
+    const res = await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=5`);
 
     if (!res.ok) return { artworkUrl: null, previewUrl: null };
 
@@ -107,7 +108,7 @@ async function fetchItunesData(title, artist) {
       previewUrl: match.previewUrl || null,
     };
   } catch (error) {
-    console.error("iTunes proxy fetch error:", error);
+    console.error("iTunes fetch error:", error);
     return { artworkUrl: null, previewUrl: null };
   }
 }
@@ -1141,7 +1142,9 @@ export default function MMMHAKApp() {
       const safeArtist = artist || "";
       const q = encodeURIComponent(`${safeTitle} ${safeArtist}`);
 
-      const res = await fetch(`http://127.0.0.1:8000/api/itunes?term=${q}&limit=5`);
+      // Vercel 등 HTTPS 배포 환경에서의 Mixed Content 및 로컬 서버 부재 오류 방지를 위해
+      // iTunes Search API를 브라우저에서 직접 CORS 호출합니다.
+      const res = await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=5`);
       if (!res.ok) return { artworkUrl: null, previewUrl: null };
 
       const data = await res.json();
@@ -1159,13 +1162,13 @@ export default function MMMHAKApp() {
         previewUrl: match.previewUrl || null,
       };
     } catch (error) {
-      console.error('iTunes proxy fetch error:', error);
+      console.error('iTunes fetch error:', error);
       return { artworkUrl: null, previewUrl: null };
     }
   };
 
   // 🚀 2. 백그라운드 50곡 처리를 보장하는 프로세스 함수
-  const processTracks = async (rawTracks) => {
+  const processTracks = async (rawTracks, startIdx = 0) => {
     const BATCH = 10;
     let allItems = [];
 
@@ -1175,7 +1178,7 @@ export default function MMMHAKApp() {
       try {
         const batchItems = await Promise.all(
           batch.map(async (raw, batchIdx) => {
-            const idx = b + batchIdx;
+            const idx = startIdx + b + batchIdx;
             const artistName = typeof raw.artist === 'string' ? raw.artist : raw.artist?.name || 'Unknown Artist';
             const playcount = parseInt(raw.playcount || '0', 10);
             const listeners = parseInt(raw.listeners || '0', 10);
@@ -1262,6 +1265,7 @@ export default function MMMHAKApp() {
               artworkUrl: itunes.artworkUrl,
               previewUrl: itunes.previewUrl,
               lyrics_sentiment,
+              rank: idx,
             };
           })
         );
@@ -1299,7 +1303,7 @@ export default function MMMHAKApp() {
 
       setLoadingStatus(`🎵 ANALYZING ${rawTracks.length} SEARCH RESULTS...`);
 
-      const firstItem = await processTracks([rawTracks[0]]);
+      const firstItem = await processTracks([rawTracks[0]], 0);
       setTracks(firstItem);
       setActiveTrack(firstItem[0]);
       setScores(computeVirusScores(firstItem[0]));
@@ -1308,11 +1312,11 @@ export default function MMMHAKApp() {
       setLoading(false);
 
       if (rawTracks.length > 1) {
-        processTracks(rawTracks.slice(1)).then(rest => {
+        processTracks(rawTracks.slice(1), 1).then(rest => {
           setTracks(prev => {
             const combined = [...prev, ...rest];
             const unique = Array.from(new Map(combined.map(t => [t.title, t])).values());
-            return unique.sort((a, b) => b.streams - a.streams);
+            return unique.sort((a, b) => a.rank - b.rank);
           });
         });
       }
@@ -1429,25 +1433,25 @@ export default function MMMHAKApp() {
 
       setLoadingStatus(`🎵 LOADED ${rawTracks.length} TRACKS. STARTING ANALYSIS...`);
 
-      const firstItem = await processTracks([rawTracks[0]]);
+      const firstItem = await processTracks([rawTracks[0]], 0);
       setTracks(firstItem);
       handleSelect(firstItem[0]);
       setLoading(false);
 
       if (rawTracks.length > 1) {
-        processTracks(rawTracks.slice(1))
+        processTracks(rawTracks.slice(1), 1)
           .then(rest => {
             setTracks(prev => {
               const combined = [...prev, ...rest];
               const unique = Array.from(new Map(combined.map(t => [t.id, t])).values());
-              return unique.sort((a, b) => b.streams - a.streams);
+              return unique.sort((a, b) => a.rank - b.rank);
             });
           })
           .catch(err => console.error("Background loading error:", err));
       }
     } catch (err) {
       console.error("API error, using mock data:", err);
-      const mock = typeof MOCK_TRACKS !== 'undefined' ? MOCK_TRACKS.map((t, idx) => ({ ...t, id: t.id + idx, streams: t.streams || 500000000, artworkUrl: null, previewUrl: null })) : [];
+      const mock = typeof MOCK_TRACKS !== 'undefined' ? MOCK_TRACKS.map((t, idx) => ({ ...t, id: t.id + idx, rank: idx, streams: t.streams || 500000000, artworkUrl: null, previewUrl: null })) : [];
       if (mock.length > 0) {
         setTracks(mock);
         handleSelect(mock[0]);
