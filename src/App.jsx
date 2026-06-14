@@ -98,7 +98,10 @@ function computeVirusScores(track) {
 async function fetchItunesData(title, artist) {
   try {
     const q = encodeURIComponent(`${title} ${artist}`);
-    const res = await fetch(`${getApiBaseUrl()}/api/itunes?term=${q}&limit=5`);
+    const useDirect = window.location.protocol === "https:";
+    const res = useDirect
+      ? await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=5`)
+      : await fetch(`${getApiBaseUrl()}/api/itunes?term=${q}&limit=5`);
 
     if (!res.ok) return { artworkUrl: null, previewUrl: null };
 
@@ -1172,7 +1175,10 @@ export default function MMMHAKApp() {
     const fetchWithTerm = async (term) => {
       try {
         const q = encodeURIComponent(term);
-        const res = await fetch(`${getApiBaseUrl()}/api/itunes?term=${q}&limit=5`);
+        const useDirect = window.location.protocol === "https:";
+        const res = useDirect
+          ? await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=5`)
+          : await fetch(`${getApiBaseUrl()}/api/itunes?term=${q}&limit=5`);
         if (!res.ok) return [];
         const data = await res.json();
         return data.results || [];
@@ -1436,6 +1442,9 @@ export default function MMMHAKApp() {
       return data.lyrics || "현재 이 곡의 가사를 제공할 수 없습니다.";
     } catch (e) {
       console.error(`Lyrics fetch error:`, e);
+      if (window.location.protocol === "https:" && (e.name === "TypeError" || e.message?.includes("fetch"))) {
+        return `⚠️ [보안 제한 안내] HTTPS 환경에서 로컬 백엔드 서버(HTTP) 호출이 차단되었습니다.\n\n해결하려면 브라우저 주소창 왼쪽 [자물쇠 아이콘(설정)] ➔ [사이트 설정] ➔ [안전하지 않은 콘텐츠(Insecure content)]를 '허용(Allow)'으로 변경하고 새로고침해 주세요.`;
+      }
       return "현재 이 곡의 가사를 제공할 수 없습니다.";
     }
   };
