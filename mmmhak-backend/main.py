@@ -60,8 +60,8 @@ async def analyze_lyrics(request: AnalyzeRequest):
     token_prefix = hf_key[:4] if len(hf_key) >= 4 else "N/A"
     print(f"DEBUG: Currently loaded HUGGINGFACE_API_KEY = '{token_prefix}...' (Length: {len(hf_key)})")
 
-    # 3. API 정보 설정
-    api_url = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-mnli"
+    # 3. API 정보 설정 (경량화 및 타임아웃 방지를 위해 distilbart-mnli-12-3 모델 적용)
+    api_url = "https://router.huggingface.co/hf-inference/models/valhalla/distilbart-mnli-12-3"
     headers = {"Authorization": f"Bearer {hf_key}"}
 
     # 4. 입력값 안전 처리 (512자 슬라이싱으로 토큰 길이 최적화 및 추론 속도 대폭 향상)
