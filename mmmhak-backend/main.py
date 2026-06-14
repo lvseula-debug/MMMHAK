@@ -6,9 +6,9 @@ from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-# .env 파일 로드
+# .env 파일 로드 (override=True를 설정하여 파일이 변경되었을 때 환경변수를 강제 덮어씁니다.)
 dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
-load_dotenv(dotenv_path)
+load_dotenv(dotenv_path, override=True)
 
 app = FastAPI()
 
@@ -45,6 +45,10 @@ async def analyze_lyrics(request: AnalyzeRequest):
         print("ERROR: HUGGINGFACE_API_KEY가 환경변수(.env)에 설정되어 있지 않습니다.")
         raise HTTPException(status_code=500, detail="HUGGINGFACE_API_KEY가 누락되었습니다.")
 
+    # 디버깅 로그 출력 (토큰 앞 4글자 + 길이)
+    token_prefix = hf_key[:4] if len(hf_key) >= 4 else "N/A"
+    print(f"DEBUG: Currently loaded HUGGINGFACE_API_KEY = '{token_prefix}...' (Length: {len(hf_key)})")
+
     # 2. API 정보 설정
     api_url = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-mnli"
     headers = {"Authorization": f"Bearer {hf_key}"}
@@ -76,8 +80,13 @@ async def analyze_lyrics(request: AnalyzeRequest):
             print(f"HuggingFace API Cold Start or General Error: {data}")
             raise HTTPException(status_code=503, detail=f"AI가 준비 중입니다. 잠시 후 다시 시도해 주세요. ({data['error']})")
 
-        # 5. 응답 데이터 파싱
-        if isinstance(data, dict) and "labels" in data and "scores" in data:
+        # 5. 응답 데이터 파싱 (리스트 형식 및 딕셔너리 형식 둘 다 지원하도록 유연하게 처리)
+        if isinstance(data, list):
+            # 신규 API 라우터 응답 형식: [{'label': 'joy', 'score': 0.32}, ...]
+            result = {item["label"]: round(item["score"], 3) for item in data if "label" in item and "score" in item}
+            return result
+        elif isinstance(data, dict) and "labels" in data and "scores" in data:
+            # 기존 레거시 API 응답 형식: {"labels": ["joy", ...], "scores": [0.32, ...]}
             result = {label: round(score, 3) for label, score in zip(data["labels"], data["scores"])}
             return result
         else:
