@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import "./App.css";
 import EmotionRadarChart from "./EmotionRadarChart";
 
+// Optimized: LocalStorage caching + Incremental rendering (15-track batch)
 const MUSIC_PLACEHOLDER = "/default_album_art.png";
 
 const getApiBaseUrl = () => {
