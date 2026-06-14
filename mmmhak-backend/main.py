@@ -1,6 +1,9 @@
 import os
-import requests
 import re
+import time
+import asyncio
+import hashlib
+import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,9 +24,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-HF_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
-# 허깅페이스 텍스트 감정 분석 1위 모델
-HF_API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-mnli"
+# 메모리 캐시 저장소
+lyrics_cache = {}
+analyze_cache = {}
 
 class AnalyzeRequest(BaseModel):
     lyrics: str
@@ -39,24 +42,31 @@ def log_frontend(msg: str):
 
 @app.post("/api/analyze")
 async def analyze_lyrics(request: AnalyzeRequest):
-    # 1. 환경변수 로드
+    start_time = time.time()
+    
+    # 1. 캐시 확인 (가사의 MD5 해시값을 키로 사용)
+    lyrics_hash = hashlib.md5(request.lyrics.encode('utf-8')).hexdigest()
+    if lyrics_hash in analyze_cache:
+        print("PROFILING: [CACHE HIT] /api/analyze returned from memory cache")
+        print(f"PROFILING: Total /api/analyze execution took {time.time() - start_time:.3f} seconds")
+        return analyze_cache[lyrics_hash]
+        
+    # 2. 환경변수 로드
     hf_key = os.getenv("HUGGINGFACE_API_KEY")
     if not hf_key:
         print("ERROR: HUGGINGFACE_API_KEY가 환경변수(.env)에 설정되어 있지 않습니다.")
         raise HTTPException(status_code=500, detail="HUGGINGFACE_API_KEY가 누락되었습니다.")
 
-    # 디버깅 로그 출력 (토큰 앞 4글자 + 길이)
     token_prefix = hf_key[:4] if len(hf_key) >= 4 else "N/A"
     print(f"DEBUG: Currently loaded HUGGINGFACE_API_KEY = '{token_prefix}...' (Length: {len(hf_key)})")
 
-    # 2. API 정보 설정
+    # 3. API 정보 설정
     api_url = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-mnli"
     headers = {"Authorization": f"Bearer {hf_key}"}
 
-    # 3. 입력값 안전 처리 (2000자 슬라이싱)
-    safe_lyrics = request.lyrics[:2000]
+    # 4. 입력값 안전 처리 (512자 슬라이싱으로 토큰 길이 최적화 및 추론 속도 대폭 향상)
+    safe_lyrics = request.lyrics[:512]
 
-    # 4. 파라미터 설정
     payload = {
         "inputs": safe_lyrics,
         "parameters": {
@@ -64,34 +74,62 @@ async def analyze_lyrics(request: AnalyzeRequest):
         }
     }
 
-    # 6. 예외 처리
-    try:
-        response = requests.post(api_url, headers=headers, json=payload)
-        
-        # 에러 응답인 경우 출력 및 예외 발생
-        if response.status_code != 200:
-            print(f"HuggingFace API Response Error (Status Code {response.status_code}): {response.text}")
-            raise HTTPException(status_code=500, detail=f"HuggingFace API Error: {response.text}")
-            
-        data = response.json()
-        
-        # 허깅페이스 모델 로딩(콜드스타트) 에러 방어
-        if isinstance(data, dict) and "error" in data:
-            print(f"HuggingFace API Cold Start or General Error: {data}")
-            raise HTTPException(status_code=503, detail=f"AI가 준비 중입니다. 잠시 후 다시 시도해 주세요. ({data['error']})")
+    data = None
+    max_retries = 3
+    retry_delay = 2
 
-        # 5. 응답 데이터 파싱 (리스트 형식 및 딕셔너리 형식 둘 다 지원하도록 유연하게 처리)
+    # 5. 비동기 호출 및 재시도 루프 (Cold Start 대응)
+    try:
+        for attempt in range(max_retries):
+            api_start = time.time()
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    response = await client.post(api_url, headers=headers, json=payload)
+                
+                api_duration = time.time() - api_start
+                print(f"PROFILING: HuggingFace API request (Attempt {attempt+1}) took {api_duration:.3f} seconds")
+                
+                if response.status_code == 503:
+                    resp_data = response.json()
+                    print(f"DEBUG: Model loading (503). Retrying in {retry_delay}s... Detail: {resp_data}")
+                    await asyncio.sleep(retry_delay)
+                    continue
+                    
+                if response.status_code != 200:
+                    print(f"HuggingFace API Response Error (Status Code {response.status_code}): {response.text}")
+                    raise HTTPException(status_code=500, detail=f"HuggingFace API Error: {response.text}")
+                    
+                data = response.json()
+                break  # 성공 시 루프 탈출
+            except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+                print(f"DEBUG: HTTP request failed on attempt {attempt+1}: {exc}")
+                if attempt == max_retries - 1:
+                    raise HTTPException(status_code=500, detail="HuggingFace API Connection Failed.")
+                await asyncio.sleep(retry_delay)
+
+        if data is None:
+            raise HTTPException(status_code=503, detail="AI가 준비 중입니다. 잠시 후 다시 시도해 주세요.")
+
+        # 6. 응답 데이터 파싱
+        parse_start = time.time()
         if isinstance(data, list):
             # 신규 API 라우터 응답 형식: [{'label': 'joy', 'score': 0.32}, ...]
             result = {item["label"]: round(item["score"], 3) for item in data if "label" in item and "score" in item}
-            return result
         elif isinstance(data, dict) and "labels" in data and "scores" in data:
             # 기존 레거시 API 응답 형식: {"labels": ["joy", ...], "scores": [0.32, ...]}
             result = {label: round(score, 3) for label, score in zip(data["labels"], data["scores"])}
-            return result
         else:
             print(f"HuggingFace Invalid JSON Response Format: {data}")
             raise HTTPException(status_code=500, detail="허깅페이스 응답 형식이 올바르지 않습니다.")
+
+        # 캐시에 결과 저장
+        analyze_cache[lyrics_hash] = result
+
+        parse_duration = time.time() - parse_start
+        total_duration = time.time() - start_time
+        print(f"PROFILING: Response parsing/processing took {parse_duration:.3f} seconds")
+        print(f"PROFILING: Total /api/analyze execution took {total_duration:.3f} seconds")
+        return result
 
     except Exception as e:
         if isinstance(e, HTTPException):
@@ -103,25 +141,49 @@ async def analyze_lyrics(request: AnalyzeRequest):
 
 @app.get("/api/lyrics")
 async def get_lyrics(title: str, artist: str):
+    start_time = time.time()
+    
+    # 1. 캐시 확인
+    cache_key = f"{title.lower().strip()}_{artist.lower().strip()}"
+    if cache_key in lyrics_cache:
+        print("PROFILING: [CACHE HIT] /api/lyrics returned from memory cache")
+        print(f"PROFILING: Total /api/lyrics execution took {time.time() - start_time:.3f} seconds")
+        return {"lyrics": lyrics_cache[cache_key]}
+
     try:
         def clean_text(text):
             if not text: return ""
             cleaned = re.sub(r'\[\d{2}:\d{2}\.\d{2,3}\]', '', text)
             return cleaned.strip()
 
-        # 1차 시도
+        # 1차 시도 (get)
+        api_start = time.time()
         url = f"https://lrclib.net/api/get?artist_name={artist}&track_name={title}"
-        response = requests.get(url)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url)
+            
+        print(f"PROFILING: Lyrics 1st try (get) API took {time.time() - api_start:.3f} seconds")
         if response.status_code == 200:
             data = response.json()
+            lyrics = None
             if data.get("plainLyrics"):
-                return {"lyrics": data["plainLyrics"]}
-            if data.get("syncedLyrics"):
-                return {"lyrics": clean_text(data["syncedLyrics"])}
+                lyrics = data["plainLyrics"]
+            elif data.get("syncedLyrics"):
+                lyrics = clean_text(data["syncedLyrics"])
+                
+            if lyrics:
+                lyrics_cache[cache_key] = lyrics
+                total_duration = time.time() - start_time
+                print(f"PROFILING: Total /api/lyrics execution (1st try hit) took {total_duration:.3f} seconds")
+                return {"lyrics": lyrics}
         
-        # 2차 시도 (안전장치 포함)
+        # 2차 시도 (search)
+        api_start2 = time.time()
         search_url = f"https://lrclib.net/api/search?q={artist} {title}"
-        search_response = requests.get(search_url)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            search_response = await client.get(search_url)
+            
+        print(f"PROFILING: Lyrics 2nd try (search) API took {time.time() - api_start2:.3f} seconds")
         if search_response.status_code == 200:
             search_data = search_response.json()
             if len(search_data) > 0:
@@ -131,21 +193,32 @@ async def get_lyrics(title: str, artist: str):
                 if artist.lower() not in found_artist and found_artist not in artist.lower():
                     raise HTTPException(status_code=404, detail="정확한 가사를 찾을 수 없습니다.")
 
+                lyrics = None
                 if first_result.get("plainLyrics"):
-                    return {"lyrics": first_result["plainLyrics"]}
-                if first_result.get("syncedLyrics"):
-                    return {"lyrics": clean_text(first_result["syncedLyrics"])}
+                    lyrics = first_result["plainLyrics"]
+                elif first_result.get("syncedLyrics"):
+                    lyrics = clean_text(first_result["syncedLyrics"])
+
+                if lyrics:
+                    lyrics_cache[cache_key] = lyrics
+                    total_duration = time.time() - start_time
+                    print(f"PROFILING: Total /api/lyrics execution (2nd try hit) took {total_duration:.3f} seconds")
+                    return {"lyrics": lyrics}
         
+        total_duration = time.time() - start_time
+        print(f"PROFILING: Total /api/lyrics execution (fail) took {total_duration:.3f} seconds")
         raise HTTPException(status_code=404, detail="가사를 찾을 수 없습니다.")
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=str(e))
         
 @app.get("/api/itunes")
 async def search_itunes(term: str, limit: int = 1):
     try:
-        # 파이썬 서버가 아이튠즈로 직접 요청 (CORS 에러 절대 안 생김!)
         url = f"https://itunes.apple.com/search?term={term}&entity=song&limit={limit}"
-        response = requests.get(url)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url)
         return response.json()
     except Exception as e:
         print(f"iTunes Fetch Error: {e}")

@@ -888,9 +888,22 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
       {/* Content row (Radar chart) */}
       {isGraphOpen && (
         <div
-          className={`flex flex-1 items-center justify-center gap-4 ${isMobile ? "p-5 pb-10" : "p-6 pb-12"}`}
+          className={`flex flex-1 flex-col items-center justify-center gap-4 ${isMobile ? "p-5 pb-10" : "p-6 pb-12"}`}
           style={{ position: "relative", zIndex: 10, pointerEvents: "none" }}
         >
+          {lyrics === "LOADING LYRICS..." && (
+            <div style={{
+              color: "#CCFF00",
+              fontSize: "9px",
+              fontFamily: "'Space Mono', monospace",
+              letterSpacing: "0.15em",
+              textShadow: "0 0 8px rgba(204,255,0,0.6)",
+              marginBottom: "8px",
+              textAlign: "center"
+            }}>
+              ⚡ AI ANALYZING MOOD & LYRICS...
+            </div>
+          )}
           {scores && (
             <ErrorBoundary>
               <EmotionRadarChart scores={scores} />
