@@ -80,7 +80,7 @@ function SingleRadarChart({ axes, scores, size = 240, radius = 50, color = "#CCF
         })}
         {/* labels */}
         {axes.map((key, i) => {
-          const labelR = radius + 22;
+          const labelR = radius + 25;
           const x = center + labelR * Math.sin(i * angleStep);
           const y = center - labelR * Math.cos(i * angleStep);
           return (
@@ -90,7 +90,7 @@ function SingleRadarChart({ axes, scores, size = 240, radius = 50, color = "#CCF
               y={y}
               fill="#CCFF00"
               fontFamily="'Space Mono', monospace"
-              fontSize={9}
+              fontSize={12}
               textAnchor="middle"
               dominantBaseline="central"
               onMouseEnter={() => setHovered(key)}
