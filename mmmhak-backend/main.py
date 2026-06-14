@@ -220,9 +220,11 @@ async def get_lyrics(title: str, artist: str):
         raise HTTPException(status_code=500, detail=str(e))
         
 @app.get("/api/itunes")
-async def search_itunes(term: str, limit: int = 1):
+async def search_itunes(term: str, limit: int = 1, country: str = None):
     try:
         url = f"https://itunes.apple.com/search?term={term}&entity=song&limit={limit}"
+        if country:
+            url += f"&country={country}"
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(url)
         return response.json()

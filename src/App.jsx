@@ -1189,15 +1189,16 @@ export default function MMMHAKApp() {
   const LASTFM_API_KEY = "8031c3fd85fae84e3a1970b02e22a231";
   const LASTFM_BASE = "https://ws.audioscrobbler.com/2.0";
 
-  // 🎵 1. 더 안전해진 아이튠즈 우회 함수 (에러 방어력 MAX - 다중 복구 로직 적용)
+  // 🎵 1. 더 안전해진 아이튠즈 우회 함수 (에러 방어력 MAX - 다중 복구 및 국가별 스토어 폴백 적용)
   const fetchItunesData = async (title, artist) => {
-    const fetchWithTerm = async (term) => {
+    const fetchWithTerm = async (term, country = "") => {
       try {
         const q = encodeURIComponent(term);
+        const countryParam = country ? `&country=${country}` : "";
         const useDirect = window.location.protocol === "https:";
         const res = useDirect
-          ? await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=5`)
-          : await fetch(`${getApiBaseUrl()}/api/itunes?term=${q}&limit=5`);
+          ? await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=5${countryParam}`)
+          : await fetch(`${getApiBaseUrl()}/api/itunes?term=${q}&limit=5${countryParam}`);
         if (!res.ok) return [];
         const data = await res.json();
         return data.results || [];
@@ -1206,17 +1207,17 @@ export default function MMMHAKApp() {
       }
     };
 
-    try {
+    const searchSequence = async (country = "") => {
       const safeTitle = title || "";
       const safeArtist = artist || "";
 
       // 1차 시도: 원본 곡명 + 아티스트명
-      let results = await fetchWithTerm(`${safeTitle} ${safeArtist}`);
+      let results = await fetchWithTerm(`${safeTitle} ${safeArtist}`, country);
 
       // 2차 시도: 원본 곡명 + 아티스트 첫 단어 (아티스트 명칭이 너무 길거나 피처링 정보가 붙어있을 때 대비)
       if (results.length === 0) {
         const cleanArtist = safeArtist.split(/[,\/&]|\bfeat\b/i)[0].trim();
-        results = await fetchWithTerm(`${safeTitle} ${cleanArtist}`);
+        results = await fetchWithTerm(`${safeTitle} ${cleanArtist}`, country);
       }
 
       // 3차 시도: 괄호 및 불필요한 단어를 제거한 정제된 쿼리 (Remastered, Radio Edit 등)
@@ -1230,7 +1231,7 @@ export default function MMMHAKApp() {
           .replace(/ft\..*/gi, '')
           .trim();
         const cleanArtist = safeArtist.split(/[,\/&]|\bfeat\b/i)[0].trim();
-        results = await fetchWithTerm(`${cleanTitle} ${cleanArtist}`);
+        results = await fetchWithTerm(`${cleanTitle} ${cleanArtist}`, country);
       }
 
       // 4차 시도: 정제된 곡명만으로 검색
@@ -1239,13 +1240,36 @@ export default function MMMHAKApp() {
           .replace(/\(.*?\)/g, '')
           .replace(/\[.*?\]/g, '')
           .trim();
-        results = await fetchWithTerm(cleanTitle);
+        results = await fetchWithTerm(cleanTitle, country);
       }
 
       const match = results.find(r =>
         r.artistName?.toLowerCase().includes(safeArtist.toLowerCase().split(' ')[0]) ||
         r.trackName?.toLowerCase().includes(safeTitle.toLowerCase().split(' ')[0])
       ) || results[0];
+
+      return match || null;
+    };
+
+    try {
+      // 1단계: 기본 로케일(IP 기준)로 시도
+      let match = await searchSequence("");
+
+      // 2단계: 프리뷰가 없다면 미국(US) 스토어에서 시도 (글로벌 팝송 매칭율 극대화)
+      if (!match || !match.previewUrl) {
+        const usMatch = await searchSequence("US");
+        if (usMatch && usMatch.previewUrl) {
+          match = usMatch;
+        }
+      }
+
+      // 3단계: 여전히 없다면 한국(KR) 스토어에서 시도 (국내 가요/K-pop 매칭율 극대화)
+      if (!match || !match.previewUrl) {
+        const krMatch = await searchSequence("KR");
+        if (krMatch && krMatch.previewUrl) {
+          match = krMatch;
+        }
+      }
 
       if (!match) return { artworkUrl: null, previewUrl: null };
 
@@ -1310,12 +1334,15 @@ export default function MMMHAKApp() {
               }
             }
 
-            // 3. iTunes 캐시 적용
+            // 3. iTunes 캐시 적용 (기존 빈 캐시 치유 로직 포함)
             let itunes = null;
-            if (itunesCache[cacheKey]) {
+            if (itunesCache[cacheKey] && (itunesCache[cacheKey].previewUrl || itunesCache[cacheKey].hasNoPreview)) {
               itunes = itunesCache[cacheKey];
             } else {
               itunes = await fetchItunesData(raw.name, artistName);
+              if (!itunes.previewUrl) {
+                itunes.hasNoPreview = true;
+              }
               itunesCache[cacheKey] = itunes;
               setLocalCache("mm_itunes_cache", itunesCache);
             }
