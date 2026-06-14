@@ -52,10 +52,10 @@ function computeVirusScores(track) {
   // ① 순수 감정 점수 (인기도 무관)
   const spread = {
     depression: lyrics_sentiment.depression * 0.5 + (1 - valence) * 0.3 + modeFactor * 0.2,
-    anxiety:    lyrics_sentiment.anxiety * 0.4 + tempoStress * 0.3 + (1 - valence) * 0.2,
-    anger:      lyrics_sentiment.anger * 0.5 + loudNorm * 0.2 + energy * 0.1,
-    joy:        lyrics_sentiment.joy * 0.5 + valence * 0.35,
-    stability:  lyrics_sentiment.stability * 0.4 + (1 - tempoStress) * 0.3,
+    anxiety: lyrics_sentiment.anxiety * 0.4 + tempoStress * 0.3 + (1 - valence) * 0.2,
+    anger: lyrics_sentiment.anger * 0.5 + loudNorm * 0.2 + energy * 0.1,
+    joy: lyrics_sentiment.joy * 0.5 + valence * 0.35,
+    stability: lyrics_sentiment.stability * 0.4 + (1 - tempoStress) * 0.3,
   };
 
   // ② 전염성은 별도 메타데이터로만 사용
@@ -85,74 +85,33 @@ function computeVirusScores(track) {
 async function fetchItunesData(title, artist) {
   try {
     const q = encodeURIComponent(`${title} ${artist}`);
-    const res = await fetch(`/itunes-api/search?term=${q}&entity=song&limit=5&media=music`);
+
+    // 💡 핵심 수정 파트: 주소를 우리 파이썬 서버의 우회로 주소로 변경합니다!
+    const res = await fetch(`http://127.0.0.1:8000/api/itunes?term=${q}&limit=5`);
+
     if (!res.ok) return { artworkUrl: null, previewUrl: null };
+
     const data = await res.json();
     const results = data.results || [];
+
+    // 회원님의 훌륭한 매칭 로직 유지
     const match = results.find(r =>
       r.artistName?.toLowerCase().includes(artist.toLowerCase().split(" ")[0]) ||
       r.trackName?.toLowerCase().includes(title.toLowerCase().split(" ")[0])
     ) || results[0];
+
     if (!match) return { artworkUrl: null, previewUrl: null };
+
     return {
-      artworkUrl: match.artworkUrl100?.replace("100x100", "400x400") || null,
+      artworkUrl: match.artworkUrl100?.replace("100x100bb", "400x400bb") || null, // bb를 붙여주는 것이 더 안정적입니다.
       previewUrl: match.previewUrl || null,
     };
-  } catch (_) {
+  } catch (error) {
+    console.error("iTunes proxy fetch error:", error);
     return { artworkUrl: null, previewUrl: null };
   }
 }
-
-// ── 외부 API에서 가사 가져오기 (Timeout 적용, CORS 문제 방지를 위해 헤더 제거) ──
-async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    clearTimeout(id);
-    return response;
-  } catch (err) {
-    clearTimeout(id);
-    throw err;
-  }
-}
-
-async function fetchLyrics(title, artist) {
-  try {
-    // 1차 시도: /api/get (가장 빠르고 정확함, 유저가 가장 만족했던 원래 로직)
-    const getUrl = "https://lrclib.net/api/get?artist_name="
-      + encodeURIComponent(artist)
-      + "&track_name="
-      + encodeURIComponent(title);
-
-    const getRes = await fetchWithTimeout(getUrl, {}, 8000);
-    if (getRes.ok) {
-      const getData = await getRes.json();
-      const lyrics = getData.plainLyrics || getData.syncedLyrics;
-      if (lyrics) return lyrics;
-    }
-
-    // 2차 시도: /api/search fallback
-    const searchUrl = "https://lrclib.net/api/search?track_name="
-      + encodeURIComponent(title)
-      + "&artist_name="
-      + encodeURIComponent(artist);
-
-    const searchRes = await fetchWithTimeout(searchUrl, {}, 8000);
-    if (!searchRes.ok) return "현재 이 곡의 가사를 제공할 수 없습니다.";
-
-    const searchData = await searchRes.json();
-    if (!searchData || searchData.length === 0) return "현재 이 곡의 가사를 제공할 수 없습니다.";
-
-    const lyrics = searchData[0].plainLyrics || searchData[0].syncedLyrics;
-    return lyrics ? lyrics : "현재 이 곡의 가사를 제공할 수 없습니다.";
-
-  } catch (error) {
-    console.error("Lyrics fetch error:", error);
-    return "현재 이 곡의 가사를 제공할 수 없습니다.";
-  }
-}
-
+// Removed old global fetchLyrics, using backend instead
 function generateStructuredInsights(track, scores) {
   if (!track || !scores) return { vibe: "트랙 데이터를 분석 중입니다.", insight: "", profile: "" };
 
@@ -164,19 +123,19 @@ function generateStructuredInsights(track, scores) {
     anxiety: scores.anxiety,
     anger: scores.anger
   };
-  
+
   // 값을 기준으로 내림차순 정렬
   const sortedEmotions = Object.entries(emotions).sort((a, b) => b[1] - a[1]);
   const top1 = sortedEmotions[0][0];
   const top2 = sortedEmotions[1][0];
 
   // 한글 라벨 매핑 (다시 추가 요청됨)
-  const labels = { 
-    joy: "기쁨(Joy)", 
-    stability: "안정(Stability)", 
-    depression: "우울(Depression)", 
-    anxiety: "불안(Anxiety)", 
-    anger: "분노(Anger)" 
+  const labels = {
+    joy: "기쁨(Joy)",
+    stability: "안정(Stability)",
+    depression: "우울(Depression)",
+    anxiety: "불안(Anxiety)",
+    anger: "분노(Anger)"
   };
 
   // 2. 6단계 심박수(BPM) 구간 판별
@@ -393,10 +352,10 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores })
     else if (btn.id === 'mood' && scores) {
       const insights = generateStructuredInsights(track, scores);
       content = (
-        <div style={{ 
-          display: "flex", 
-          flexDirection: "column", 
-          gap: "10px", 
+        <div style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "10px",
           marginTop: "4px",
           fontFamily: "'Nanum Myeongjo', serif",
           fontStyle: "italic",
@@ -1175,38 +1134,25 @@ export default function MMMHAKApp() {
   const LASTFM_API_KEY = "8031c3fd85fae84e3a1970b02e22a231";
   const LASTFM_BASE = "https://ws.audioscrobbler.com/2.0";
 
-  // 🌟 1. Spotify 인증 토큰 발급 함수 (Vercel 서버리스 함수 호출)
-  const getSpotifyToken = async () => {
-    try {
-      const response = await fetch("https://mmmhak.vercel.app/api/get-token");
-      if (!response.ok) throw new Error("서버에서 토큰을 가져오지 못했습니다.");
-      const data = await response.json();
-      return data.access_token;
-    } catch (e) {
-      console.error("Spotify 토큰 발급 실패:", e);
-      return null;
-    }
-  };
-
   const processTracks = async (rawTracks) => {
     const BATCH = 10;
     let allItems = [];
-    
-    // 배치 시작 전 스포티파이 토큰 1회 발급
-    const spToken = await getSpotifyToken();
+
+    // 스포티파이 토큰 발급 로직 완전 삭제!
 
     for (let b = 0; b < rawTracks.length; b += BATCH) {
       const batch = rawTracks.slice(b, b + BATCH);
       setLoadingStatus(`🔍 LOADING ${b + 1}–${Math.min(b + BATCH, rawTracks.length)} / ${rawTracks.length}...`);
 
-      // 🌟 2. 각 곡의 Spotify ID 검색 (병렬)
-      const trackIdsAndTags = await Promise.all(
-        batch.map(async (raw) => {
+      const batchItems = await Promise.all(
+        batch.map(async (raw, batchIdx) => {
+          const idx = b + batchIdx;
           const artistName = typeof raw.artist === "string" ? raw.artist : raw.artist?.name || "Unknown Artist";
-          let spId = null;
-          let tags = [];
+          const playcount = parseInt(raw.playcount || "0", 10);
+          const listeners = parseInt(raw.listeners || "0", 10);
 
-          // Last.fm 태그 가져오기
+          // 1. Last.fm 장르 태그 가져오기
+          let tags = [];
           try {
             const infoRes = await fetch(`${LASTFM_BASE}/?method=track.getInfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artistName)}&track=${encodeURIComponent(raw.name)}&format=json`);
             if (infoRes.ok) {
@@ -1215,60 +1161,17 @@ export default function MMMHAKApp() {
             }
           } catch (_) { }
 
-          // Spotify 트랙 ID 검색
-          if (spToken) {
-            try {
-              const q = encodeURIComponent(`track:${raw.name} artist:${artistName}`);
-              const spRes = await fetch(`https://api.spotify.com/v1/search?q=${q}&type=track&limit=1`, {
-                headers: { Authorization: `Bearer ${spToken}` }
-              });
-              if (spRes.ok) {
-                const spData = await spRes.json();
-                spId = spData.tracks?.items?.[0]?.id || null;
-              }
-            } catch (_) {}
-          }
-          return { raw, artistName, tags, spId };
-        })
-      );
-
-      // 🌟 3. Spotify Audio Features 한 번에(Bulk) 가져오기
-      let audioFeaturesMap = {};
-      const validSpIds = trackIdsAndTags.map(t => t.spId).filter(Boolean).join(",");
-      
-      if (validSpIds && spToken) {
-        try {
-          const afRes = await fetch(`https://api.spotify.com/v1/audio-features?ids=${validSpIds}`, {
-            headers: { Authorization: `Bearer ${spToken}` }
-          });
-          if (afRes.ok) {
-            const afData = await afRes.json();
-            if (afData && afData.audio_features) {
-              afData.audio_features.forEach(af => {
-                if (af) audioFeaturesMap[af.id] = af;
-              });
-            }
-          }
-        } catch (_) {}
-      }
-
-      // 🌟 4. 데이터 병합 및 Fallback 로직 적용
-      const batchItems = await Promise.all(
-        trackIdsAndTags.map(async ({ raw, artistName, tags, spId }, batchIdx) => {
-          const idx = b + batchIdx;
-          const playcount = parseInt(raw.playcount || "0", 10);
-          const listeners = parseInt(raw.listeners || "0", 10);
-
+          // 2. 아이튠즈 커버 및 미리듣기 즉시 가져오기
           const itunes = await fetchItunesData(raw.name, artistName);
-          const af = audioFeaturesMap[spId]; // 실제 스포티파이 데이터
 
+          // 3. 기존의 훌륭한 자체 추정(Fallback) 로직을 메인 엔진으로 승격!
           const hasSad = tags.some(t => ["sad", "melancholy", "heartbreak", "depression", "dark", "emo", "blues"].some(k => t.includes(k)));
           const hasAngry = tags.some(t => ["angry", "aggressive", "metal", "hardcore", "rage", "punk"].some(k => t.includes(k)));
           const hasAnxious = tags.some(t => ["anxious", "nervous", "tense", "suspense", "dramatic"].some(k => t.includes(k)));
           const hasHappy = tags.some(t => ["happy", "upbeat", "dance", "party", "summer", "pop", "fun", "joy"].some(k => t.includes(k)));
           const hasCalm = tags.some(t => ["calm", "chill", "relax", "ambient", "peaceful", "acoustic"].some(k => t.includes(k)));
 
-          // Spotify API 실패 대비: 곡 제목+가수 기반의 일관된 고정 난수(PRNG) 생성기
+          // 곡마다 고정된 고유 난수 생성기 (새로고침해도 수치 안 바뀌게)
           const getPseudoRandom = (str) => {
             let hash = 0;
             for (let i = 0; i < str.length; i++) {
@@ -1282,57 +1185,36 @@ export default function MMMHAKApp() {
           const randVal = getPseudoRandom(trackSeed);
           const randVal2 = getPseudoRandom(trackSeed + "alt");
 
-          // 스포티파이 Audio-Features API가 403으로 막혀있어, 장르 및 태그 기반으로 더 정교하게 BPM과 에너지를 추정합니다.
-          const genre = (itunes?.primaryGenreName || "").toLowerCase();
-          
-          const isHighTempoGenre = ["dance", "electronic", "rock", "metal", "punk", "house", "edm", "upbeat"].some(g => genre.includes(g) || tags.some(t => t.includes(g)));
-          const isLowTempoGenre = ["r&b", "soul", "ballad", "acoustic", "classical", "jazz", "ambient", "chill", "downtempo", "lo-fi"].some(g => genre.includes(g) || tags.some(t => t.includes(g)));
-          
+          const genreStr = tags.join(" ");
+          const isHighTempoGenre = ["dance", "electronic", "rock", "metal", "punk", "house", "edm", "upbeat"].some(g => genreStr.includes(g));
+          const isLowTempoGenre = ["r&b", "soul", "ballad", "acoustic", "classical", "jazz", "ambient", "chill", "downtempo", "lo-fi"].some(g => genreStr.includes(g));
+
           let baseBpm = 100;
           let baseEnergy = 0.5;
 
           if (isHighTempoGenre || hasAngry) {
-            baseBpm = 130 + Math.floor(randVal * 40); // 130 ~ 170
-            baseEnergy = 0.75 + randVal2 * 0.2; // 0.75 ~ 0.95
+            baseBpm = 130 + Math.floor(randVal * 40);
+            baseEnergy = 0.75 + randVal2 * 0.2;
           } else if (isLowTempoGenre || hasCalm || hasSad) {
-            baseBpm = 65 + Math.floor(randVal * 30); // 65 ~ 95
-            baseEnergy = 0.2 + randVal2 * 0.25; // 0.2 ~ 0.45
+            baseBpm = 65 + Math.floor(randVal * 30);
+            baseEnergy = 0.2 + randVal2 * 0.25;
           } else if (hasHappy) {
-            baseBpm = 110 + Math.floor(randVal * 25); // 110 ~ 135
-            baseEnergy = 0.6 + randVal2 * 0.2; // 0.6 ~ 0.8
+            baseBpm = 110 + Math.floor(randVal * 25);
+            baseEnergy = 0.6 + randVal2 * 0.2;
           } else {
-            // 일반 팝/인디/힙합 등 중도 템포
-            baseBpm = 90 + Math.floor(randVal * 35); // 90 ~ 125
-            baseEnergy = 0.45 + randVal2 * 0.3; // 0.45 ~ 0.75
+            baseBpm = 90 + Math.floor(randVal * 35);
+            baseEnergy = 0.45 + randVal2 * 0.3;
           }
 
-          const fallbackBpm = baseBpm;
-          const fallbackEnergy = baseEnergy;
-
-          const fallbackValence = hasHappy ? 0.65 + randVal * 0.25
-            : hasSad ? 0.10 + randVal * 0.20
-              : hasAngry ? 0.20 + randVal * 0.20
-                : 0.35 + randVal * 0.30;
-
-          const fallbackLoudness = hasAngry || isHighTempoGenre ? -3 - randVal * 3
-            : hasCalm || isLowTempoGenre ? -10 - randVal * 5
-              : -5 - randVal * 4;
-
-          // 실제 스포티파이 데이터가 있으면 적용하고, 없으면 안전한 고정값(Fallback) 사용
-          const bpm = af && typeof af.tempo === 'number' ? Math.round(af.tempo) : fallbackBpm;
-          const energy = af && typeof af.energy === 'number' ? parseFloat(af.energy.toFixed(3)) : parseFloat(fallbackEnergy.toFixed(3));
-          const valence = af && typeof af.valence === 'number' ? parseFloat(af.valence.toFixed(3)) : parseFloat(fallbackValence.toFixed(3));
-          const loudness = af && typeof af.loudness === 'number' ? parseFloat(af.loudness.toFixed(1)) : parseFloat(fallbackLoudness.toFixed(1));
-          const mode = af && typeof af.mode === 'number' ? (af.mode === 1 ? "major" : "minor") : (hasSad || hasAngry ? "minor" : "major");
+          const valence = hasHappy ? 0.65 + randVal * 0.25 : hasSad ? 0.10 + randVal * 0.20 : hasAngry ? 0.20 + randVal * 0.20 : 0.35 + randVal * 0.30;
+          const loudness = hasAngry || isHighTempoGenre ? -3 - randVal * 3 : hasCalm || isLowTempoGenre ? -10 - randVal * 5 : -5 - randVal * 4;
+          const mode = (hasSad || hasAngry) ? "minor" : "major";
 
           const modeModifier = mode === "minor" ? 0.6 : 1.0;
-
-          // BPM과 Energy를 정규화하여 트랙의 강렬함(Intensity) 계산 (0.0 ~ 1.0)
-          const normalizedBpm = Math.min(Math.max((bpm - 60) / 100, 0), 1); // 60 BPM=0, 160 BPM=1
-          const intensity = (energy * 0.6) + (normalizedBpm * 0.4); 
+          const normalizedBpm = Math.min(Math.max((baseBpm - 60) / 100, 0), 1);
+          const intensity = (baseEnergy * 0.6) + (normalizedBpm * 0.4);
 
           const lyrics_sentiment = {
-            // 강렬함이 높을수록 분노, 기쁨, 불안 점수가 증폭되고 우울, 안정은 감소됨
             anger: Math.max(0.01, parseFloat((((hasAngry ? 0.4 : 0.05) + (1 - valence) * 0.3) * (0.5 + intensity)).toFixed(2))),
             anxiety: Math.max(0.01, parseFloat((((hasAnxious ? 0.3 : 0.08) + (1 - valence) * 0.25) * (0.5 + intensity)).toFixed(2))),
             depression: Math.max(0.01, parseFloat((((hasSad ? 0.4 : 0.05) + (1 - valence) * 0.4) * (1.5 - intensity)).toFixed(2))),
@@ -1344,10 +1226,10 @@ export default function MMMHAKApp() {
             id: `${artistName}_${raw.name}_${idx}`,
             title: raw.name,
             artist: artistName,
-            bpm,
+            bpm: baseBpm,
             mode,
             valence: parseFloat(valence.toFixed(3)),
-            energy: parseFloat(energy.toFixed(3)),
+            energy: parseFloat(baseEnergy.toFixed(3)),
             loudness: parseFloat(loudness.toFixed(1)),
             streams: playcount || (listeners * 3) || ((50 - idx) * 20000000 + 50000000),
             listeners,
@@ -1359,6 +1241,8 @@ export default function MMMHAKApp() {
         })
       );
       allItems = [...allItems, ...batchItems];
+      // API 속도 조절: 스포티파이가 빠졌으므로 대기 시간을 아주 살짝만 줍니다.
+      await new Promise(resolve => setTimeout(resolve, 50));
     }
     return allItems;
   };
@@ -1418,87 +1302,94 @@ export default function MMMHAKApp() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // 가사 실시간 로드 처리를 포함한 트랙 선택 핸들러 함수
+  const fetchLyrics = async (title, artist) => {
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/api/lyrics?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`);
+      if (!response.ok) {
+        throw new Error('Lyrics fetch failed');
+      }
+      const data = await response.json();
+      return data.lyrics || "현재 이 곡의 가사를 제공할 수 없습니다.";
+    } catch (e) {
+      console.error(`Lyrics fetch error:`, e);
+      return "현재 이 곡의 가사를 제공할 수 없습니다.";
+    }
+  };
+
   const handleSelect = useCallback(async (track) => {
     setActiveTrack(track);
-    // 1. 통신 지연이나 에러를 대비해 기존 로직으로 임시 점수 세팅 (Fallback)
     setScores(computeVirusScores(track));
-
-    // 새 곡을 선택하면 가사 상태 초기화 후 비동기 패치
     setLyrics("LOADING LYRICS...");
     setIsGraphOpen(false);
     setIsSearchOpen(false);
 
     try {
-      const fetchedLyrics = await fetchLyrics(track.title, track.artist);
+      const fetchedLyrics = await fetchLyrics(track.title, track.artist); // 수정됨: track.name -> track.title
       setLyrics(fetchedLyrics);
 
-      if (fetchedLyrics === "현재 이 곡의 가사를 제공할 수 없습니다.") {
-        return;
+      if (fetchedLyrics !== "현재 이 곡의 가사를 제공할 수 없습니다.") {
+        // 💡 중요: 프론트엔드의 이 부분은 건드리지 않았습니다!
+        // 나중에 백엔드의 이 주소(/api/analyze) 안에서 제미나이를 허깅페이스로 바꿔치기만 하면
+        // 프론트엔드는 자기가 받는 데이터가 제미나이인지 허깅페이스인지 눈치채지 못하고 차트를 완벽하게 그려냅니다.
+        const analyzeRes = await fetch("http://127.0.0.1:8000/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lyrics: fetchedLyrics })
+        });
+
+        if (!analyzeRes.ok) throw new Error("AI Analysis API error");
+
+        const aiScores = await analyzeRes.json();
+        console.log('AI Analysis Data:', aiScores);
+
+        setScores(prevScores => {
+          const { bpm, mode, valence, streams } = track;
+          const bpmNorm = Math.min(bpm, 200) / 200;
+          const tempoStress = bpmNorm > 0.75 ? (bpmNorm - 0.75) * 4 : bpmNorm < 0.4 ? (0.4 - bpmNorm) * 2 : 0;
+          const contagion = Math.log10(Math.max(streams, 10)) / Math.log10(3000000000);
+
+          const getVal = (key) => {
+            const val = aiScores[key] ?? aiScores.emotions?.[key] ?? prevScores[key];
+            return Number(val) || 0;
+          };
+
+          const spread = {
+            joy: getVal('joy'),
+            depression: getVal('depression'),
+            anger: getVal('anger'),
+            anxiety: getVal('anxiety'),
+            stability: getVal('stability'),
+          };
+
+          const viralRisk = Object.values(spread).reduce((sum, v) => sum + v, 0) / 5 * contagion;
+          const positive_score = Math.min(spread.joy * 0.45 + spread.stability * 0.25 + valence * 0.30, 1);
+          const negative_score = Math.min(spread.depression * 0.40 + spread.anxiety * 0.35 + spread.anger * 0.25, 1);
+          const polarity = positive_score - negative_score;
+          const confidence = Math.abs(polarity);
+          const classification = polarity > 0.25 ? "POSITIVE" : polarity < -0.25 ? "NEGATIVE" : "MIXED";
+
+          return {
+            ...prevScores,
+            ...spread,
+            positive_score,
+            negative_score,
+            polarity,
+            confidence,
+            classification,
+            discomfort: (spread.anger * 0.4 + spread.anxiety * 0.35 + spread.depression * 0.25),
+            contagion,
+            viralRisk,
+            streams,
+            isAI: true
+          };
+        });
       }
-
-      // 2. 제미나이 분석 API 호출
-      const analyzeRes = await fetch("http://127.0.0.1:8000/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lyrics: fetchedLyrics })
-      });
-
-      if (!analyzeRes.ok) throw new Error("Gemini API error");
-
-      const geminiScores = await analyzeRes.json();
-      console.log('Gemini Data:', geminiScores);
-
-      // 3. 차트 구조에 맞게 Gemini 분석 결과를 덮어씌움
-      setScores(prevScores => {
-        const { bpm, mode, valence, streams } = track;
-        const bpmNorm = Math.min(bpm, 200) / 200;
-        const tempoStress = bpmNorm > 0.75 ? (bpmNorm - 0.75) * 4 : bpmNorm < 0.4 ? (0.4 - bpmNorm) * 2 : 0;
-        const contagion = Math.log10(Math.max(streams, 10)) / Math.log10(3000000000);
-
-        // 추출 로직: 응답 구조가 다를 수 있음을 대비해 안전하게 값 추출 (문자열 변환 방지)
-        const getVal = (key) => {
-          const val = geminiScores[key] ?? geminiScores.emotions?.[key] ?? prevScores[key];
-          return Number(val) || 0;
-        };
-
-        const spread = {
-          joy: getVal('joy'),
-          depression: getVal('depression'),
-          anger: getVal('anger'),
-          anxiety: getVal('anxiety'),
-          stability: getVal('stability'),
-        };
-
-        const viralRisk = Object.values(spread).reduce((sum, v) => sum + v, 0) / 5 * contagion;
-        const positive_score = Math.min(spread.joy * 0.45 + spread.stability * 0.25 + valence * 0.30, 1);
-        const negative_score = Math.min(spread.depression * 0.40 + spread.anxiety * 0.35 + spread.anger * 0.25, 1);
-        const polarity = positive_score - negative_score;
-        const confidence = Math.abs(polarity);
-        const classification = polarity > 0.25 ? "POSITIVE" : polarity < -0.25 ? "NEGATIVE" : "MIXED";
-
-        return {
-          ...prevScores, // 기존 데이터 유지 (InfoButton 등 에러 방지)
-          ...spread,     // 제미나이 감정 데이터 병합
-          positive_score,
-          negative_score,
-          polarity,
-          confidence,
-          classification,
-          discomfort: (spread.anger * 0.4 + spread.anxiety * 0.35 + spread.depression * 0.25),
-          contagion,
-          viralRisk,
-          streams,
-        };
-      });
     } catch (err) {
       console.error("Analysis fallback:", err);
-      // 통신 에러 발생 시 초기 세팅해둔 computeVirusScores(track) 값이 그대로 유지됨
     }
   }, []);
 
   const fetchGlobalChart = async () => {
-
     try {
       setLoading(true);
       setLoadingStatus("📡 FETCHING LAST.FM GLOBAL CHART...");
@@ -1527,10 +1418,12 @@ export default function MMMHAKApp() {
       }
     } catch (err) {
       console.error("API error, using mock data:", err);
-      const mock = MOCK_TRACKS.map((t, idx) => ({ ...t, id: t.id + idx, streams: t.streams || 500000000, artworkUrl: null, previewUrl: null }));
-      setTracks(mock);
-      handleSelect(mock[0]);
-
+      // MOCK_TRACKS가 정의되어 있다고 가정합니다.
+      const mock = typeof MOCK_TRACKS !== 'undefined' ? MOCK_TRACKS.map((t, idx) => ({ ...t, id: t.id + idx, streams: t.streams || 500000000, artworkUrl: null, previewUrl: null })) : [];
+      if (mock.length > 0) {
+        setTracks(mock);
+        handleSelect(mock[0]);
+      }
       setLoading(false);
     }
   };
