@@ -511,16 +511,25 @@ function PreviewSection({ track }) {
     setPlaying(false);
     if (audioRef.current) {
       audioRef.current.pause();
+      audioRef.current.src = track?.previewUrl || "";
       audioRef.current.currentTime = 0;
     }
-  }, [track?.id]);
+  }, [track?.id, track?.previewUrl]);
 
   const togglePlay = (e) => {
     e.stopPropagation();
-    if (!audioRef.current) {
-      if (!track?.previewUrl) alert("No audio preview available for this track.");
+    if (!audioRef.current) return;
+    
+    const targetSrc = track?.previewUrl || "";
+    if (!targetSrc) {
+      alert("No audio preview available for this track.");
       return;
     }
+
+    if (audioRef.current.src !== targetSrc) {
+      audioRef.current.src = targetSrc;
+    }
+
     if (playing) {
       audioRef.current.pause();
       setPlaying(false);
@@ -1146,6 +1155,7 @@ export default function MMMHAKApp() {
   const [isGraphOpen, setIsGraphOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const requestIdRef = useRef(0);
 
   const LASTFM_API_KEY = "8031c3fd85fae84e3a1970b02e22a231";
   const LASTFM_BASE = "https://ws.audioscrobbler.com/2.0";
@@ -1351,6 +1361,7 @@ export default function MMMHAKApp() {
   const handleSearch = async (query) => {
     if (!query.trim()) return;
     setIsSearchOpen(false);
+    const myRequestId = ++requestIdRef.current;
     try {
       setLoading(true);
       setLoadingStatus(`🔍 SEARCHING FOR ${query.toUpperCase()}...`);
@@ -1373,6 +1384,8 @@ export default function MMMHAKApp() {
       setLoadingStatus(`🎵 ANALYZING ${rawTracks.length} SEARCH RESULTS...`);
 
       const firstItem = await processTracks([rawTracks[0]], 0);
+      if (myRequestId !== requestIdRef.current) return;
+
       setTracks(firstItem);
       setActiveTrack(firstItem[0]);
       setScores(computeVirusScores(firstItem[0]));
@@ -1382,9 +1395,10 @@ export default function MMMHAKApp() {
 
       if (rawTracks.length > 1) {
         processTracks(rawTracks.slice(1), 1).then(rest => {
+          if (myRequestId !== requestIdRef.current) return;
           setTracks(prev => {
             const combined = [...prev, ...rest];
-            const unique = Array.from(new Map(combined.map(t => [t.title, t])).values());
+            const unique = Array.from(new Map(combined.map(t => [t.id, t])).values());
             return unique.sort((a, b) => a.rank - b.rank);
           });
         });
@@ -1489,6 +1503,7 @@ export default function MMMHAKApp() {
 
   // 🌟 3. 글로벌 차트 50곡을 백그라운드에서 안전하게 로드
   const fetchGlobalChart = async () => {
+    const myRequestId = ++requestIdRef.current;
     try {
       setLoading(true);
       setLoadingStatus("📡 FETCHING LAST.FM GLOBAL CHART...");
@@ -1503,6 +1518,8 @@ export default function MMMHAKApp() {
       setLoadingStatus(`🎵 LOADED ${rawTracks.length} TRACKS. STARTING ANALYSIS...`);
 
       const firstItem = await processTracks([rawTracks[0]], 0);
+      if (myRequestId !== requestIdRef.current) return;
+
       setTracks(firstItem);
       handleSelect(firstItem[0]);
       setLoading(false);
@@ -1510,6 +1527,7 @@ export default function MMMHAKApp() {
       if (rawTracks.length > 1) {
         processTracks(rawTracks.slice(1), 1)
           .then(rest => {
+            if (myRequestId !== requestIdRef.current) return;
             setTracks(prev => {
               const combined = [...prev, ...rest];
               const unique = Array.from(new Map(combined.map(t => [t.id, t])).values());
@@ -1520,6 +1538,7 @@ export default function MMMHAKApp() {
       }
     } catch (err) {
       console.error("API error, using mock data:", err);
+      if (myRequestId !== requestIdRef.current) return;
       const mock = typeof MOCK_TRACKS !== 'undefined' ? MOCK_TRACKS.map((t, idx) => ({ ...t, id: t.id + idx, rank: idx, streams: t.streams || 500000000, artworkUrl: null, previewUrl: null })) : [];
       if (mock.length > 0) {
         setTracks(mock);
