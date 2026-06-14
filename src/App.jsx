@@ -788,11 +788,11 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
     <div
       className="flex flex-col relative w-full"
       style={{
-        height: "100%",
+        height: isMobile ? "auto" : "100%",
         minHeight: "100vh",
         background: "#F5C8C8",
         animation: "fadeSlideIn 0.5s ease",
-        overflowY: "auto", // 💖 핑크색 섹션 자체 스크롤 가능하도록 수정
+        overflowY: isMobile ? "visible" : "auto", // 💖 모바일 스크롤 꼬임 해결
       }}
     >
       {/* Navigation pill & Search Bar */}
@@ -1417,9 +1417,20 @@ export default function MMMHAKApp() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  const getApiBaseUrl = () => {
+    if (import.meta.env.VITE_API_URL) {
+      return import.meta.env.VITE_API_URL;
+    }
+    const hostname = window.location.hostname;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://127.0.0.1:8000";
+    }
+    return `http://${hostname}:8000`;
+  };
+
   const fetchLyrics = async (title, artist) => {
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/lyrics?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`);
+      const response = await fetch(`${getApiBaseUrl()}/api/lyrics?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`);
       if (!response.ok) {
         throw new Error('Lyrics fetch failed');
       }
@@ -1443,7 +1454,7 @@ export default function MMMHAKApp() {
       setLyrics(fetchedLyrics);
 
       if (fetchedLyrics !== "현재 이 곡의 가사를 제공할 수 없습니다.") {
-        const analyzeRes = await fetch("http://127.0.0.1:8000/api/analyze", {
+        const analyzeRes = await fetch(`${getApiBaseUrl()}/api/analyze`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ lyrics: fetchedLyrics })
