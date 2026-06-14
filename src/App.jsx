@@ -889,7 +889,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
       {isGraphOpen && (
         <div
           className={`flex flex-1 flex-col items-center justify-center gap-4 ${isMobile ? "p-5 pb-10" : "p-6 pb-12"}`}
-          style={{ position: "relative", zIndex: 10, pointerEvents: "none" }}
+          style={{ position: "relative", zIndex: 10, pointerEvents: "none", minHeight: isMobile ? "380px" : "480px", width: "100%" }}
         >
           {lyrics === "LOADING LYRICS..." && (
             <div style={{
