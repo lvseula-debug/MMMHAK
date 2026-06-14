@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import "./App.css";
 import EmotionRadarChart from "./EmotionRadarChart";
 
+const MUSIC_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'><rect width='100%' height='100%' fill='%231A0050'/><circle cx='200' cy='200' r='140' fill='%2313003c' stroke='%23CCFF00' stroke-width='2' opacity='0.3'/><circle cx='200' cy='200' r='100' fill='%230f0030' stroke='%23CCFF00' stroke-width='1.5' stroke-dasharray='5,5' opacity='0.4'/><circle cx='200' cy='200' r='50' fill='%231A0050' stroke='%23CCFF00' stroke-width='2'/><circle cx='200' cy='200' r='15' fill='%23CCFF00'/><path d='M190 150 L230 135 L230 200 A20 15 0 1 1 200 215 A20 15 0 0 1 230 200 L230 155 L190 170 L190 220 A20 15 0 1 1 160 235 A20 15 0 0 1 190 220 Z' fill='%23CCFF00' opacity='0.9'/></svg>";
+
 // ── Custom Cursor ─────────────────────────────────────────────────────────────
 function CustomCursor() {
   const cursorRef = useRef(null);
@@ -202,7 +204,7 @@ const INFO_BUTTONS = [
 // ── Artist Card ───────────────────────────────────────────────────────────────
 function ArtistCard({ track, onSelect, isActive }) {
   const [hovered, setHovered] = useState(false);
-  const imgUrl = track.artworkUrl || `https://picsum.photos/120/90?random=${track.id}`;
+  const imgUrl = track.artworkUrl || MUSIC_PLACEHOLDER;
 
   return (
     <div
@@ -527,7 +529,7 @@ function PreviewSection({ track }) {
     }
   };
 
-  const imgUrl = track?.artworkUrl?.replace("100x100", "400x400") || `https://picsum.photos/160/160?random=${track?.id || 1}`;
+  const imgUrl = track?.artworkUrl?.replace("100x100", "400x400") || MUSIC_PLACEHOLDER;
 
   // 스포티파이, 애플뮤직 검색 쿼리 생성
   const searchQuery = encodeURIComponent(`${track?.artist || ""} ${track?.title || ""}`);
@@ -973,7 +975,7 @@ function MobileSidebarStrip({ tracks, activeTrack, onSelect, label }) {
             }}
           >
             <img
-              src={track.artworkUrl || `https://picsum.photos/72/54?random=${track.id}`}
+              src={track.artworkUrl || MUSIC_PLACEHOLDER}
               alt={track.artist}
               style={{
                 width: 72,
@@ -1135,20 +1137,55 @@ export default function MMMHAKApp() {
   const LASTFM_API_KEY = "8031c3fd85fae84e3a1970b02e22a231";
   const LASTFM_BASE = "https://ws.audioscrobbler.com/2.0";
 
-  // 🎵 1. 더 안전해진 아이튠즈 우회 함수 (에러 방어력 MAX)
+  // 🎵 1. 더 안전해진 아이튠즈 우회 함수 (에러 방어력 MAX - 다중 복구 로직 적용)
   const fetchItunesData = async (title, artist) => {
+    const fetchWithTerm = async (term) => {
+      try {
+        const q = encodeURIComponent(term);
+        const res = await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=5`);
+        if (!res.ok) return [];
+        const data = await res.json();
+        return data.results || [];
+      } catch (_) {
+        return [];
+      }
+    };
+
     try {
       const safeTitle = title || "";
       const safeArtist = artist || "";
-      const q = encodeURIComponent(`${safeTitle} ${safeArtist}`);
 
-      // Vercel 등 HTTPS 배포 환경에서의 Mixed Content 및 로컬 서버 부재 오류 방지를 위해
-      // iTunes Search API를 브라우저에서 직접 CORS 호출합니다.
-      const res = await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=5`);
-      if (!res.ok) return { artworkUrl: null, previewUrl: null };
+      // 1차 시도: 원본 곡명 + 아티스트명
+      let results = await fetchWithTerm(`${safeTitle} ${safeArtist}`);
 
-      const data = await res.json();
-      const results = data.results || [];
+      // 2차 시도: 원본 곡명 + 아티스트 첫 단어 (아티스트 명칭이 너무 길거나 피처링 정보가 붙어있을 때 대비)
+      if (results.length === 0) {
+        const cleanArtist = safeArtist.split(/[,\/&]|\bfeat\b/i)[0].trim();
+        results = await fetchWithTerm(`${safeTitle} ${cleanArtist}`);
+      }
+
+      // 3차 시도: 괄호 및 불필요한 단어를 제거한 정제된 쿼리 (Remastered, Radio Edit 등)
+      if (results.length === 0) {
+        const cleanTitle = safeTitle
+          .replace(/\(.*?\)/g, '')
+          .replace(/\[.*?\]/g, '')
+          .replace(/- \d{4} Remaster.*/gi, '')
+          .replace(/remastered/gi, '')
+          .replace(/feat\..*/gi, '')
+          .replace(/ft\..*/gi, '')
+          .trim();
+        const cleanArtist = safeArtist.split(/[,\/&]|\bfeat\b/i)[0].trim();
+        results = await fetchWithTerm(`${cleanTitle} ${cleanArtist}`);
+      }
+
+      // 4차 시도: 정제된 곡명만으로 검색
+      if (results.length === 0) {
+        const cleanTitle = safeTitle
+          .replace(/\(.*?\)/g, '')
+          .replace(/\[.*?\]/g, '')
+          .trim();
+        results = await fetchWithTerm(cleanTitle);
+      }
 
       const match = results.find(r =>
         r.artistName?.toLowerCase().includes(safeArtist.toLowerCase().split(' ')[0]) ||
@@ -1184,15 +1221,34 @@ export default function MMMHAKApp() {
             const listeners = parseInt(raw.listeners || '0', 10);
 
             let tags = [];
+            let lastfmCover = null;
             try {
               const infoRes = await fetch(`${LASTFM_BASE}/?method=track.getInfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artistName)}&track=${encodeURIComponent(raw.name)}&format=json`);
               if (infoRes.ok) {
                 const infoData = await infoRes.json();
                 tags = (infoData?.track?.toptags?.tag || []).map(t => t.name.toLowerCase());
+
+                // 1차 백업: track.getInfo의 album.image
+                const albumImages = infoData?.track?.album?.image;
+                if (Array.isArray(albumImages) && albumImages.length > 0) {
+                  const largeImg = albumImages.find(img => img.size === 'extralarge') || albumImages[albumImages.length - 1];
+                  if (largeImg && largeImg['#text'] && !largeImg['#text'].includes('default_album')) {
+                    lastfmCover = largeImg['#text'];
+                  }
+                }
               }
             } catch (_) { }
 
+            // 2차 백업: raw.image
+            if (!lastfmCover && Array.isArray(raw.image) && raw.image.length > 0) {
+              const largeImg = raw.image.find(img => img.size === 'extralarge') || raw.image[raw.image.length - 1];
+              if (largeImg && largeImg['#text'] && !largeImg['#text'].includes('default_album')) {
+                lastfmCover = largeImg['#text'];
+              }
+            }
+
             const itunes = await fetchItunesData(raw.name, artistName);
+            const artworkUrl = itunes.artworkUrl || lastfmCover || null;
 
             const hasSad = tags.some(t => ['sad', 'melancholy', 'heartbreak', 'depression', 'dark', 'emo', 'blues'].some(k => t.includes(k)));
             const hasAngry = tags.some(t => ['angry', 'aggressive', 'metal', 'hardcore', 'rage', 'punk'].some(k => t.includes(k)));
@@ -1262,7 +1318,7 @@ export default function MMMHAKApp() {
               streams: playcount || (listeners * 3) || ((50 - idx) * 20000000 + 50000000),
               listeners,
               tags,
-              artworkUrl: itunes.artworkUrl,
+              artworkUrl: artworkUrl,
               previewUrl: itunes.previewUrl,
               lyrics_sentiment,
               rank: idx,
