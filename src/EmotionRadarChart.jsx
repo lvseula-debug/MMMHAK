@@ -172,43 +172,41 @@ export default function EmotionRadarChart({ scores }) {
             </div>
             
             <div className="w-[260px] h-[260px] flex items-center justify-center relative">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart cx="50%" cy="50%" outerRadius={70} data={data}>
-                  <defs>
-                    <linearGradient id="radarGradient" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#34A853" />       {/* happy */}
-                      <stop offset="20%" stopColor="#FF5F2A" />      {/* confident */}
-                      <stop offset="40%" stopColor="#BF1111" />      {/* angry */}
-                      <stop offset="60%" stopColor="#6139FF" />      {/* sad */}
-                      <stop offset="80%" stopColor="#BEB729" />      {/* lonely */}
-                      <stop offset="100%" stopColor="#FF06EA" />     {/* love */}
-                    </linearGradient>
-                  </defs>
-                  
-                  {/* Hexagonal grid configuration */}
-                  <PolarGrid gridType="polygon" stroke="rgba(204,255,0,0.18)" strokeWidth={0.8} />
-                  
-                  {/* Axis settings for 6 points */}
-                  <PolarAngleAxis dataKey="subject" tick={renderPolarAngleAxisTick} />
-                  
-                  {/* Fixed PolarRadiusAxis domain [0, 0.6] to zoom and size relative to chart space */}
-                  <PolarRadiusAxis domain={[0, 0.6]} tick={false} axisLine={false} />
-                  
-                  {/* Tooltip to view percentages */}
-                  <Tooltip content={<CustomTooltip />} cursor={false} />
-                  
-                  {/* Radar shape definition */}
-                  <Radar
-                    name="Emotion"
-                    dataKey="value"
-                    stroke="url(#radarGradient)"
-                    strokeWidth={2}
-                    fill="url(#radarGradient)"
-                    fillOpacity={0.25}
-                    isAnimationActive={false}
-                  />
-                </RadarChart>
-              </ResponsiveContainer>
+              <RadarChart width={260} height={260} cx="50%" cy="50%" outerRadius={70} data={data}>
+                <defs>
+                  <linearGradient id="radarGradient" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#34A853" />       {/* happy */}
+                    <stop offset="20%" stopColor="#FF5F2A" />      {/* confident */}
+                    <stop offset="40%" stopColor="#BF1111" />      {/* angry */}
+                    <stop offset="60%" stopColor="#6139FF" />      {/* sad */}
+                    <stop offset="80%" stopColor="#BEB729" />      {/* lonely */}
+                    <stop offset="100%" stopColor="#FF06EA" />     {/* love */}
+                  </linearGradient>
+                </defs>
+                
+                {/* Hexagonal grid configuration */}
+                <PolarGrid gridType="polygon" stroke="rgba(204,255,0,0.18)" strokeWidth={0.8} />
+                
+                {/* Axis settings for 6 points */}
+                <PolarAngleAxis dataKey="subject" tick={renderPolarAngleAxisTick} />
+                
+                {/* Fixed PolarRadiusAxis domain [0, 0.6] to zoom and size relative to chart space */}
+                <PolarRadiusAxis domain={[0, 0.6]} tick={false} axisLine={false} />
+                
+                {/* Tooltip to view percentages */}
+                <Tooltip content={<CustomTooltip />} cursor={false} />
+                
+                {/* Radar shape definition */}
+                <Radar
+                  name="Emotion"
+                  dataKey="value"
+                  stroke="url(#radarGradient)"
+                  strokeWidth={2}
+                  fill="url(#radarGradient)"
+                  fillOpacity={0.25}
+                  isAnimationActive={false}
+                />
+              </RadarChart>
             </div>
           </div>
         </DraggableChartGroup>
