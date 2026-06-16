@@ -864,6 +864,50 @@ function PreviewSection({ track, playing, setPlaying, scores, onAddToHistory }) 
         <div style={{ fontSize: 14, fontWeight: 700, color: "#CCFF00", marginTop: 4 }}>
           {track?.title || "Unknown Title"}
         </div>
+        {scores && (
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 800,
+              color: "#FFFFFF",
+              background: "rgba(26,0,80,0.65)",
+              border: "1px solid rgba(204,255,0,0.35)",
+              borderRadius: "14px",
+              padding: "4px 12px",
+              display: "inline-block",
+              marginTop: 10,
+              letterSpacing: "0.08em",
+              boxShadow: "0 0 10px rgba(204,255,0,0.15)"
+            }}
+          >
+            MOOD: <span style={{ color: "#CCFF00" }}>{(() => {
+              const emotionsList = ["happy", "confident", "angry", "sad", "lonely", "love"];
+              const sorted = emotionsList
+                .map(emo => ({ name: emo, val: scores[emo] ?? 0 }))
+                .sort((a, b) => b.val - a.val);
+
+              const top1 = sorted[0];
+              const top2 = sorted[1];
+
+              const formatName = (name) => {
+                const maps = {
+                  happy: "HAPPY",
+                  confident: "CONFIDENT",
+                  angry: "ANGRY",
+                  sad: "SAD",
+                  lonely: "LONELY",
+                  love: "LOVE"
+                };
+                return maps[name] || name.toUpperCase();
+              };
+
+              if (top2 && (top1.val - top2.val <= 0.15) && top2.val > 0) {
+                return `${formatName(top1.name)} + ${formatName(top2.name)}`;
+              }
+              return formatName(top1.name);
+            })()}</span>
+          </div>
+        )}
       </div>
 
       {/* ── [NEW] 외부 풀버전 듣기 링크 버튼 (Spotify & Apple Music) ── */}

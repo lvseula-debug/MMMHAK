@@ -148,6 +148,50 @@ function DraggableChartGroup({ children, blobWidth = 260, blobHeight = 260 }) {
   );
 }
 
+const renderCustomDot = (scores) => (props) => {
+  const { cx, cy, payload } = props;
+  if (!payload || !scores) return null;
+
+  const emotionsList = ["happy", "confident", "angry", "sad", "lonely", "love"];
+  const sorted = emotionsList
+    .map(emo => ({ name: emo, val: scores[emo] ?? 0 }))
+    .sort((a, b) => b.val - a.val);
+
+  const top1 = sorted[0].name;
+  const top2 = sorted[1].name;
+
+  const currentSubject = payload.subject;
+  const color = colorMap[currentSubject] || "#CCFF00";
+
+  let r = 2.5;
+  let strokeWidth = 1;
+  let stroke = "none";
+
+  if (currentSubject === top1) {
+    r = 6.5;
+    strokeWidth = 3;
+    stroke = "#CCFF00"; // Neon yellow highlight
+  } else if (currentSubject === top2) {
+    r = 4.5;
+    strokeWidth = 2.5;
+    stroke = "#00FF88"; // Bright green highlight
+  } else {
+    return <circle cx={cx} cy={cy} r={2.5} fill={color} stroke="none" />;
+  }
+
+  return (
+    <circle
+      cx={cx}
+      cy={cy}
+      r={r}
+      fill={color}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      style={{ filter: "drop-shadow(0 0 4px rgba(255,255,255,0.5))" }}
+    />
+  );
+};
+
 export default function EmotionRadarChart({ scores }) {
   if (!scores) return null;
 
@@ -205,6 +249,7 @@ export default function EmotionRadarChart({ scores }) {
                   fill="url(#radarGradient)"
                   fillOpacity={0.25}
                   isAnimationActive={false}
+                  dot={renderCustomDot(scores)}
                 />
               </RadarChart>
             </div>

@@ -122,6 +122,40 @@ def apply_temperature(score: float, temperature: float = 2.0) -> float:
     scaled_logit = logit / temperature
     return round(1.0 / (1.0 + math.exp(-scaled_logit)), 3)
 
+def extract_and_duplicate_chorus(lyrics: str) -> str:
+    if not lyrics:
+        return ""
+    # Split paragraphs by empty lines
+    paragraphs = re.split(r'\n\s*\n', lyrics.strip())
+    processed_paragraphs = []
+    
+    # Match headers like [Chorus], [후렴], Chorus 1, 후렴구:, (Chorus) etc.
+    chorus_pattern = re.compile(r'\[?(?:chorus|후렴).*?\]?', re.IGNORECASE)
+    
+    for para in paragraphs:
+        lines = para.strip().split('\n')
+        is_chorus = False
+        if lines:
+            first_line = lines[0].strip()
+            if chorus_pattern.search(first_line):
+                is_chorus = True
+            elif len(lines) > 1 and chorus_pattern.search(lines[1].strip()):
+                is_chorus = True
+        
+        # Check if the paragraph starts with chorus/후렴 identifier
+        if not is_chorus:
+            if re.match(r'^(?:chorus|후렴)\b', para.strip(), re.IGNORECASE):
+                is_chorus = True
+                
+        if is_chorus:
+            # Repeat chorus paragraph twice to double its weight
+            processed_paragraphs.append(para)
+            processed_paragraphs.append(para)
+        else:
+            processed_paragraphs.append(para)
+            
+    return "\n\n".join(processed_paragraphs)
+
 async def classify_lyrics(lyrics: str, threshold_override: dict = None):
     """
     Valence(긍정/부정) 1차 분류 -> 그룹별 세부 감정 2차 분류(조건부 실행) 및 Love 테마 독립 분리.
@@ -135,7 +169,8 @@ async def classify_lyrics(lyrics: str, threshold_override: dict = None):
         
     api_url = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-mnli"
     headers = {"Authorization": f"Bearer {hf_key}"}
-    safe_lyrics = lyrics[:512]
+    weighted_lyrics = extract_and_duplicate_chorus(lyrics)
+    safe_lyrics = weighted_lyrics[:1024]
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         # 1단계: Valence 분류
