@@ -211,8 +211,36 @@ export default function EmotionRadarChart({ scores }) {
       <div className="flex flex-col items-center justify-center p-4 w-full">
         <DraggableChartGroup blobWidth={285} blobHeight={285}>
           <div className="flex flex-col items-center w-full" style={{ pointerEvents: "auto" }}>
-            <div className="font-['Space_Mono'] text-[14px] text-[#CCFF00] tracking-[0.2em] uppercase font-extrabold mb-2 text-center">
+            <div className="font-['Space_Mono'] text-[14px] text-[#CCFF00] tracking-[0.2em] uppercase font-extrabold mb-1 text-center">
               EMOTION LANDSCAPE
+            </div>
+            <div className="font-['Space_Mono'] text-[10px] text-white tracking-[0.1em] uppercase font-bold mb-3 text-center">
+              {(() => {
+                const emotionsList = ["happy", "confident", "angry", "sad", "lonely", "love"];
+                const sorted = emotionsList
+                  .map(emo => ({ name: emo, val: scores[emo] ?? 0 }))
+                  .sort((a, b) => b.val - a.val);
+
+                const top1 = sorted[0];
+                const top2 = sorted[1];
+
+                const formatName = (name) => {
+                  const maps = {
+                    happy: "HAPPY",
+                    confident: "CONFIDENT",
+                    angry: "ANGRY",
+                    sad: "SAD",
+                    lonely: "LONELY",
+                    love: "LOVE"
+                  };
+                  return maps[name] || name.toUpperCase();
+                };
+
+                if (top2 && (top1.val - top2.val <= 0.15) && top2.val > 0) {
+                  return `${formatName(top1.name)} + ${formatName(top2.name)}`;
+                }
+                return formatName(top1.name);
+              })()}
             </div>
             
             <div className="w-[260px] h-[260px] flex items-center justify-center relative">
