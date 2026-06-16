@@ -1,3 +1,4 @@
+/* global process, Buffer */
 // api/get-token.js
 export default async function handler(req, res) {
   // 스포티파이 API 키 가져오기 (Vercel 환경변수 또는 로컬 .env)

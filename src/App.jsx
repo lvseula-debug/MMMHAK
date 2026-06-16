@@ -1,9 +1,29 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { PieChart, Pie, Cell } from "recharts";
 import "./App.css";
 import EmotionRadarChart from "./EmotionRadarChart";
 
 // Optimized: LocalStorage caching + Incremental rendering (15-track batch)
 const MUSIC_PLACEHOLDER = "/default_album_art.png";
+
+const EMOTION_COLORS = {
+  angry: "#BF1111",
+  confident: "#FF5F2A",
+  lonely: "#BEB729",
+  happy: "#34A853",
+  sad: "#6139FF",
+  love: "#FF06EA",
+};
+
+const EMPATHY_THEMES = {
+  angry: { messages: ["누가 널 화나게 했어? 나한테 데리고 와."] },
+  confident: { messages: ["그 누가 지금 널 말릴 수 있을까?"] },
+  lonely: { messages: ["손에 쥔 모래처럼 날아가는 것들이 있지.", "생각이 많아지는 날에는 산책이 최고야."] },
+  happy: { messages: ["여기 해피 바이러스를 느껴봐!", "이 노래 들으면서 나랑 여행갈래?"] },
+  sad: { messages: ["괜찮다고 말했지만 사실은 그렇지 않지?", "오늘같이 숨이 찬 날이 있지."] },
+  love: { messages: ["마치 누가 떠오르는 듯한 노래야.", "네 머릿속에 떠오르는 그 사람은 누구야?"] }
+};
 
 const getApiBaseUrl = () => {
   if (import.meta.env.VITE_API_BASE_URL) {
@@ -20,7 +40,7 @@ const getLocalCache = (key) => {
   try {
     const val = localStorage.getItem(key);
     return val ? JSON.parse(val) : {};
-  } catch (_) {
+  } catch {
     return {};
   }
 };
@@ -28,7 +48,9 @@ const getLocalCache = (key) => {
 const setLocalCache = (key, data) => {
   try {
     localStorage.setItem(key, JSON.stringify(data));
-  } catch (_) {}
+  } catch {
+    /* ignore */
+  }
 };
 
 let itunesCache = getLocalCache("mm_itunes_cache");
@@ -63,42 +85,56 @@ function CustomCursor() {
 
 // ── Mock Data & Scoring ───────────────────────────────────────────────────────
 const MOCK_TRACKS = [
-  { id: "1", title: "Espresso", artist: "Sabrina Carpenter", bpm: 120, mode: "major", valence: 0.69, energy: 0.76, loudness: -3.5, streams: 1420000000, lyrics_sentiment: { anger: 0.05, anxiety: 0.10, depression: 0.08, joy: 0.72, stability: 0.65 } },
-  { id: "2", title: "BIRDS OF A FEATHER", artist: "Billie Eilish", bpm: 105, mode: "major", valence: 0.43, energy: 0.51, loudness: -7.8, streams: 1280000000, lyrics_sentiment: { anger: 0.12, anxiety: 0.35, depression: 0.28, joy: 0.45, stability: 0.55 } },
-  { id: "3", title: "Beautiful Things", artist: "Benson Boone", bpm: 105, mode: "major", valence: 0.31, energy: 0.47, loudness: -5.6, streams: 1610000000, lyrics_sentiment: { anger: 0.35, anxiety: 0.42, depression: 0.38, joy: 0.32, stability: 0.45 } },
-  { id: "4", title: "Too Sweet", artist: "Hozier", bpm: 117, mode: "minor", valence: 0.65, energy: 0.62, loudness: -4.9, streams: 980000000, lyrics_sentiment: { anger: 0.15, anxiety: 0.22, depression: 0.18, joy: 0.58, stability: 0.50 } },
-  { id: "5", title: "Gata Only", artist: "FloyyMenor", bpm: 100, mode: "minor", valence: 0.81, energy: 0.72, loudness: -5.4, streams: 1140000000, lyrics_sentiment: { anger: 0.08, anxiety: 0.12, depression: 0.05, joy: 0.78, stability: 0.52 } },
-  { id: "6", title: "Cruel Summer", artist: "Taylor Swift", bpm: 170, mode: "major", valence: 0.53, energy: 0.70, loudness: -5.7, streams: 2450000000, lyrics_sentiment: { anger: 0.10, anxiety: 0.28, depression: 0.15, joy: 0.62, stability: 0.58 } },
-  { id: "7", title: "Magnetic", artist: "ILLIT", bpm: 132, mode: "major", valence: 0.69, energy: 0.78, loudness: -4.8, streams: 580000000, lyrics_sentiment: { anger: 0.05, anxiety: 0.15, depression: 0.06, joy: 0.82, stability: 0.68 } },
-  { id: "8", title: "Spot!", artist: "ZICO", bpm: 110, mode: "minor", valence: 0.78, energy: 0.83, loudness: -4.2, streams: 320000000, lyrics_sentiment: { anger: 0.12, anxiety: 0.18, depression: 0.08, joy: 0.76, stability: 0.60 } },
+  { id: "1", title: "Espresso", artist: "Sabrina Carpenter", bpm: 120, mode: "major", valence: 0.69, energy: 0.76, loudness: -3.5, streams: 1420000000, lyrics_sentiment: { happy: 0.72, sad: 0.08, angry: 0.05, love: 0.65, lonely: 0.10, confident: 0.60 } },
+  { id: "2", title: "BIRDS OF A FEATHER", artist: "Billie Eilish", bpm: 105, mode: "major", valence: 0.43, energy: 0.51, loudness: -7.8, streams: 1280000000, lyrics_sentiment: { happy: 0.45, sad: 0.28, angry: 0.12, love: 0.55, lonely: 0.35, confident: 0.40 } },
+  { id: "3", title: "Beautiful Things", artist: "Benson Boone", bpm: 105, mode: "major", valence: 0.31, energy: 0.47, loudness: -5.6, streams: 1610000000, lyrics_sentiment: { happy: 0.32, sad: 0.38, angry: 0.35, love: 0.45, lonely: 0.42, confident: 0.30 } },
+  { id: "4", title: "Too Sweet", artist: "Hozier", bpm: 117, mode: "minor", valence: 0.65, energy: 0.62, loudness: -4.9, streams: 980000000, lyrics_sentiment: { happy: 0.58, sad: 0.18, angry: 0.15, love: 0.50, lonely: 0.22, confident: 0.45 } },
+  { id: "5", title: "Gata Only", artist: "FloyyMenor", bpm: 100, mode: "minor", valence: 0.81, energy: 0.72, loudness: -5.4, streams: 1140000000, lyrics_sentiment: { happy: 0.78, sad: 0.05, angry: 0.08, love: 0.52, lonely: 0.12, confident: 0.50 } },
+  { id: "6", title: "Cruel Summer", artist: "Taylor Swift", bpm: 170, mode: "major", valence: 0.53, energy: 0.70, loudness: -5.7, streams: 2450000000, lyrics_sentiment: { happy: 0.62, sad: 0.15, angry: 0.10, love: 0.58, lonely: 0.28, confident: 0.55 } },
+  { id: "7", title: "Magnetic", artist: "ILLIT", bpm: 132, mode: "major", valence: 0.69, energy: 0.78, loudness: -4.8, streams: 580000000, lyrics_sentiment: { happy: 0.82, sad: 0.06, angry: 0.05, love: 0.68, lonely: 0.15, confident: 0.60 } },
+  { id: "8", title: "Spot!", artist: "ZICO", bpm: 110, mode: "minor", valence: 0.78, energy: 0.83, loudness: -4.2, streams: 320000000, lyrics_sentiment: { happy: 0.76, sad: 0.08, angry: 0.12, love: 0.60, lonely: 0.18, confident: 0.65 } },
 ];
 
 function computeVirusScores(track) {
-  const { bpm, mode, valence, energy, loudness, lyrics_sentiment, streams } = track;
-  const bpmNorm = Math.min(bpm, 200) / 200;
-  const tempoStress = bpmNorm > 0.75 ? (bpmNorm - 0.75) * 4 : bpmNorm < 0.4 ? (0.4 - bpmNorm) * 2 : 0;
+  const { mode, valence, energy, loudness, lyrics_sentiment, streams } = track;
   const modeFactor = mode === "minor" ? 0.3 : -0.1;
   const loudNorm = Math.min(Math.max((loudness + 20) / 20, 0), 1);
   const contagion = Math.log10(Math.max(streams, 10)) / Math.log10(3000000000);
 
   // ① 순수 감정 점수 (인기도 무관)
   const spread = {
-    depression: lyrics_sentiment.depression * 0.5 + (1 - valence) * 0.3 + modeFactor * 0.2,
-    anxiety: lyrics_sentiment.anxiety * 0.4 + tempoStress * 0.3 + (1 - valence) * 0.2,
-    anger: lyrics_sentiment.anger * 0.5 + loudNorm * 0.2 + energy * 0.1,
-    joy: lyrics_sentiment.joy * 0.5 + valence * 0.35,
-    stability: lyrics_sentiment.stability * 0.4 + (1 - tempoStress) * 0.3,
+    happy: (lyrics_sentiment?.happy ?? 0.1) * 0.5 + valence * 0.35,
+    sad: (lyrics_sentiment?.sad ?? 0.1) * 0.5 + (1 - valence) * 0.3 + modeFactor * 0.2,
+    angry: (lyrics_sentiment?.angry ?? 0.05) * 0.5 + loudNorm * 0.2 + energy * 0.1,
+    love: (lyrics_sentiment?.love ?? 0.1) * 0.5 + valence * 0.2 + energy * 0.1,
+    lonely: (lyrics_sentiment?.lonely ?? 0.1) * 0.5 + (1 - valence) * 0.3 + (1 - energy) * 0.1,
+    confident: (lyrics_sentiment?.confident ?? 0.1) * 0.5 + energy * 0.3 + loudNorm * 0.1,
   };
 
   // ② 전염성은 별도 메타데이터로만 사용
   const viralRisk = Object.values(spread)
-    .reduce((sum, v) => sum + v, 0) / 5 * contagion; // 평균 감정 강도 × 전파력
+    .reduce((sum, v) => sum + v, 0) / 6 * contagion; // 평균 감정 강도 × 전파력
 
-  const positive_score = Math.min(spread.joy * 0.45 + spread.stability * 0.25 + valence * 0.30, 1);
-  const negative_score = Math.min(spread.depression * 0.40 + spread.anxiety * 0.35 + spread.anger * 0.25, 1);
+  const positive_score = Math.min((spread.happy ?? 0) * 0.4 + (spread.love ?? 0) * 0.3 + (spread.confident ?? 0) * 0.3, 1);
+  const negative_score = Math.min((spread.sad ?? 0) * 0.4 + (spread.lonely ?? 0) * 0.3 + (spread.angry ?? 0) * 0.3, 1);
   const polarity = positive_score - negative_score;
   const confidence = Math.abs(polarity);
   const classification = polarity > 0.25 ? "POSITIVE" : polarity < -0.25 ? "NEGATIVE" : "MIXED";
+  const primary_emotion = (() => {
+    const emos = ["happy", "confident", "angry", "sad", "lonely"];
+    let maxVal = -1;
+    let top = "happy";
+    emos.forEach((emo) => {
+      if ((spread[emo] ?? 0) > maxVal) {
+        maxVal = spread[emo];
+        top = emo;
+      }
+    });
+    return top;
+  })();
+
+  const is_love_themed = (spread.love ?? 0) >= 0.35;
+  const valence_group = polarity > 0.0 ? "positive" : "negative";
 
   return {
     ...spread,
@@ -107,53 +143,53 @@ function computeVirusScores(track) {
     polarity,
     confidence,
     classification,
-    discomfort: (spread.anger * 0.4 + spread.anxiety * 0.35 + spread.depression * 0.25),
+    discomfort: ((spread.angry ?? 0) * 0.4 + (spread.sad ?? 0) * 0.3 + (spread.lonely ?? 0) * 0.3),
     contagion,
     viralRisk,
     streams,
+    primary_emotion,
+    valence_group,
+    love_theme_score: spread.love,
+    is_love_themed,
   };
 }
 
-async function fetchItunesData(title, artist) {
-  try {
-    const q = encodeURIComponent(`${title} ${artist}`);
-    const useDirect = window.location.protocol === "https:";
-    const res = useDirect
-      ? await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=5`)
-      : await fetch(`${getApiBaseUrl()}/api/itunes?term=${q}&limit=5`);
+const safeMergeTracks = (prev, batchItems) => {
+  const combined = [...prev, ...batchItems];
+  const uniqueMap = new Map();
+  combined.forEach(track => {
+    const existing = uniqueMap.get(track.id);
+    if (existing) {
+      if (existing.isAI && !track.isAI) {
+        uniqueMap.set(track.id, {
+          ...track,
+          isAI: true,
+          lyrics: existing.lyrics,
+          aiScores: existing.aiScores,
+          lyrics_sentiment: existing.lyrics_sentiment
+        });
+      } else {
+        uniqueMap.set(track.id, track);
+      }
+    } else {
+      uniqueMap.set(track.id, track);
+    }
+  });
+  return Array.from(uniqueMap.values()).sort((a, b) => a.rank - b.rank);
+};
 
-    if (!res.ok) return { artworkUrl: null, previewUrl: null };
 
-    const data = await res.json();
-    const results = data.results || [];
-
-    const match = results.find(r =>
-      r.artistName?.toLowerCase().includes(artist.toLowerCase().split(" ")[0]) ||
-      r.trackName?.toLowerCase().includes(title.toLowerCase().split(" ")[0])
-    ) || results[0];
-
-    if (!match) return { artworkUrl: null, previewUrl: null };
-
-    return {
-      artworkUrl: match.artworkUrl100?.replace("100x100bb", "400x400bb") || null,
-      previewUrl: match.previewUrl || null,
-    };
-  } catch (error) {
-    console.error("iTunes fetch error:", error);
-    return { artworkUrl: null, previewUrl: null };
-  }
-}
 // Removed old global fetchLyrics, using backend instead
 function generateStructuredInsights(track, scores) {
   if (!track || !scores) return { vibe: "트랙 데이터를 분석 중입니다.", insight: "", profile: "" };
 
-  // 1. 최고 감정 추출
+  // 1. 최고 감정 추출 (러브 테마 제외하고 5대 감정만 분류)
   const emotions = {
-    joy: scores.joy,
-    stability: scores.stability,
-    depression: scores.depression,
-    anxiety: scores.anxiety,
-    anger: scores.anger
+    happy: scores.happy,
+    sad: scores.sad,
+    angry: scores.angry,
+    lonely: scores.lonely,
+    confident: scores.confident
   };
 
   // 값을 기준으로 내림차순 정렬
@@ -163,15 +199,16 @@ function generateStructuredInsights(track, scores) {
 
   // 한글 라벨 매핑 (다시 추가 요청됨)
   const labels = {
-    joy: "기쁨(Joy)",
-    stability: "안정(Stability)",
-    depression: "우울(Depression)",
-    anxiety: "불안(Anxiety)",
-    anger: "분노(Anger)"
+    happy: "행복(Happy)",
+    sad: "슬픔(Sad)",
+    angry: "분노(Angry)",
+    love: "사랑(Love)",
+    lonely: "외로움(Lonely)",
+    confident: "자신감(Confident)"
   };
 
   // 2. 6단계 심박수(BPM) 구간 판별
-  let bpmTier = "";
+  let bpmTier;
   const bpm = track.bpm;
   if (bpm <= 65) bpmTier = "deep_rest";        // 수면 및 명상
   else if (bpm <= 85) bpmTier = "resting";     // 안정 시 심박수
@@ -181,32 +218,37 @@ function generateStructuredInsights(track, scores) {
   else bpmTier = "overdrive";                  // 전력 질주 (극도의 흥분)
 
   // 3. VIBE 텍스트 생성 (교차 분석)
-  let vibe = "";
+  let vibe;
   switch (top1) {
-    case "joy":
+    case "happy":
       if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "심박수를 한계까지 끌어올리는 폭발적인 도파민 뱅어(Banger)입니다. 춤추기 완벽한 트랙입니다.";
       else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "경쾌한 발걸음을 만들어주는 산뜻한 그루브. 일상의 텐션을 기분 좋게 올려줍니다.";
       else vibe = "입가에 여유로운 미소를 띠게 만드는 따뜻하고 긍정적인 무드의 트랙입니다.";
       break;
-    case "depression":
+    case "sad":
       if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "빠른 템포 속에서 비극적인 감정이 폭발합니다. 빗속을 질주하며 억눌린 슬픔을 토해내는 듯한 카타르시스를 줍니다.";
       else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "걷잡을 수 없는 멜랑콜리함이 묻어납니다. 복잡한 생각과 함께 정처 없이 걷기 좋은 분위기입니다.";
       else vibe = "시간이 멈춘 듯한 깊은 심연. 혼자만의 사색에 잠기거나 묵은 감정을 위로받기 완벽합니다.";
       break;
-    case "anger":
+    case "angry":
       if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "혈관에 아드레날린을 직접 꽂는 듯한 파괴적인 에너지! 모든 스트레스를 박살 내는 강렬한 트랙입니다.";
       else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "날카롭고 냉소적인 그루브가 긴장감을 조성하며, 묘한 반항심을 불러일으킵니다.";
       else vibe = "무겁고 압도적인 프레셔가 짓누르는 듯한, 다크하고 카리스마 넘치는 분위기를 뿜어냅니다.";
       break;
-    case "stability":
-      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "빠른 속도감에도 불구하고 흔들림 없는 몰입(Flow) 상태를 만들어주는 세련된 드라이빙 트랙입니다.";
-      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "나른한 오후의 기분 좋은 산책처럼, 칠(Chill)하고 세련된 여유로움을 선사합니다.";
-      else vibe = "마치 명상에 빠지듯, 긴장된 신경을 부드럽게 이완시키며 가장 편안한 휴식을 유도합니다.";
+    case "love":
+      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "심장 박동을 닮은 빠른 비트 위에 달콤하고 정열적인 사랑의 고백이 펼쳐집니다. 에너제틱한 설렘을 줍니다.";
+      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "달콤하고 부드러운 멜로디가 낭만적인 분위기를 고조시키며, 누군가를 떠올리게 만듭니다.";
+      else vibe = "포근하고 깊은 사랑의 감정이 공간을 가득 채웁니다. 가장 편안하고 따뜻하게 마음을 녹여주는 트랙입니다.";
       break;
-    case "anxiety":
-      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "심장을 조여오는 듯한 아찔한 템포. 쫓기는 듯한 스릴과 서스펜스가 당신의 몰입도를 극대화합니다.";
-      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "어딘가 불안정하면서도 몽환적인 전개가 호기심을 자극하며, 계속해서 귀를 기울이게 만듭니다.";
-      else vibe = "숨을 죽이게 만드는 기묘하고 차가운 정적. 베일에 싸인 듯한 미스터리한 무드를 자아냅니다.";
+    case "lonely":
+      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "빠른 속도로 흘러가는 세상 속 홀로 남겨진 고독함. 가슴 한구석을 조여오는 아련한 감각을 줍니다.";
+      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "외로운 밤길을 걸을 때 나지막이 들려오는 동반자 같은 곡. 조용한 위로를 전해줍니다.";
+      else vibe = "한없이 깊고 고요한 방 안, 오롯이 혼자만의 감정에 침잠하여 차분하게 마음을 가라앉혀 줍니다.";
+      break;
+    case "confident":
+      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "넘치는 패기와 강인한 에너지가 당당하게 뿜어져 나옵니다. 세상의 중심에 선 듯한 강력한 자신감을 불어넣습니다.";
+      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "자신감 넘치는 당당한 발걸음과 세련된 바이브. 어떤 난관도 헤쳐 나갈 수 있을 것만 같은 에너지를 줍니다.";
+      else vibe = "내면에 잠재된 강한 신념과 확신을 일깨워주는 진중하고 품격 있는 무드의 트랙입니다.";
       break;
     default:
       vibe = "다양한 감정이 교차하는 트랙으로, 현재의 기분에 따라 새로운 매력을 발견할 수 있습니다.";
@@ -217,7 +259,12 @@ function generateStructuredInsights(track, scores) {
   const plays = track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + "M" : track.streams;
   const profile = `${track.bpm} BPM · ${track.mode === "minor" ? "Minor" : "Major"} Key · Energy ${track.energy.toFixed(2)} · ${plays} Plays`;
 
-  return { vibe, insight, profile };
+  let finalVibe = vibe;
+  if (scores.is_love_themed) {
+    finalVibe += " ❤️ 이 곡은 사랑과 관계, 혹은 누군가를 향한 아련한 그리움을 주요 테마로 하고 있습니다.";
+  }
+
+  return { vibe: finalVibe, insight, profile };
 }
 
 // ── Info Buttons Data ─────────────────────────────────────────────────────────
@@ -532,9 +579,95 @@ function Waveform({ playing }) {
 
 // ── Preview Section ───────────────────────────────────────────────────────────
 // ── Preview Section ───────────────────────────────────────────────────────────
-function PreviewSection({ track }) {
+function PreviewSection({ track, playing, setPlaying, scores, onAddToHistory }) {
   const audioRef = useRef(null);
-  const [playing, setPlaying] = useState(false);
+  const [empathyMessage, setEmpathyMessage] = useState(null);
+  const [accentColor, setAccentColor] = useState("#CCFF00");
+
+  const loggedRef = useRef(false);
+
+  // Reset loggedRef when track changes
+  useEffect(() => {
+    loggedRef.current = false;
+  }, [track?.id]);
+
+  useEffect(() => {
+    if (!playing || !track || !scores) return;
+
+    // Determine primary emotion
+    const topEmotion = scores.primary_emotion || "happy";
+
+    // Set 30 second timer
+    const timer = setTimeout(() => {
+      if (!loggedRef.current) {
+        loggedRef.current = true;
+        if (onAddToHistory) {
+          onAddToHistory(track, topEmotion);
+        }
+      }
+    }, 30000);
+
+    return () => clearTimeout(timer);
+  }, [playing, track, scores, onAddToHistory]);
+
+  const handleEnded = () => {
+    setPlaying(false);
+    if (track && scores && !loggedRef.current) {
+      loggedRef.current = true;
+      const topEmotion = scores.primary_emotion || "happy";
+      if (onAddToHistory) {
+        onAddToHistory(track, topEmotion);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (!scores || !playing) return;
+
+    const topEmotion = scores.primary_emotion || (() => {
+      const emotions = ["happy", "confident", "angry", "sad", "lonely"];
+      let top = "happy";
+      let maxVal = -1;
+      emotions.forEach((emo) => {
+        const val = scores[emo] ?? 0;
+        if (val > maxVal) {
+          maxVal = val;
+          top = emo;
+        }
+      });
+      return top;
+    })();
+
+    const themeInfo = EMPATHY_THEMES[topEmotion];
+    if (themeInfo && themeInfo.messages.length > 0) {
+      const messages = themeInfo.messages;
+      const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+      
+      let timer;
+      const deferredTimer = setTimeout(() => {
+        setEmpathyMessage(randomMsg);
+        setAccentColor(EMOTION_COLORS[topEmotion] || "#CCFF00");
+        
+        timer = setTimeout(() => {
+          setEmpathyMessage(null);
+        }, 3000);
+      }, 0);
+
+      return () => {
+        clearTimeout(deferredTimer);
+        if (timer) clearTimeout(timer);
+      };
+    }
+  }, [playing, scores]);
+
+  useEffect(() => {
+    if (!playing) {
+      const timer = setTimeout(() => {
+        setEmpathyMessage(null);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [playing]);
 
   useEffect(() => {
     setPlaying(false);
@@ -543,7 +676,7 @@ function PreviewSection({ track }) {
       audioRef.current.src = track?.previewUrl || "";
       audioRef.current.currentTime = 0;
     }
-  }, [track?.id, track?.previewUrl]);
+  }, [track?.id, track?.previewUrl, setPlaying]);
 
   const togglePlay = (e) => {
     e.stopPropagation();
@@ -587,7 +720,7 @@ function PreviewSection({ track }) {
         userSelect: "none",
       }}
     >
-      <audio ref={audioRef} src={track?.previewUrl} onEnded={() => setPlaying(false)} />
+      <audio ref={audioRef} src={track?.previewUrl} onEnded={handleEnded} />
 
       {/* Organic blob — behind everything */}
       <div
@@ -633,45 +766,83 @@ function PreviewSection({ track }) {
         {playing ? "STOP" : "PREVIEW"}
       </div>
 
-      {/* Square artist photo */}
-      <div
-        data-hover="true"
-        onClick={togglePlay}
-        style={{
-          position: "relative",
-          zIndex: 2,
-          width: 160,
-          height: 160,
-          borderRadius: 10,
-          overflow: "hidden",
-          cursor: "none",
-          boxShadow: playing
-            ? "0 8px 40px rgba(26,0,80,0.6), 0 0 0 3px #CCFF00"
-            : "0 8px 32px rgba(26,0,80,0.5)",
-          border: "2px solid rgba(26,0,80,0.25)",
-          transition: "box-shadow 0.3s, transform 0.2s",
-          transform: playing ? "scale(1.02)" : "scale(1)",
-        }}
-      >
-        <img
-          src={imgUrl}
-          alt={track?.artist || "Artist"}
-          style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }}
-        />
-        {playing && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "rgba(26,0,80,0.55)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Waveform playing={true} />
-          </div>
-        )}
+      {/* Wrapper for Album Cover + Floating Tooltip */}
+      <div style={{ position: "relative", zIndex: 2 }}>
+        {/* Tooltip Overlay */}
+        <AnimatePresence>
+          {empathyMessage && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8, y: 10, x: "-50%" }}
+              animate={{ opacity: 1, scale: 1, y: 0, x: "-50%" }}
+              exit={{ opacity: 0, scale: 0.8, y: -10, x: "-50%" }}
+              style={{
+                position: "absolute",
+                left: "50%",
+                bottom: "calc(100% + 12px)", // Float above the album cover
+                zIndex: 50,
+                background: "rgba(255, 255, 255, 0.4)",
+                color: "#21005D",
+                border: `2px solid ${accentColor}`,
+                borderRadius: "12px",
+                padding: "12px 16px",
+                textAlign: "center",
+                fontWeight: 700,
+                fontSize: "11px",
+                fontFamily: "'Nanum Myeongjo', serif",
+                fontStyle: "italic",
+                boxShadow: `0px 4px 15px ${accentColor}55`,
+                width: "220px",
+                pointerEvents: "none",
+                whiteSpace: "pre-wrap",
+                wordBreak: "keep-all",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)"
+              }}
+            >
+              {empathyMessage}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Square artist photo */}
+        <div
+          data-hover="true"
+          onClick={togglePlay}
+          style={{
+            position: "relative",
+            width: 160,
+            height: 160,
+            borderRadius: 10,
+            overflow: "hidden",
+            cursor: "none",
+            boxShadow: playing
+              ? "0 8px 40px rgba(26,0,80,0.6), 0 0 0 3px #CCFF00"
+              : "0 8px 32px rgba(26,0,80,0.5)",
+            border: "2px solid rgba(26,0,80,0.25)",
+            transition: "box-shadow 0.3s, transform 0.2s",
+            transform: playing ? "scale(1.02)" : "scale(1)",
+          }}
+        >
+          <img
+            src={imgUrl}
+            alt={track?.artist || "Artist"}
+            style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }}
+          />
+          {playing && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: "rgba(26,0,80,0.55)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Waveform playing={true} />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Artist name */}
@@ -784,7 +955,7 @@ class ErrorBoundary extends React.Component {
     super(props);
     this.state = { hasError: false };
   }
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError() {
     return { hasError: true };
   }
   componentDidCatch(error, errorInfo) {
@@ -803,12 +974,16 @@ class ErrorBoundary extends React.Component {
 }
 
 // ── Center Panel (핑크색 섹션 내부 가사 스크롤 구현 완료) ───────────────────────
-function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onToggleGraph, onToggleSearch, isSearchOpen, searchQuery, setSearchQuery, onSearch }) {
+function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onToggleGraph, onToggleSearch, isSearchOpen, searchQuery, setSearchQuery, onSearch, playing, setPlaying, currentEmotion, onAddToHistory, history }) {
   const [openPopup, setOpenPopup] = useState(null);
+  const [prevTrackId, setPrevTrackId] = useState(activeTrack?.id);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
-  useEffect(() => {
+  if (activeTrack?.id !== prevTrackId) {
+    setPrevTrackId(activeTrack?.id);
     setOpenPopup(null);
-  }, [activeTrack?.id]);
+    setIsHistoryOpen(false);
+  }
 
   const toggle = (id) => setOpenPopup((prev) => (prev === id ? null : id));
   const close = () => setOpenPopup(null);
@@ -819,81 +994,345 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
       style={{
         height: isMobile ? "auto" : "100%",
         minHeight: "100vh",
-        background: "#F5C8C8",
+        backgroundColor: playing ? EMOTION_COLORS[currentEmotion] : "#F5C8C8",
         animation: "fadeSlideIn 0.5s ease",
         overflowY: isMobile ? "visible" : "auto", // 💖 모바일 스크롤 꼬임 해결
+        transition: "background-color 1.5s ease-in-out",
       }}
     >
-      {/* Navigation pill & Search Bar */}
-      <div style={{ position: "relative", alignSelf: "flex-start", marginLeft: isMobile ? "16px" : "32px", marginTop: isMobile ? "16px" : "32px", zIndex: 100 }}>
-        <button
-          onClick={() => onToggleSearch(!isSearchOpen)}
-          className={`${isMobile ? "px-4 py-1.5 text-[10px]" : "px-6 py-2 text-[14px]"} rounded-full bg-[#1A0050] text-[#CCFF00] font-bold tracking-[0.15em] uppercase border border-[#CCFF00] transition-all duration-200`}
-          style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontWeight: 900, cursor: "pointer", width: isMobile ? "130px" : "180px" }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.05)"; e.currentTarget.style.boxShadow = "0 0 10px rgba(204,255,0,0.5)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "none"; }}
-        >
-          NAVIGATION 🔍
-        </button>
+      {/* Top Header Row for Navigation and History */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          width: "100%",
+          padding: isMobile ? "16px 16px 0 16px" : "32px 32px 0 32px",
+          position: "relative",
+          zIndex: 100,
+        }}
+      >
+        {/* Left: Navigation Button & Search Dropdown */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => onToggleSearch(!isSearchOpen)}
+            className={`${isMobile ? "px-4 py-1.5 text-[10px]" : "px-6 py-2 text-[14px]"} rounded-full bg-[#1A0050] text-[#CCFF00] font-bold tracking-[0.15em] uppercase border border-[#CCFF00] transition-all duration-200`}
+            style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontWeight: 900, cursor: "pointer", width: isMobile ? "130px" : "180px" }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.05)"; e.currentTarget.style.boxShadow = "0 0 10px rgba(204,255,0,0.5)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "none"; }}
+          >
+            NAVIGATION 🔍
+          </button>
 
-        {isSearchOpen && (
-          <div style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
-            marginTop: "12px",
-            background: "#1A0050",
-            border: "2px solid #CCFF00",
-            borderRadius: "12px",
-            padding: isMobile ? "16px 20px" : "10px 14px",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            animation: "fadeSlideIn 0.2s ease-out",
-            width: isMobile ? "calc(100vw - 32px)" : "240px",
-            maxWidth: "320px",
-            boxShadow: "0 0 15px rgba(204,255,0,0.2)",
-            zIndex: 500
-          }}>
-            <input
-              type="text"
-              autoFocus
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') onSearch(searchQuery); }}
-              placeholder="SEARCH..."
-              style={{
-                flex: 1,
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                color: "#CCFF00",
-                fontFamily: "'Space Mono', monospace",
-                fontSize: "14px",
-                letterSpacing: "0.05em",
-                width: "100%"
-              }}
-            />
-            <button
-              onClick={() => onToggleSearch(false)}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#CCFF00",
-                fontSize: "20px",
-                cursor: "pointer",
-                lineHeight: 1
-              }}
-            >
-              ×
-            </button>
-          </div>
-        )}
+          {isSearchOpen && (
+            <div style={{
+              position: "absolute",
+              top: "100%",
+              left: 0,
+              marginTop: "12px",
+              background: "#1A0050",
+              border: "2px solid #CCFF00",
+              borderRadius: "12px",
+              padding: isMobile ? "16px 20px" : "10px 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              animation: "fadeSlideIn 0.2s ease-out",
+              width: isMobile ? "calc(100vw - 32px)" : "240px",
+              maxWidth: "320px",
+              boxShadow: "0 0 15px rgba(204,255,0,0.2)",
+              zIndex: 500
+            }}>
+              <input
+                type="text"
+                autoFocus
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') onSearch(searchQuery); }}
+                placeholder="SEARCH..."
+                style={{
+                  flex: 1,
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  color: "#CCFF00",
+                  fontFamily: "'Space Mono', monospace",
+                  fontSize: "14px",
+                  letterSpacing: "0.05em",
+                  width: "100%"
+                }}
+              />
+              <button
+                onClick={() => onToggleSearch(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#CCFF00",
+                  fontSize: "20px",
+                  cursor: "pointer",
+                  lineHeight: 1
+                }}
+              >
+                ×
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Right: History Button & History Dropdown */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+            className={`${isMobile ? "px-4 py-1.5 text-[10px]" : "px-6 py-2 text-[14px]"} rounded-full bg-[#1A0050] text-[#CCFF00] font-bold tracking-[0.15em] uppercase border border-[#CCFF00] transition-all duration-200`}
+            style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontWeight: 900, cursor: "pointer", width: isMobile ? "130px" : "180px" }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.05)"; e.currentTarget.style.boxShadow = "0 0 10px rgba(204,255,0,0.5)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "none"; }}
+          >
+            HISTORY 📊
+          </button>
+
+          {isHistoryOpen && (
+            <div style={{
+              position: "absolute",
+              top: "100%",
+              right: 0,
+              marginTop: "12px",
+              background: "#1A0050",
+              border: "2px solid #CCFF00",
+              borderRadius: "12px",
+              padding: "16px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "14px",
+              animation: "fadeSlideIn 0.2s ease-out",
+              width: isMobile ? "calc(100vw - 32px)" : "280px",
+              maxHeight: "480px",
+              boxShadow: "0 0 20px rgba(204,255,0,0.3)",
+              zIndex: 500,
+              overflowY: "auto",
+              scrollbarWidth: "none",
+              msOverflowStyle: "none"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "#CCFF00",
+                  letterSpacing: "0.15em",
+                  textTransform: "uppercase",
+                  fontFamily: "'Space Mono', monospace"
+                }}>
+                  Mood History
+                </div>
+                <button
+                  onClick={() => setIsHistoryOpen(false)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#CCFF00",
+                    fontSize: "20px",
+                    cursor: "pointer",
+                    lineHeight: 1,
+                    padding: "0 4px"
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Pie Chart / Donut Chart */}
+              <div style={{
+                position: "relative",
+                width: 120,
+                height: 120,
+                margin: "0 auto",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}>
+                <PieChart width={120} height={120}>
+                  <Pie
+                    data={(() => {
+                      const counts = { happy: 0, confident: 0, angry: 0, sad: 0, lonely: 0, love: 0 };
+                      history.forEach(item => {
+                        if (counts[item.emotion] !== undefined) counts[item.emotion]++;
+                      });
+                      const hasHistory = history.length > 0;
+                      if (!hasHistory) return [{ name: "empty", value: 1, color: "rgba(255, 255, 255, 0.1)" }];
+                      return Object.keys(counts)
+                        .filter(key => counts[key] > 0)
+                        .map(key => ({
+                          name: key,
+                          value: counts[key],
+                          color: EMOTION_COLORS[key]
+                        }));
+                    })()}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={36}
+                    outerRadius={48}
+                    paddingAngle={history.length > 0 ? 2 : 0}
+                    dataKey="value"
+                    isAnimationActive={false}
+                  >
+                    {(() => {
+                      const counts = { happy: 0, confident: 0, angry: 0, sad: 0, lonely: 0, love: 0 };
+                      history.forEach(item => {
+                        if (counts[item.emotion] !== undefined) counts[item.emotion]++;
+                      });
+                      const hasHistory = history.length > 0;
+                      const data = hasHistory
+                        ? Object.keys(counts)
+                            .filter(key => counts[key] > 0)
+                            .map(key => ({ name: key, value: counts[key], color: EMOTION_COLORS[key] }))
+                        : [{ name: "empty", value: 1, color: "rgba(255, 255, 255, 0.1)" }];
+                      return data.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ));
+                    })()}
+                  </Pie>
+                </PieChart>
+
+                {/* Center dominant label */}
+                <div style={{
+                  position: "absolute",
+                  textAlign: "center",
+                  width: "100%",
+                  pointerEvents: "none",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}>
+                  <span style={{
+                    fontSize: 8,
+                    color: "rgba(255, 255, 255, 0.5)",
+                    textTransform: "uppercase",
+                    fontFamily: "'Space Mono', monospace",
+                    letterSpacing: "0.05em",
+                  }}>
+                    Dominant
+                  </span>
+                  <span style={(() => {
+                    const counts = { happy: 0, confident: 0, angry: 0, sad: 0, lonely: 0, love: 0 };
+                    history.forEach(item => {
+                      if (counts[item.emotion] !== undefined) counts[item.emotion]++;
+                    });
+                    let dominant = "-";
+                    let maxVal = 0;
+                    Object.keys(counts).forEach(key => {
+                      if (counts[key] > maxVal) {
+                        maxVal = counts[key];
+                        dominant = key.toUpperCase();
+                      }
+                    });
+                    return {
+                      fontSize: dominant.length > 8 ? 8 : 10,
+                      color: history.length > 0 ? (EMOTION_COLORS[dominant.toLowerCase()] || "#CCFF00") : "#888",
+                      fontWeight: 800,
+                      fontFamily: "'Space Mono', monospace",
+                      letterSpacing: "0.02em",
+                      marginTop: 2
+                    };
+                  })()}>
+                    {(() => {
+                      const counts = { happy: 0, confident: 0, angry: 0, sad: 0, lonely: 0, love: 0 };
+                      history.forEach(item => {
+                        if (counts[item.emotion] !== undefined) counts[item.emotion]++;
+                      });
+                      let dominant = "-";
+                      let maxVal = 0;
+                      Object.keys(counts).forEach(key => {
+                        if (counts[key] > maxVal) {
+                          maxVal = counts[key];
+                          dominant = key.toUpperCase();
+                        }
+                      });
+                      return dominant;
+                    })()}
+                  </span>
+                </div>
+              </div>
+
+              {/* History list of played songs */}
+              <div style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                marginTop: 4,
+                maxHeight: "180px",
+                overflowY: "auto",
+                scrollbarWidth: "none",
+                msOverflowStyle: "none"
+              }}>
+                {history.length === 0 ? (
+                  <div style={{
+                    fontSize: 9,
+                    color: "rgba(255, 255, 255, 0.4)",
+                    textAlign: "center",
+                    fontFamily: "'Space Mono', monospace",
+                    padding: "12px 0"
+                  }}>
+                    No history yet
+                  </div>
+                ) : (
+                  history.slice().reverse().map(item => (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "6px 8px",
+                        background: "rgba(255, 255, 255, 0.05)",
+                        border: "1px solid rgba(255, 255, 255, 0.08)",
+                        borderRadius: 6,
+                      }}
+                    >
+                      <div style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        backgroundColor: EMOTION_COLORS[item.emotion] || "#CCFF00",
+                        flexShrink: 0,
+                        boxShadow: `0 0 5px ${EMOTION_COLORS[item.emotion]}aa`
+                      }} />
+                      <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
+                        <span style={{
+                          fontSize: 9,
+                          fontWeight: 700,
+                          color: "#fff",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          fontFamily: "'Space Mono', monospace"
+                        }} title={item.title}>
+                          {item.title}
+                        </span>
+                        <span style={{
+                          fontSize: 8,
+                          color: "rgba(255, 255, 255, 0.5)",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          fontFamily: "'Space Mono', monospace",
+                          marginTop: 1
+                        }} title={item.artist}>
+                          {item.artist}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Top Center: Preview Section */}
       <div className="flex justify-center w-full mt-2">
-        <PreviewSection track={activeTrack} />
+        <PreviewSection track={activeTrack} playing={playing} setPlaying={setPlaying} scores={scores} onAddToHistory={onAddToHistory} />
       </div>
 
       {/* Info buttons row (가로로 일렬 배치) */}
@@ -944,7 +1383,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
           )}
           {scores && (
             <ErrorBoundary>
-              <EmotionRadarChart scores={scores} />
+              <EmotionRadarChart scores={scores} playing={playing} />
             </ErrorBoundary>
           )}
         </div>
@@ -959,7 +1398,8 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
           minHeight: isMobile ? "1000px" : "600px",
           width: "90%",
           maxWidth: "800px",
-          background: "#F5C8C8",
+          backgroundColor: playing ? EMOTION_COLORS[currentEmotion] : "#F5C8C8",
+          transition: "background-color 1.5s ease-in-out",
           border: "none",
           borderRadius: "12px",
           padding: "20px",
@@ -975,7 +1415,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
       >
         {activeTrack?.lyrics_sentiment && (
           <div style={{ fontSize: "15px", fontWeight: "800", marginBottom: "16px", color: "#CCFF00", textShadow: "0 0 5px rgba(204,255,0,0.3)" }}>
-            Sentiment: Joy {Math.round(activeTrack.lyrics_sentiment.joy * 100)}% · Anxiety {Math.round(activeTrack.lyrics_sentiment.anxiety * 100)}% · Depression {Math.round(activeTrack.lyrics_sentiment.depression * 100)}%
+            Sentiment: Happy {Math.round((activeTrack.lyrics_sentiment.happy ?? activeTrack.lyrics_sentiment.joy ?? 0) * 100)}% · Sad {Math.round((activeTrack.lyrics_sentiment.sad ?? activeTrack.lyrics_sentiment.depression ?? 0) * 100)}% · Angry {Math.round((activeTrack.lyrics_sentiment.angry ?? 0) * 100)}% · Love {Math.round((activeTrack.lyrics_sentiment.love ?? 0) * 100)}% · Lonely {Math.round((activeTrack.lyrics_sentiment.lonely ?? activeTrack.lyrics_sentiment.anxiety ?? 0) * 100)}% · Confident {Math.round((activeTrack.lyrics_sentiment.confident ?? activeTrack.lyrics_sentiment.stability ?? 0) * 100)}%
           </div>
         )}
         <div style={{ fontWeight: "700" }}>
@@ -1178,6 +1618,7 @@ export default function MMMHAKApp() {
   const [loading, setLoading] = useState(true);
   const [loadingStatus, setLoadingStatus] = useState("CONNECTING LAST.FM API...");
   const [isMobile, setIsMobile] = useState(false);
+  const [playing, setPlaying] = useState(false);
 
   // 💖 가사 상태 관리를 위한 신규 State 추가
   const [lyrics, setLyrics] = useState("LOADING LYRICS...");
@@ -1185,6 +1626,38 @@ export default function MMMHAKApp() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const requestIdRef = useRef(0);
+
+  const [moodHistory, setMoodHistory] = useState([]);
+
+  const handleAddToHistory = useCallback((track, emotion) => {
+    setMoodHistory((prev) => [
+      ...prev,
+      {
+        id: track.id + "_" + Date.now(),
+        title: track.title,
+        artist: track.artist,
+        emotion: emotion
+      }
+    ]);
+  }, []);
+
+  // Derive dominant emotion from scores during render
+  let currentEmotion = "happy";
+  if (scores) {
+    if (scores.primary_emotion) {
+      currentEmotion = scores.primary_emotion;
+    } else {
+      const emotionsList = ["happy", "confident", "angry", "sad", "lonely"];
+      let maxVal = -1;
+      emotionsList.forEach((emo) => {
+        const val = scores[emo] ?? 0;
+        if (val > maxVal) {
+          maxVal = val;
+          currentEmotion = emo;
+        }
+      });
+    }
+  }
 
   const LASTFM_API_KEY = "8031c3fd85fae84e3a1970b02e22a231";
   const LASTFM_BASE = "https://ws.audioscrobbler.com/2.0";
@@ -1202,7 +1675,7 @@ export default function MMMHAKApp() {
         if (!res.ok) return [];
         const data = await res.json();
         return data.results || [];
-      } catch (_) {
+      } catch {
         return [];
       }
     };
@@ -1216,7 +1689,7 @@ export default function MMMHAKApp() {
 
       // 2차 시도: 원본 곡명 + 아티스트 첫 단어 (아티스트 명칭이 너무 길거나 피처링 정보가 붙어있을 때 대비)
       if (results.length === 0) {
-        const cleanArtist = safeArtist.split(/[,\/&]|\bfeat\b/i)[0].trim();
+        const cleanArtist = safeArtist.split(/[,/&]|\bfeat\b/i)[0].trim();
         results = await fetchWithTerm(`${safeTitle} ${cleanArtist}`, country);
       }
 
@@ -1230,11 +1703,10 @@ export default function MMMHAKApp() {
           .replace(/feat\..*/gi, '')
           .replace(/ft\..*/gi, '')
           .trim();
-        const cleanArtist = safeArtist.split(/[,\/&]|\bfeat\b/i)[0].trim();
+        const cleanArtist = safeArtist.split(/[,/&]|\bfeat\b/i)[0].trim();
         results = await fetchWithTerm(`${cleanTitle} ${cleanArtist}`, country);
       }
 
-      // 4차 시도: 정제된 곡명만으로 검색
       if (results.length === 0) {
         const cleanTitle = safeTitle
           .replace(/\(.*?\)/g, '')
@@ -1252,7 +1724,6 @@ export default function MMMHAKApp() {
     };
 
     try {
-      // 1단계: 기본 로케일(IP 기준)로 시도
       let match = await searchSequence("");
 
       // 2단계: 프리뷰가 없다면 미국(US) 스토어에서 시도 (글로벌 팝송 매칭율 극대화)
@@ -1323,7 +1794,9 @@ export default function MMMHAKApp() {
                   lastfmCache[cacheKey] = { tags, cover: lastfmCover };
                   setLocalCache("mm_lastfm_cache", lastfmCache);
                 }
-              } catch (_) {}
+              } catch {
+                /* ignore */
+              }
             }
 
             // 2. raw.image 백업
@@ -1335,7 +1808,7 @@ export default function MMMHAKApp() {
             }
 
             // 3. iTunes 캐시 적용 (기존 빈 캐시 치유 로직 포함)
-            let itunes = null;
+            let itunes;
             if (itunesCache[cacheKey] && (itunesCache[cacheKey].previewUrl || itunesCache[cacheKey].hasNoPreview)) {
               itunes = itunesCache[cacheKey];
             } else {
@@ -1351,9 +1824,11 @@ export default function MMMHAKApp() {
 
             const hasSad = tags.some(t => ['sad', 'melancholy', 'heartbreak', 'depression', 'dark', 'emo', 'blues'].some(k => t.includes(k)));
             const hasAngry = tags.some(t => ['angry', 'aggressive', 'metal', 'hardcore', 'rage', 'punk'].some(k => t.includes(k)));
-            const hasAnxious = tags.some(t => ['anxious', 'nervous', 'tense', 'suspense', 'dramatic'].some(k => t.includes(k)));
             const hasHappy = tags.some(t => ['happy', 'upbeat', 'dance', 'party', 'summer', 'pop', 'fun', 'joy'].some(k => t.includes(k)));
             const hasCalm = tags.some(t => ['calm', 'chill', 'relax', 'ambient', 'peaceful', 'acoustic'].some(k => t.includes(k)));
+            const hasLove = tags.some(t => ['love', 'romantic', 'heart', 'affection', 'together', 'sweet'].some(k => t.includes(k)));
+            const hasLonely = tags.some(t => ['lonely', 'loneliness', 'alone', 'isolated', 'solitude'].some(k => t.includes(k)));
+            const hasConfident = tags.some(t => ['confident', 'confidence', 'proud', 'power', 'strong', 'bold', 'badass', 'anthem', 'energy'].some(k => t.includes(k)));
 
             const getPseudoRandom = (str) => {
               let hash = 0;
@@ -1372,8 +1847,8 @@ export default function MMMHAKApp() {
             const isHighTempoGenre = ['dance', 'electronic', 'rock', 'metal', 'punk', 'house', 'edm', 'upbeat'].some(g => genreStr.includes(g));
             const isLowTempoGenre = ['r&b', 'soul', 'ballad', 'acoustic', 'classical', 'jazz', 'ambient', 'chill', 'downtempo', 'lo-fi'].some(g => genreStr.includes(g));
 
-            let baseBpm = 100;
-            let baseEnergy = 0.5;
+            let baseBpm;
+            let baseEnergy;
 
             if (isHighTempoGenre || hasAngry) {
               baseBpm = 130 + Math.floor(randVal * 40);
@@ -1398,11 +1873,12 @@ export default function MMMHAKApp() {
             const intensity = (baseEnergy * 0.6) + (normalizedBpm * 0.4);
 
             const lyrics_sentiment = {
-              anger: Math.max(0.01, parseFloat((((hasAngry ? 0.4 : 0.05) + (1 - valence) * 0.3) * (0.5 + intensity)).toFixed(2))),
-              anxiety: Math.max(0.01, parseFloat((((hasAnxious ? 0.3 : 0.08) + (1 - valence) * 0.25) * (0.5 + intensity)).toFixed(2))),
-              depression: Math.max(0.01, parseFloat((((hasSad ? 0.4 : 0.05) + (1 - valence) * 0.4) * (1.5 - intensity)).toFixed(2))),
-              joy: Math.max(0.01, parseFloat(((((hasHappy ? 0.5 : 0.1) + valence * 0.3) * modeModifier) * (0.5 + intensity)).toFixed(2))),
-              stability: Math.max(0.01, parseFloat((((hasCalm ? 0.4 : 0.15) + valence * 0.2) * (1.5 - intensity)).toFixed(2))),
+              happy: Math.max(0.01, parseFloat(((((hasHappy ? 0.5 : 0.1) + valence * 0.3) * modeModifier) * (0.5 + intensity)).toFixed(2))),
+              sad: Math.max(0.01, parseFloat((((hasSad ? 0.4 : 0.05) + (1 - valence) * 0.4) * (1.5 - intensity)).toFixed(2))),
+              angry: Math.max(0.01, parseFloat((((hasAngry ? 0.4 : 0.05) + (1 - valence) * 0.3) * (0.5 + intensity)).toFixed(2))),
+              love: Math.max(0.01, parseFloat(((((hasLove ? 0.5 : 0.1) + valence * 0.2) * modeModifier) * (0.8 + intensity * 0.2)).toFixed(2))),
+              lonely: Math.max(0.01, parseFloat((((hasLonely ? 0.4 : 0.1) + (1 - valence) * 0.3) * (1.2 - intensity * 0.2)).toFixed(2))),
+              confident: Math.max(0.01, parseFloat((((hasConfident ? 0.4 : 0.1) + valence * 0.2) * (0.5 + intensity)).toFixed(2))),
             };
 
             return {
@@ -1476,11 +1952,7 @@ export default function MMMHAKApp() {
       if (rawTracks.length > 1) {
         processTracks(rawTracks.slice(1), 1, (batchItems) => {
           if (myRequestId !== requestIdRef.current) return;
-          setTracks(prev => {
-            const combined = [...prev, ...batchItems];
-            const unique = Array.from(new Map(combined.map(t => [t.id, t])).values());
-            return unique.sort((a, b) => a.rank - b.rank);
-          });
+          setTracks(prev => safeMergeTracks(prev, batchItems));
         }).catch(err => console.error("Background loading error:", err));
       }
     } catch (err) {
@@ -1497,9 +1969,16 @@ export default function MMMHAKApp() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // Removed unused useEffect that synchronously set currentEmotion state
+
+  useEffect(() => {
+    const targetColor = playing ? (EMOTION_COLORS[currentEmotion] || "#1A0050") : "#1A0050";
+    document.body.style.backgroundColor = targetColor;
+  }, [playing, currentEmotion]);
 
 
-  const fetchLyrics = async (title, artist) => {
+
+  const fetchLyrics = useCallback(async (title, artist) => {
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/lyrics?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`);
       if (!response.ok) {
@@ -1514,9 +1993,21 @@ export default function MMMHAKApp() {
       }
       return "현재 이 곡의 가사를 제공할 수 없습니다.";
     }
-  };
+  }, []);
 
   const handleSelect = useCallback(async (track) => {
+    setPlaying(false); // Stop playing immediately to avoid layout background color flicker
+    
+    // Check if the track is already AI analyzed
+    if (track.isAI && track.lyrics) {
+      setActiveTrack(track);
+      setScores(track.aiScores);
+      setLyrics(track.lyrics);
+      setIsGraphOpen(false);
+      setIsSearchOpen(false);
+      return;
+    }
+
     setActiveTrack(track);
     setScores(computeVirusScores(track));
     setLyrics("LOADING LYRICS...");
@@ -1531,7 +2022,11 @@ export default function MMMHAKApp() {
         const analyzeRes = await fetch(`${getApiBaseUrl()}/api/analyze`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lyrics: fetchedLyrics })
+          body: JSON.stringify({
+            lyrics: fetchedLyrics,
+            title: track.title,
+            artist: track.artist
+          })
         });
 
         if (!analyzeRes.ok) throw new Error("AI Analysis API error");
@@ -1539,52 +2034,84 @@ export default function MMMHAKApp() {
         const aiScores = await analyzeRes.json();
         console.log('AI Analysis Data:', aiScores);
 
-        setScores(prevScores => {
-          const { bpm, mode, valence, streams } = track;
-          const bpmNorm = Math.min(bpm, 200) / 200;
-          const tempoStress = bpmNorm > 0.75 ? (bpmNorm - 0.75) * 4 : bpmNorm < 0.4 ? (0.4 - bpmNorm) * 2 : 0;
+        const finalScores = (() => {
+          const { streams } = track;
           const contagion = Math.log10(Math.max(streams, 10)) / Math.log10(3000000000);
 
           const getVal = (key) => {
-            const val = aiScores[key] ?? aiScores.emotions?.[key] ?? prevScores[key];
-            return Math.min(Math.max((Number(val) || 0) * 1.5, 0.3), 1.0);
+            const val = aiScores.scores?.[key] ?? aiScores[key] ?? aiScores.emotions?.[key];
+            return Math.min(Math.max(Number(val) || 0, 0), 1.0);
           };
 
           const spread = {
-            joy: getVal('joy'),
-            depression: getVal('depression'),
-            anger: getVal('anger'),
-            anxiety: getVal('anxiety'),
-            stability: getVal('stability'),
+            happy: getVal('happy'),
+            sad: getVal('sad'),
+            angry: getVal('angry'),
+            love: getVal('love'),
+            lonely: getVal('lonely'),
+            confident: getVal('confident'),
           };
 
-          const viralRisk = Object.values(spread).reduce((sum, v) => sum + v, 0) / 5 * contagion;
-          const positive_score = Math.min(spread.joy * 0.45 + spread.stability * 0.25 + valence * 0.30, 1);
-          const negative_score = Math.min(spread.depression * 0.40 + spread.anxiety * 0.35 + spread.anger * 0.25, 1);
+          const viralRisk = Object.values(spread).reduce((sum, v) => sum + v, 0) / 6 * contagion;
+          const positive_score = Math.min((spread.happy ?? 0) * 0.4 + (spread.love ?? 0) * 0.3 + (spread.confident ?? 0) * 0.3, 1);
+          const negative_score = Math.min((spread.sad ?? 0) * 0.4 + (spread.lonely ?? 0) * 0.3 + (spread.angry ?? 0) * 0.3, 1);
           const polarity = positive_score - negative_score;
           const confidence = Math.abs(polarity);
           const classification = polarity > 0.25 ? "POSITIVE" : polarity < -0.25 ? "NEGATIVE" : "MIXED";
 
+          const primary_emotion = aiScores.primary_emotion || (() => {
+            const emos = ["happy", "confident", "angry", "sad", "lonely"];
+            let maxVal = -1;
+            let top = "happy";
+            emos.forEach((emo) => {
+              if ((spread[emo] ?? 0) > maxVal) {
+                maxVal = spread[emo];
+                top = emo;
+              }
+            });
+            return top;
+          })();
+
+          const valence_group = aiScores.valence_group || (polarity > 0.0 ? "positive" : "negative");
+          const love_theme_score = aiScores.love_theme_score ?? spread.love;
+          const is_love_themed = aiScores.is_love_themed ?? (love_theme_score >= 0.35);
+
           return {
-            ...prevScores,
             ...spread,
             positive_score,
             negative_score,
             polarity,
             confidence,
             classification,
-            discomfort: (spread.anger * 0.4 + spread.anxiety * 0.35 + spread.depression * 0.25),
+            discomfort: ((spread.angry ?? 0) * 0.4 + (spread.sad ?? 0) * 0.3 + (spread.lonely ?? 0) * 0.3),
             contagion,
             viralRisk,
             streams,
-            isAI: true
+            isAI: true,
+            primary_emotion,
+            valence_group,
+            love_theme_score,
+            is_love_themed
           };
-        });
+        })();
+
+        setScores(finalScores);
+
+        // Update activeTrack and update the track in the tracks list with AI scores and lyrics
+        const updatedTrack = {
+          ...track,
+          isAI: true,
+          lyrics: fetchedLyrics,
+          aiScores: finalScores,
+          lyrics_sentiment: finalScores
+        };
+        setActiveTrack(updatedTrack);
+        setTracks(prev => prev.map(t => t.id === track.id ? updatedTrack : t));
       }
     } catch (err) {
       console.error("Analysis fallback:", err);
     }
-  }, []);
+  }, [setPlaying, setTracks, fetchLyrics]);
 
   // 🌟 3. 글로벌 차트 50곡을 백그라운드에서 안전하게 로드
   const fetchGlobalChart = async () => {
@@ -1612,11 +2139,7 @@ export default function MMMHAKApp() {
       if (rawTracks.length > 1) {
         processTracks(rawTracks.slice(1), 1, (batchItems) => {
           if (myRequestId !== requestIdRef.current) return;
-          setTracks(prev => {
-            const combined = [...prev, ...batchItems];
-            const unique = Array.from(new Map(combined.map(t => [t.id, t])).values());
-            return unique.sort((a, b) => a.rank - b.rank);
-          });
+          setTracks(prev => safeMergeTracks(prev, batchItems));
         }).catch(err => console.error("Background loading error:", err));
       }
     } catch (err) {
@@ -1632,12 +2155,11 @@ export default function MMMHAKApp() {
   };
 
   useEffect(() => {
-    fetchGlobalChart();
-  }, []);
-
-  // 글로벌 이벤트 캡처를 활용해 어떤 InfoButton이 토글되었는지 확인하여 Graph 트리거
-  const handleToggleGraphVisibility = useCallback(() => {
-    setIsGraphOpen(prev => !prev);
+    const timer = setTimeout(() => {
+      fetchGlobalChart();
+    }, 0);
+    return () => clearTimeout(timer);
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, []);
 
   if (loading || !activeTrack || !scores) {
@@ -1658,7 +2180,6 @@ export default function MMMHAKApp() {
       </div>
     );
   }
-
   const half = Math.ceil(tracks.length / 2);
   const leftTracks = tracks.slice(0, half);
   const rightTracks = tracks.slice(half);
@@ -1672,7 +2193,7 @@ export default function MMMHAKApp() {
     <>
       <CustomCursor />
 
-      <div style={{ position: "fixed", inset: 0, background: "#1A0050", zIndex: -1 }} />
+      <div style={{ position: "fixed", inset: 0, backgroundColor: playing ? EMOTION_COLORS[currentEmotion] : "#1A0050", zIndex: -1, transition: "background-color 1.5s ease-in-out" }} />
 
       <div
         style={{
@@ -1718,6 +2239,11 @@ export default function MMMHAKApp() {
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
                 onSearch={handleSearch}
+                playing={playing}
+                setPlaying={setPlaying}
+                currentEmotion={currentEmotion}
+                onAddToHistory={handleAddToHistory}
+                history={moodHistory}
               />
             </div>
           </>
@@ -1747,6 +2273,11 @@ export default function MMMHAKApp() {
               lyrics={lyrics}
               isGraphOpen={isGraphOpen}
               onToggleGraph={setIsGraphOpen}
+              playing={playing}
+              setPlaying={setPlaying}
+              currentEmotion={currentEmotion}
+              onAddToHistory={handleAddToHistory}
+              history={moodHistory}
             />
           </div>
         )}

@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import math
 import asyncio
 import hashlib
 import httpx
@@ -36,6 +37,8 @@ analyze_cache = {}
 
 class AnalyzeRequest(BaseModel):
     lyrics: str
+    title: str = "Unknown Title"
+    artist: str = "Unknown Artist"
 
 @app.get("/")
 def read_root():
@@ -46,6 +49,178 @@ def log_frontend(msg: str):
     print("FRONTEND ERROR:", msg)
     return {"status": "logged"}
 
+# 1. 라벨별 맞춤 hypothesis template (Valence 및 감정)
+valence_hypotheses = [
+    "이 노래는 긍정적이고 신나는 분위기이다.",
+    "이 노래는 부정적이고 무겁거나 어두운 분위기이다."
+]
+
+emotion_hypotheses = {
+    "happy": "This song expresses joy and happiness.",
+    "sad": "This song expresses sadness, sorrow, or heartbreak.",
+    "angry": "This song expresses anger or aggression.",
+    "love": "This song expresses romantic love or deep affection for someone.",
+    "lonely": "This song expresses loneliness or feeling alone.",
+    "confident": "This song expresses confidence or self-assurance."
+}
+
+# 3. 라벨별 threshold (초기값, 검증 데이터로 보정 예정)
+thresholds = {
+    "happy": 0.35,
+    "angry": 0.35,
+    "lonely": 0.30,
+    "love": 0.20,
+    "sad": 0.20,
+    "confident": 0.30
+}
+
+async def call_hf_zero_shot(client, api_url, headers, text, candidate_hypotheses, multi_label=False):
+    payload = {
+        "inputs": text,
+        "parameters": {
+            "candidate_labels": candidate_hypotheses,
+            "hypothesis_template": "{}",
+            "multi_label": multi_label
+        }
+    }
+    max_retries = 3
+    retry_delay = 2
+    for attempt in range(max_retries):
+        try:
+            response = await client.post(api_url, headers=headers, json=payload, timeout=15.0)
+            if response.status_code == 503:
+                print(f"DEBUG: Model loading (503). Retrying in {retry_delay}s...")
+                await asyncio.sleep(retry_delay)
+                continue
+            if response.status_code != 200:
+                print(f"HuggingFace API Error (Attempt {attempt+1}): {response.status_code} - {response.text}")
+                if attempt == max_retries - 1:
+                    raise HTTPException(status_code=500, detail=f"HuggingFace API Error: {response.text}")
+                await asyncio.sleep(retry_delay)
+                continue
+            data = response.json()
+            
+            if not isinstance(data, list):
+                if isinstance(data, dict) and "labels" in data and "scores" in data:
+                    return {label: score for label, score in zip(data["labels"], data["scores"])}
+                raise HTTPException(status_code=500, detail="Invalid response format from HuggingFace API")
+                
+            return {item["label"]: item["score"] for item in data}
+        except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+            print(f"DEBUG: HTTP request failed on attempt {attempt+1}: {exc}")
+            if attempt == max_retries - 1:
+                raise HTTPException(status_code=500, detail=f"HuggingFace API Connection Failed: {exc}")
+            await asyncio.sleep(retry_delay)
+    return {}
+
+def apply_temperature(score: float, temperature: float = 2.0) -> float:
+    if score == 0.0:
+        return 0.0
+    # Clamp to avoid math domain errors in log
+    score = min(max(score, 1e-6), 1.0 - 1e-6)
+    logit = math.log(score / (1.0 - score))
+    scaled_logit = logit / temperature
+    return round(1.0 / (1.0 + math.exp(-scaled_logit)), 3)
+
+async def classify_lyrics(lyrics: str, threshold_override: dict = None):
+    """
+    Valence(긍정/부정) 1차 분류 -> 그룹별 세부 감정 2차 분류(조건부 실행) 및 Love 테마 독립 분리.
+    """
+    th = threshold_override or thresholds
+    
+    hf_key = os.getenv("HUGGINGFACE_API_KEY")
+    if not hf_key:
+        print("ERROR: HUGGINGFACE_API_KEY가 환경변수(.env)에 설정되어 있지 않습니다.")
+        raise HTTPException(status_code=500, detail="HUGGINGFACE_API_KEY가 누락되었습니다.")
+        
+    api_url = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-mnli"
+    headers = {"Authorization": f"Bearer {hf_key}"}
+    safe_lyrics = lyrics[:512]
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        # 1단계: Valence 분류
+        val_res = await call_hf_zero_shot(client, api_url, headers, safe_lyrics, valence_hypotheses, multi_label=False)
+        pos_val = val_res.get(valence_hypotheses[0], 0.0)
+        neg_val = val_res.get(valence_hypotheses[1], 0.0)
+        
+        valence_group = "positive" if pos_val >= neg_val else "negative"
+
+        # 2단계: 그룹별 세부 감정 라벨 분류
+        if valence_group == "positive":
+            active_emotions = ["happy", "confident"]
+        else:
+            active_emotions = ["angry", "sad", "lonely"]
+            
+        # 3단계: Love는 항상 함께 독립 주제로 분류
+        active_labels = active_emotions + ["love"]
+        candidate_hyps = [emotion_hypotheses[emo] for emo in active_labels]
+        
+        emo_res = await call_hf_zero_shot(client, api_url, headers, safe_lyrics, candidate_hyps, multi_label=True)
+
+    # 점수 병합 및 미평가 라벨 0.0 처리 (이 시점은 raw 점수)
+    scores = {}
+    for emo in ["happy", "confident", "angry", "sad", "lonely"]:
+        if emo in active_emotions:
+            hyp = emotion_hypotheses[emo]
+            scores[emo] = round(emo_res.get(hyp, 0.0), 3)
+        else:
+            scores[emo] = 0.0
+            
+    # Love 점수 별도 처리
+    love_hyp = emotion_hypotheses["love"]
+    scores["love"] = round(emo_res.get(love_hyp, 0.0), 3)
+
+    # Valence 그룹 내 후보 중 최고 점수를 대표 감정으로 결정
+    primary_emotion = max(active_emotions, key=scores.get)
+    
+    love_theme_score = scores["love"]
+    is_love_themed = love_theme_score >= th.get("love", 0.20)
+    
+    matched_labels = [emo for emo in active_emotions if scores[emo] >= th.get(emo, 0.30)]
+    if is_love_themed:
+        matched_labels.append("love")
+
+    # 4단계: Temperature Scaling 적용 (보정 및 극단값 완화)
+    scaled_scores = {}
+    for emo, val in scores.items():
+        scaled_scores[emo] = apply_temperature(val, temperature=2.0)
+
+    return {
+        "scores": scaled_scores,
+        "raw_scores": scores,
+        "primary_emotion": primary_emotion,
+        "valence_group": valence_group,
+        "love_theme_score": scaled_scores["love"],
+        "is_love_themed": is_love_themed,
+        "matched_labels": matched_labels,
+        "top_label": primary_emotion,
+    }
+
+async def calibrate_thresholds(lyrics_list, ground_truth_labels):
+    """
+    검증셋(50곡 정도)으로 라벨별 점수 분포를 확인하고
+    threshold를 보정하기 위한 함수.
+    """
+    import pandas as pd
+    records = []
+    for lyrics, true_label in zip(lyrics_list, ground_truth_labels):
+        result = await classify_lyrics(lyrics, threshold_override={k: 0 for k in thresholds})
+        record = {"true_label": true_label, **result["scores"]}
+        records.append(record)
+
+    df = pd.DataFrame(records)
+
+    # 라벨별로 정답일 때의 점수 분포 vs 정답이 아닐 때의 점수 분포 비교
+    for label in label_hypotheses.keys():
+        true_scores = df[df["true_label"] == label][label]
+        false_scores = df[df["true_label"] != label][label]
+        print(f"\n[{label}]")
+        print(f"  정답일 때 평균 점수: {true_scores.mean():.3f}")
+        print(f"  오답일 때 평균 점수: {false_scores.mean():.3f}")
+        # 이 두 분포 사이의 적절한 지점을 threshold로 설정
+
+    return df
+
 @app.post("/api/analyze")
 async def analyze_lyrics(request: AnalyzeRequest):
     start_time = time.time()
@@ -53,87 +228,40 @@ async def analyze_lyrics(request: AnalyzeRequest):
     # 1. 캐시 확인 (가사의 MD5 해시값을 키로 사용)
     lyrics_hash = hashlib.md5(request.lyrics.encode('utf-8')).hexdigest()
     if lyrics_hash in analyze_cache:
+        cached_res = analyze_cache[lyrics_hash]
+        if "raw_scores" in cached_res:
+            print(f"[DEBUG] [CACHE HIT] {request.artist} - {request.title} raw_scores: {cached_res['raw_scores']}")
+        else:
+            print(f"[DEBUG] [CACHE HIT] {request.artist} - {request.title} raw_scores: (not in cache)")
         print("PROFILING: [CACHE HIT] /api/analyze returned from memory cache")
         print(f"PROFILING: Total /api/analyze execution took {time.time() - start_time:.3f} seconds")
-        return analyze_cache[lyrics_hash]
-        
-    # 2. 환경변수 로드
-    hf_key = os.getenv("HUGGINGFACE_API_KEY")
-    if not hf_key:
-        print("ERROR: HUGGINGFACE_API_KEY가 환경변수(.env)에 설정되어 있지 않습니다.")
-        raise HTTPException(status_code=500, detail="HUGGINGFACE_API_KEY가 누락되었습니다.")
+        return cached_res
 
-    token_prefix = hf_key[:4] if len(hf_key) >= 4 else "N/A"
-    print(f"DEBUG: Currently loaded HUGGINGFACE_API_KEY = '{token_prefix}...' (Length: {len(hf_key)})")
-
-    # 3. API 정보 설정 (경량화 및 타임아웃 방지를 위해 distilbart-mnli-12-3 모델 적용)
-    api_url = "https://router.huggingface.co/hf-inference/models/valhalla/distilbart-mnli-12-3"
-    headers = {"Authorization": f"Bearer {hf_key}"}
-
-    # 4. 입력값 안전 처리 (512자 슬라이싱으로 토큰 길이 최적화 및 추론 속도 대폭 향상)
-    safe_lyrics = request.lyrics[:512]
-
-    payload = {
-        "inputs": safe_lyrics,
-        "parameters": {
-            "candidate_labels": ["joy", "depression", "anxiety", "stability", "anger"]
-        }
-    }
-
-    data = None
-    max_retries = 3
-    retry_delay = 2
-
-    # 5. 비동기 호출 및 재시도 루프 (Cold Start 대응)
     try:
-        for attempt in range(max_retries):
-            api_start = time.time()
-            try:
-                async with httpx.AsyncClient(timeout=15.0) as client:
-                    response = await client.post(api_url, headers=headers, json=payload)
-                
-                api_duration = time.time() - api_start
-                print(f"PROFILING: HuggingFace API request (Attempt {attempt+1}) took {api_duration:.3f} seconds")
-                
-                if response.status_code == 503:
-                    resp_data = response.json()
-                    print(f"DEBUG: Model loading (503). Retrying in {retry_delay}s... Detail: {resp_data}")
-                    await asyncio.sleep(retry_delay)
-                    continue
-                    
-                if response.status_code != 200:
-                    print(f"HuggingFace API Response Error (Status Code {response.status_code}): {response.text}")
-                    raise HTTPException(status_code=500, detail=f"HuggingFace API Error: {response.text}")
-                    
-                data = response.json()
-                break  # 성공 시 루프 탈출
-            except (httpx.RequestError, httpx.HTTPStatusError) as exc:
-                print(f"DEBUG: HTTP request failed on attempt {attempt+1}: {exc}")
-                if attempt == max_retries - 1:
-                    raise HTTPException(status_code=500, detail="HuggingFace API Connection Failed.")
-                await asyncio.sleep(retry_delay)
-
-        if data is None:
-            raise HTTPException(status_code=503, detail="AI가 준비 중입니다. 잠시 후 다시 시도해 주세요.")
-
-        # 6. 응답 데이터 파싱
-        parse_start = time.time()
-        if isinstance(data, list):
-            # 신규 API 라우터 응답 형식: [{'label': 'joy', 'score': 0.32}, ...]
-            result = {item["label"]: round(item["score"], 3) for item in data if "label" in item and "score" in item}
-        elif isinstance(data, dict) and "labels" in data and "scores" in data:
-            # 기존 레거시 API 응답 형식: {"labels": ["joy", ...], "scores": [0.32, ...]}
-            result = {label: round(score, 3) for label, score in zip(data["labels"], data["scores"])}
-        else:
-            print(f"HuggingFace Invalid JSON Response Format: {data}")
-            raise HTTPException(status_code=500, detail="허깅페이스 응답 형식이 올바르지 않습니다.")
+        # 2. classify_lyrics 호출
+        result_classification = await classify_lyrics(request.lyrics)
+        
+        # 원인 진단을 위한 로그 추가
+        print(f"[DEBUG] {request.artist} - {request.title} raw_scores: {result_classification['raw_scores']}")
+        
+        # Build backward-compatible flat structure
+        result = {
+            "scores": result_classification["scores"],
+            "matched_labels": result_classification["matched_labels"],
+            "top_label": result_classification["top_label"],
+            "primary_emotion": result_classification["primary_emotion"],
+            "valence_group": result_classification["valence_group"],
+            "love_theme_score": result_classification["love_theme_score"],
+            "is_love_themed": result_classification["is_love_themed"],
+            "raw_scores": result_classification["raw_scores"]
+        }
+        for label, score in result_classification["scores"].items():
+            result[label] = score
 
         # 캐시에 결과 저장
         analyze_cache[lyrics_hash] = result
 
-        parse_duration = time.time() - parse_start
         total_duration = time.time() - start_time
-        print(f"PROFILING: Response parsing/processing took {parse_duration:.3f} seconds")
         print(f"PROFILING: Total /api/analyze execution took {total_duration:.3f} seconds")
         return result
 

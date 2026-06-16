@@ -1,122 +1,84 @@
 // src/EmotionRadarChart.jsx
-import React, { useEffect, useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
+import {
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+const colorMap = {
+  happy: "#34A853",
+  confident: "#FF5F2A",
+  angry: "#BF1111",
+  sad: "#6139FF",
+  lonely: "#BEB729",
+  love: "#FF06EA",
+};
 
-function SingleRadarChart({ axes, scores, size = 240, radius = 50, color = "#CCFF00" }) {
-  const [hovered, setHovered] = useState(null);
+const CustomTooltip = ({ active, payload }) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    const color = colorMap[data.subject] || "#CCFF00";
+    // Divide by 2 because the charted value is doubled for visual prominence
+    const originalValue = data.value / 2;
+    return (
+      <div
+        style={{
+          background: "rgba(26, 0, 80, 0.95)",
+          color: color,
+          padding: "6px 10px",
+          border: `1px solid ${color}66`,
+          borderRadius: "6px",
+          fontFamily: "'Space Mono', monospace",
+          fontSize: "10px",
+          fontWeight: 700,
+          boxShadow: `0 0 12px ${color}55`,
+          textTransform: "uppercase",
+        }}
+      >
+        {data.subject}: {Math.round(originalValue * 100)}%
+      </div>
+    );
+  }
+  return null;
+};
 
-  if (!scores || !axes) return null; // Error handling: Ensure data exists
+const renderPolarAngleAxisTick = ({ payload, x, y, cx, cy, ...rest }) => {
+  const labelColor = colorMap[payload.value] || "#CCFF00";
+  
+  // Dynamic offset calculation for labels around the hexagon
+  let textAnchor = "middle";
+  if (x > cx + 15) {
+    textAnchor = "start";
+  } else if (x < cx - 15) {
+    textAnchor = "end";
+  }
 
-  const center = size / 2;
-  const angleStep = (Math.PI * 2) / axes.length;
-  const points = axes
-    .map((key, i) => {
-      const v = Math.min(Math.max(scores[key] ?? 0, 0), 1);
-      const r = v * radius;
-      const x = center + r * Math.sin(i * angleStep);
-      const y = center - r * Math.cos(i * angleStep);
-      return `${x},${y}`;
-    })
-    .join(" ");
+  // Adjust y position slightly based on position relative to center
+  const yOffset = y > cy ? 6 : y < cy ? -6 : 0;
 
   return (
-    <div className="relative w-full max-w-[240px] aspect-square flex items-center justify-center">
-      <svg className="w-full h-auto overflow-visible" viewBox={`0 0 ${size} ${size}`}>
-        {/* concentric grid */}
-        {[...Array(5)].map((_, idx) => {
-          const r = (radius / 5) * (idx + 1);
-          const pts = axes
-            .map((_, i) => {
-              const x = center + r * Math.sin(i * angleStep);
-              const y = center - r * Math.cos(i * angleStep);
-              return `${x},${y}`;
-            })
-            .join(" ");
-          return (
-            <polygon
-              key={idx}
-              points={pts}
-              fill="none"
-              stroke="rgba(204,255,0,0.18)"
-              strokeWidth={0.8}
-            />
-          );
-        })}
-        {/* axes */}
-        {axes.map((_, i) => (
-          <line
-            key={i}
-            x1={center}
-            y1={center}
-            x2={center + (radius + 12) * Math.sin(i * angleStep)}
-            y2={center - (radius + 12) * Math.cos(i * angleStep)}
-            stroke="rgba(204,255,0,0.25)"
-            strokeWidth={0.6}
-          />
-        ))}
-        {/* data polygon */}
-        <polygon
-          points={points}
-          fill={`${color}33`}
-          stroke={color}
-          strokeWidth={2}
-          style={{ filter: `drop-shadow(0 0 8px ${color})`, transition: "points 0.4s" }}
-        />
-        {/* dot at each vertex */}
-        {axes.map((key, i) => {
-          const v = Math.min(Math.max(scores[key] ?? 0, 0), 1);
-          const r = v * radius;
-          const x = center + r * Math.sin(i * angleStep);
-          const y = center - r * Math.cos(i * angleStep);
-          return (
-            <circle
-              key={key + "_dot"}
-              cx={x}
-              cy={y}
-              r={3}
-              fill={color}
-              style={{ filter: `drop-shadow(0 0 4px ${color})` }}
-            />
-          );
-        })}
-        {/* labels */}
-        {axes.map((key, i) => {
-          const labelR = radius + 25;
-          const x = center + labelR * Math.sin(i * angleStep);
-          const y = center - labelR * Math.cos(i * angleStep);
-          return (
-            <text
-              key={key}
-              x={x}
-              y={y}
-              fill="#CCFF00"
-              fontFamily="'Space Mono', monospace"
-              fontSize={12}
-              textAnchor="middle"
-              dominantBaseline="central"
-              onMouseEnter={() => setHovered(key)}
-              onMouseLeave={() => setHovered(null)}
-              style={{ cursor: "pointer", userSelect: "none", fontWeight: 700 }}
-            >
-              {key.replace("_", " ").toUpperCase()}
-            </text>
-          );
-        })}
-      </svg>
-      {hovered && (
-        <div
-          className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#1A0050]/95 text-[#CCFF00] px-2 py-1 rounded text-[10px] whitespace-nowrap z-10 border border-[#CCFF00]/40"
-          style={{
-            fontFamily: "'Space Mono', monospace",
-            pointerEvents: "none",
-            boxShadow: "0 0 8px #CCFF00",
-          }}
-        >
-          {hovered.toUpperCase()}: {Math.round((scores[hovered] ?? 0) * 100)}%
-        </div>
-      )}
-    </div>
+    <text
+      {...rest}
+      x={x}
+      y={y + yOffset}
+      textAnchor={textAnchor}
+      fill={labelColor}
+      style={{
+        fontFamily: "'Space Mono', monospace",
+        fontSize: "10px",
+        fontWeight: 800,
+        textTransform: "uppercase",
+        letterSpacing: "0.05em",
+      }}
+    >
+      {payload.value}
+    </text>
   );
-}
+};
 
 function DraggableChartGroup({ children, blobWidth = 260, blobHeight = 260 }) {
   const [pos, setPos] = useState({ x: 0, y: 0 });
@@ -125,10 +87,8 @@ function DraggableChartGroup({ children, blobWidth = 260, blobHeight = 260 }) {
   const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
 
   const onMouseDown = (e) => {
-    // Only drag on desktop where touch isn't prioritized, but allow touch for mobile
     dragging.current = true;
     setIsDragging(true);
-    // Support both mouse and touch events
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     dragStart.current = { mx: clientX, my: clientY, px: pos.x, py: pos.y };
@@ -166,7 +126,7 @@ function DraggableChartGroup({ children, blobWidth = 260, blobHeight = 260 }) {
       style={{
         transform: `translate(${pos.x}px, ${pos.y}px)`,
         cursor: isDragging ? "grabbing" : "grab",
-        pointerEvents: "auto"
+        pointerEvents: "auto",
       }}
       onMouseDown={onMouseDown}
       onTouchStart={onMouseDown}
@@ -181,7 +141,7 @@ function DraggableChartGroup({ children, blobWidth = 260, blobHeight = 260 }) {
         }}
       />
       {/* Chart content on top of blob */}
-      <div className="relative z-10 p-4 w-full">
+      <div className="relative z-10 p-4 w-full flex justify-center items-center">
         {children}
       </div>
     </div>
@@ -191,25 +151,65 @@ function DraggableChartGroup({ children, blobWidth = 260, blobHeight = 260 }) {
 export default function EmotionRadarChart({ scores }) {
   if (!scores) return null;
 
-  // 5가지 핵심 감정으로 축 구성 변경
-  const axes = ["joy", "stability", "depression", "anxiety", "anger"];
+  // Chart labels sequence strictly in (happy-confident-angry-sad-lonely-love) order for symmetry
+  // Values are doubled for visual prominence (and will be clamped in drawing or plotted against PolarRadiusAxis)
+  const data = [
+    { subject: "happy", value: (scores.happy ?? 0) * 2 },
+    { subject: "confident", value: (scores.confident ?? 0) * 2 },
+    { subject: "angry", value: (scores.angry ?? 0) * 2 },
+    { subject: "sad", value: (scores.sad ?? 0) * 2 },
+    { subject: "lonely", value: (scores.lonely ?? 0) * 2 },
+    { subject: "love", value: (scores.love ?? 0) * 2 },
+  ];
 
   return (
     <div className="flex flex-col items-center gap-4 mt-2 w-full">
       <div className="flex flex-col items-center justify-center p-4 w-full">
-        <DraggableChartGroup blobWidth={280} blobHeight={280}>
-          <div className="flex flex-col items-center gap-2 w-full">
-            <div className="font-['Space_Mono'] text-[14px] text-[#CCFF00] tracking-[0.2em] uppercase font-extrabold mb-2">
+        <DraggableChartGroup blobWidth={285} blobHeight={285}>
+          <div className="flex flex-col items-center w-full" style={{ pointerEvents: "auto" }}>
+            <div className="font-['Space_Mono'] text-[14px] text-[#CCFF00] tracking-[0.2em] uppercase font-extrabold mb-2 text-center">
               EMOTION LANDSCAPE
             </div>
-            {/* 단일 오각형 차트 렌더링 */}
-            <SingleRadarChart
-              axes={axes}
-              scores={scores}
-              size={260}
-              radius={55}
-              color="#CCFF00"
-            />
+            
+            <div className="w-[260px] h-[260px] flex items-center justify-center relative">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart cx="50%" cy="50%" outerRadius={70} data={data}>
+                  <defs>
+                    <linearGradient id="radarGradient" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#34A853" />       {/* happy */}
+                      <stop offset="20%" stopColor="#FF5F2A" />      {/* confident */}
+                      <stop offset="40%" stopColor="#BF1111" />      {/* angry */}
+                      <stop offset="60%" stopColor="#6139FF" />      {/* sad */}
+                      <stop offset="80%" stopColor="#BEB729" />      {/* lonely */}
+                      <stop offset="100%" stopColor="#FF06EA" />     {/* love */}
+                    </linearGradient>
+                  </defs>
+                  
+                  {/* Hexagonal grid configuration */}
+                  <PolarGrid gridType="polygon" stroke="rgba(204,255,0,0.18)" strokeWidth={0.8} />
+                  
+                  {/* Axis settings for 6 points */}
+                  <PolarAngleAxis dataKey="subject" tick={renderPolarAngleAxisTick} />
+                  
+                  {/* Fixed PolarRadiusAxis domain [0, 0.6] to zoom and size relative to chart space */}
+                  <PolarRadiusAxis domain={[0, 0.6]} tick={false} axisLine={false} />
+                  
+                  {/* Tooltip to view percentages */}
+                  <Tooltip content={<CustomTooltip />} cursor={false} />
+                  
+                  {/* Radar shape definition */}
+                  <Radar
+                    name="Emotion"
+                    dataKey="value"
+                    stroke="url(#radarGradient)"
+                    strokeWidth={2}
+                    fill="url(#radarGradient)"
+                    fillOpacity={0.25}
+                    isAnimationActive={false}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </DraggableChartGroup>
       </div>
