@@ -889,8 +889,8 @@ function PreviewSection({ track, playing, setPlaying, scores, onAddToHistory }) 
             gap: "6px",
             padding: "8px 14px",
             borderRadius: "20px",
-            border: "1px solid rgba(29, 185, 84, 0.6)", // 스포티파이 브랜드 컬러
-            color: "#1DB954",
+            border: "1px solid rgba(26, 0, 80, 0.4)", // 보라색 테두리
+            color: "#1A0050", // 보라색 가사 글씨 색상
             textDecoration: "none",
             fontFamily: "'Space Mono', monospace",
             fontSize: "9px",
@@ -900,8 +900,8 @@ function PreviewSection({ track, playing, setPlaying, scores, onAddToHistory }) 
             transition: "all 0.2s",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(29, 185, 84, 0.1)";
-            e.currentTarget.style.boxShadow = "0 0 12px rgba(29, 185, 84, 0.35)";
+            e.currentTarget.style.background = "rgba(26, 0, 80, 0.08)";
+            e.currentTarget.style.boxShadow = "0 0 12px rgba(26, 0, 80, 0.15)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = "transparent";
@@ -922,8 +922,8 @@ function PreviewSection({ track, playing, setPlaying, scores, onAddToHistory }) 
             gap: "6px",
             padding: "8px 14px",
             borderRadius: "20px",
-            border: "1px solid rgba(250, 36, 60, 0.6)", // 애플뮤직 브랜드 컬러
-            color: "#FA243C",
+            border: "1px solid rgba(26, 0, 80, 0.4)", // 보라색 테두리
+            color: "#1A0050", // 보라색 가사 글씨 색상
             textDecoration: "none",
             fontFamily: "'Space Mono', monospace",
             fontSize: "9px",
@@ -933,8 +933,8 @@ function PreviewSection({ track, playing, setPlaying, scores, onAddToHistory }) 
             transition: "all 0.2s",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(250, 36, 60, 0.1)";
-            e.currentTarget.style.boxShadow = "0 0 12px rgba(250, 36, 60, 0.35)";
+            e.currentTarget.style.background = "rgba(26, 0, 80, 0.08)";
+            e.currentTarget.style.boxShadow = "0 0 12px rgba(26, 0, 80, 0.15)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = "transparent";
