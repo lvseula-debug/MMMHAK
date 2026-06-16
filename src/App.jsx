@@ -2038,8 +2038,22 @@ export default function MMMHAKApp() {
           const { streams } = track;
           const contagion = Math.log10(Math.max(streams, 10)) / Math.log10(3000000000);
 
+          const legacyMapping = {
+            happy: ["happy", "joy"],
+            sad: ["sad", "depression"],
+            angry: ["angry", "anger"],
+            lonely: ["lonely", "anxiety"],
+            confident: ["confident", "stability"],
+            love: ["love"]
+          };
+
           const getVal = (key) => {
-            const val = aiScores.scores?.[key] ?? aiScores[key] ?? aiScores.emotions?.[key];
+            const keysToTry = legacyMapping[key] || [key];
+            let val = undefined;
+            for (const k of keysToTry) {
+              val = aiScores.scores?.[k] ?? aiScores[k] ?? aiScores.emotions?.[k];
+              if (val !== undefined) break;
+            }
             return Math.min(Math.max(Number(val) || 0, 0), 1.0);
           };
 
