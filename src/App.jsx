@@ -271,7 +271,7 @@ function generateStructuredInsights(track, scores) {
 const INFO_BUTTONS = [
   { id: "bpm", label: "BPM", icon: "♫", content: 'Tempo: 128 BPM — High energy dance rhythm' },
   { id: "key", label: "KEY", icon: "♪", content: 'Key: A minor — Creates tension and emotional depth' },
-  { id: "graph", label: "GRAPH", icon: "📈", content: 'Toggle radar charts showing track emotions and balance' },
+  { id: "graph", label: "GRAPH", icon: "📈", content: "" },
   { id: "mood", label: "MOOD", icon: "✨", content: "" },
 ];
 
@@ -406,7 +406,6 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores })
     else if (btn.id === 'graph') {
       content = (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <div>Toggle radar charts showing track emotions and balance</div>
           {scores && (
             <div style={{
               background: "rgba(204,255,0,0.1)",
@@ -640,12 +639,12 @@ function PreviewSection({ track, playing, setPlaying, scores, onAddToHistory }) 
     if (themeInfo && themeInfo.messages.length > 0) {
       const messages = themeInfo.messages;
       const randomMsg = messages[Math.floor(Math.random() * messages.length)];
-      
+
       let timer;
       const deferredTimer = setTimeout(() => {
         setEmpathyMessage(randomMsg);
         setAccentColor(EMOTION_COLORS[topEmotion] || "#CCFF00");
-        
+
         timer = setTimeout(() => {
           setEmpathyMessage(null);
         }, 3000);
@@ -679,7 +678,7 @@ function PreviewSection({ track, playing, setPlaying, scores, onAddToHistory }) 
   const togglePlay = (e) => {
     e.stopPropagation();
     if (!audioRef.current) return;
-    
+
     const targetSrc = track?.previewUrl || "";
     if (!targetSrc) {
       alert("No audio preview available for this track.");
@@ -1181,8 +1180,8 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
                       const hasHistory = history.length > 0;
                       const data = hasHistory
                         ? Object.keys(counts)
-                            .filter(key => counts[key] > 0)
-                            .map(key => ({ name: key, value: counts[key], color: EMOTION_COLORS[key] }))
+                          .filter(key => counts[key] > 0)
+                          .map(key => ({ name: key, value: counts[key], color: EMOTION_COLORS[key] }))
                         : [{ name: "empty", value: 1, color: "rgba(255, 255, 255, 0.1)" }];
                       return data.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
@@ -1995,7 +1994,7 @@ export default function MMMHAKApp() {
 
   const handleSelect = useCallback(async (track) => {
     setPlaying(false); // Stop playing immediately to avoid layout background color flicker
-    
+
     // Check if the track is already AI analyzed
     if (track.isAI && track.lyrics) {
       setActiveTrack(track);
