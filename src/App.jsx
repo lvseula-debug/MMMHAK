@@ -408,10 +408,6 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores })
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {scores && (
             <div style={{
-              background: "rgba(204,255,0,0.1)",
-              border: "1px solid rgba(204,255,0,0.3)",
-              borderRadius: "8px",
-              padding: "8px",
               color: "#CCFF00",
               fontWeight: "700",
               fontSize: "11px",
