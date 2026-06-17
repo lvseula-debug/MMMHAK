@@ -2280,6 +2280,11 @@ export default function MMMHAKApp() {
               lyrics={lyrics}
               isGraphOpen={isGraphOpen}
               onToggleGraph={setIsGraphOpen}
+              onToggleSearch={setIsSearchOpen}
+              isSearchOpen={isSearchOpen}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              onSearch={handleSearch}
               playing={playing}
               setPlaying={setPlaying}
               currentEmotion={currentEmotion}
