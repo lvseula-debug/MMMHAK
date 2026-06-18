@@ -195,6 +195,18 @@ const renderCustomDot = (scores) => (props) => {
 export default function EmotionRadarChart({ scores }) {
   if (!scores) return null;
 
+  if (scores.insufficient_data || scores.no_info) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center text-white font-['Space_Mono'] bg-[#1A0050]/80 rounded-xl border border-dashed border-white/20 w-full max-w-[260px] min-h-[260px] mx-auto z-10 relative">
+        <span style={{ fontSize: '28px', marginBottom: '8px' }}>⚠️</span>
+        <div style={{ fontWeight: 800, color: '#CCFF00', fontSize: '11px', letterSpacing: '0.1em' }}>DATA SCARCE / NO INFO</div>
+        <div style={{ fontSize: '10px', opacity: 0.6, marginTop: '8px', lineHeight: 1.5 }}>
+          Insufficient lyrics or metadata available to generate a reliable emotion chart.
+        </div>
+      </div>
+    );
+  }
+
   // Chart labels sequence strictly in (happy-confident-angry-sad-lonely-love) order for symmetry
   // Values are doubled for visual prominence (and will be clamped in drawing or plotted against PolarRadiusAxis)
   const data = [

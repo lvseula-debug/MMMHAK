@@ -62,13 +62,22 @@ function CustomCursor() {
 function generateStructuredInsights(track, scores) {
   if (!track || !scores) return { vibe: "트랙 데이터를 분석 중입니다.", insight: "", profile: "" };
 
-  // 1. 최고 감정 추출 (러브 테마 제외하고 5대 감정만 분류)
+  if (scores.insufficient_data || scores.no_info) {
+    return {
+      vibe: "가사 정보가 없거나 분석에 필요한 데이터가 부족하여 감정을 판별할 수 없습니다. ⚠️",
+      insight: "차트에서 어떤 축도 두드러지지 않습니다. 데이터의 품질이나 가사 양이 부족하면 모든 점수가 0.5(중립)로 평탄화됩니다.",
+      profile: `${track.bpm} BPM · ${track.mode === "minor" ? "Minor" : "Major"} Key · ${track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + "M" : track.streams} Plays`
+    };
+  }
+
+  // 1. 최고 감정 추출 (6대 감정 분류)
   const emotions = {
     happy: scores.happy,
     sad: scores.sad,
     angry: scores.angry,
     lonely: scores.lonely,
-    confident: scores.confident
+    confident: scores.confident,
+    love: scores.love
   };
 
   // 값을 기준으로 내림차순 정렬
@@ -1511,7 +1520,9 @@ export default function MMMHAKApp() {
   // Derive dominant emotion from scores during render
   let currentEmotion = "happy";
   if (scores) {
-    if (scores.primary_emotion) {
+    if (scores.insufficient_data || scores.no_info) {
+      currentEmotion = "neutral";
+    } else if (scores.primary_emotion) {
       currentEmotion = scores.primary_emotion;
     } else {
       const emotionsList = ["happy", "confident", "angry", "sad", "lonely"];

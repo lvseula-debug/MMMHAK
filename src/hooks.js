@@ -47,6 +47,9 @@ export function normalizeEmotionScores(rawSpread, source, streams) {
     confident: Math.min(Math.max(Number(rawSpread.confident) || 0, 0), 1.0),
   };
 
+  const insufficient_data = rawSpread.insufficient_data || false;
+  const no_info = rawSpread.no_info || false;
+
   const viralRisk = Object.values(spread).reduce((sum, v) => sum + v, 0) / 6 * contagion;
   const positive_score = Math.min(spread.happy * 0.4 + spread.love * 0.3 + spread.confident * 0.3, 1.0);
   const negative_score = Math.min(spread.sad * 0.4 + spread.lonely * 0.3 + spread.angry * 0.3, 1.0);
@@ -55,7 +58,8 @@ export function normalizeEmotionScores(rawSpread, source, streams) {
   const classification = polarity > 0.25 ? "POSITIVE" : polarity < -0.25 ? "NEGATIVE" : "MIXED";
 
   const primary_emotion = (() => {
-    const emos = ["happy", "confident", "angry", "sad", "lonely"];
+    if (insufficient_data || no_info) return "neutral";
+    const emos = ["happy", "confident", "angry", "sad", "lonely", "love"];
     let maxVal = -1;
     let top = "happy";
     emos.forEach((emo) => {
@@ -69,7 +73,7 @@ export function normalizeEmotionScores(rawSpread, source, streams) {
 
   const valence_group = polarity > 0.0 ? "positive" : "negative";
   const love_theme_score = spread.love;
-  const is_love_themed = love_theme_score >= 0.35;
+  const is_love_themed = love_theme_score >= 0.35 && !insufficient_data;
 
   return {
     ...spread,
@@ -88,11 +92,26 @@ export function normalizeEmotionScores(rawSpread, source, streams) {
     valence_group,
     love_theme_score,
     is_love_themed,
+    insufficient_data,
+    no_info
   };
 }
 
 export function computeVirusScores(track) {
   const { mode, valence, energy, loudness, lyrics_sentiment, streams } = track;
+  
+  if (lyrics_sentiment?.insufficient_data) {
+    return normalizeEmotionScores({
+      happy: 0.5,
+      sad: 0.5,
+      angry: 0.5,
+      love: 0.5,
+      lonely: 0.5,
+      confident: 0.5,
+      insufficient_data: true
+    }, "heuristic", streams);
+  }
+
   const modeFactor = mode === "minor" ? 0.3 : -0.1;
   const loudNorm = Math.min(Math.max((loudness + 20) / 20, 0), 1);
 
@@ -112,19 +131,16 @@ export const fetchLyrics = async (title, artist) => {
   try {
     const response = await fetch(`${getApiBaseUrl()}/api/lyrics?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`);
     if (!response.ok) {
-      throw new Error('Lyrics fetch failed');
+      return { lyrics: null, is_lyrics_available: false };
     }
     const data = await response.json();
-    return data.lyrics || "현재 이 곡의 가사를 제공할 수 없습니다.";
+    return {
+      lyrics: data.lyrics || null,
+      is_lyrics_available: data.is_lyrics_available ?? (!!data.lyrics)
+    };
   } catch (e) {
     console.error(`Lyrics fetch error:`, e);
-    const apiBase = getApiBaseUrl();
-    const isLocalBackend = apiBase.includes("http://localhost") || apiBase.includes("http://127.0.0.1");
-    const isFetchFailure = e.name === "TypeError" || e.message?.toLowerCase().includes("failed to fetch") || e.message?.toLowerCase().includes("fetch failed");
-    if (window.location.protocol === "https:" && isLocalBackend && isFetchFailure) {
-      return `⚠️ [보안 제한 안내] HTTPS 환경에서 로컬 백엔드 서버(HTTP) 호출이 차단되었습니다.\n\n해결하려면 브라우저 주소창 왼쪽 [자물쇠 아이콘(설정)] ➔ [사이트 설정] ➔ [안전하지 않은 콘텐츠(Insecure content)]를 '허용(Allow)'으로 변경하고 새로고침해 주세요.`;
-    }
-    return "현재 이 곡의 가사를 제공할 수 없습니다.";
+    return { lyrics: null, is_lyrics_available: false };
   }
 };
 
@@ -348,7 +364,16 @@ const processTracks = async (rawTracks, startIdx = 0, onBatchComplete = null) =>
           const normalizedBpm = Math.min(Math.max((baseBpm - 60) / 100, 0), 1);
           const intensity = (baseEnergy * 0.6) + (normalizedBpm * 0.4);
 
-          const lyrics_sentiment = {
+          const insufficient_data = tags.length < 3;
+          const lyrics_sentiment = insufficient_data ? {
+            happy: 0.5,
+            sad: 0.5,
+            angry: 0.5,
+            love: 0.5,
+            lonely: 0.5,
+            confident: 0.5,
+            insufficient_data: true
+          } : {
             happy: Math.max(0.01, parseFloat(((((hasHappy ? 0.5 : 0.1) + valence * 0.3) * modeModifier) * (0.5 + intensity)).toFixed(2))),
             sad: Math.max(0.01, parseFloat((((hasSad ? 0.4 : 0.05) + (1 - valence) * 0.4) * (1.5 - intensity)).toFixed(2))),
             angry: Math.max(0.01, parseFloat((((hasAngry ? 0.4 : 0.05) + (1 - valence) * 0.3) * (0.5 + intensity)).toFixed(2))),
@@ -547,12 +572,13 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
 
     const runAnalysis = async () => {
       try {
-        const fetchedLyrics = await fetchLyrics(track.title, track.artist);
+        const lyricData = await fetchLyrics(track.title, track.artist);
         if (selectedTrackIdRef.current !== myTrackId || isCancelled) return;
 
-        setLyrics(fetchedLyrics);
+        if (lyricData.is_lyrics_available && lyricData.lyrics) {
+          const fetchedLyrics = lyricData.lyrics;
+          setLyrics(fetchedLyrics);
 
-        if (fetchedLyrics !== "현재 이 곡의 가사를 제공할 수 없습니다.") {
           const analyzeRes = await fetch(`${getApiBaseUrl()}/api/analyze`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -595,6 +621,8 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
               love: getVal('love'),
               lonely: getVal('lonely'),
               confident: getVal('confident'),
+              insufficient_data: aiScores.insufficient_data || aiScores.no_info || false,
+              no_info: aiScores.no_info || false
             };
 
             return normalizeEmotionScores(rawSpread, "ai", streams);
@@ -613,6 +641,18 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
             onTrackAnalyzed(track, fetchedLyrics, finalScores);
           }
         } else {
+          setLyrics("가사 정보를 불러올 수 없는 곡입니다.");
+          const finalScores = normalizeEmotionScores({
+            happy: 0.5,
+            sad: 0.5,
+            angry: 0.5,
+            love: 0.5,
+            lonely: 0.5,
+            confident: 0.5,
+            insufficient_data: true,
+            no_info: true
+          }, "ai", track.streams);
+          setScores(finalScores);
           setIsAnalyzing(false);
         }
       } catch (err) {

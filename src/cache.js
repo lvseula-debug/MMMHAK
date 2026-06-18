@@ -1,6 +1,6 @@
 const ITUNES_CACHE_KEY = "mm_itunes_cache";
 const LASTFM_CACHE_KEY = "mm_lastfm_cache";
-const AI_SCORES_CACHE_KEY = "mm_ai_scores_cache";
+const AI_SCORES_CACHE_KEY = "mm_ai_scores_cache_v2";
 
 const getLocalCache = (key) => {
   try {

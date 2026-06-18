@@ -156,9 +156,57 @@ def extract_and_duplicate_chorus(lyrics: str) -> str:
             
     return "\n\n".join(processed_paragraphs)
 
+def validate_lyrics(lyrics: str) -> bool:
+    if not lyrics:
+        return False
+    text = lyrics.strip()
+    if len(text) < 50:
+        return False
+    
+    # Check for meaningless repetition
+    cleaned = re.sub(r'[^\w\s]', '', text.lower())
+    words = cleaned.split()
+    if not words:
+        return False
+        
+    unique_words = set(words)
+    meaningless_words = {
+        "la", "lala", "lalala", "lalalala", "lalalalala",
+        "na", "nana", "nanana", "nananana", "nanananana",
+        "oh", "ooh", "oooh", "ooooh", "oohh",
+        "ah", "ahh", "ahhh", "ahhhh",
+        "uh", "uhh", "uhhh",
+        "yeah", "yea", "yeh", "yee",
+        "baby", "babe",
+        "dum", "da", "dada", "dadada",
+        "woo", "wooo", "wow",
+        "hey", "heyy", "yo", "yoo",
+        "shulala", "shalala", "shalalalala",
+        "sha", "shoo"
+    }
+    
+    def is_meaningless_word(w):
+        if w in meaningless_words:
+            return True
+        for syl in ["la", "na", "da", "dum", "ba", "ha", "hey", "yo", "woo", "oh", "ah", "uh", "yeah"]:
+            if re.match(rf'^({syl}){{2,}}$', w):
+                return True
+        return False
+
+    meaningful_words = [w for w in words if not is_meaningless_word(w)]
+    
+    if len(words) > 0 and (len(meaningful_words) / len(words)) < 0.25:
+        return False
+        
+    if len(meaningful_words) < 5 or len(unique_words) < 5:
+        return False
+        
+    return True
+
 async def classify_lyrics(lyrics: str, threshold_override: dict = None):
     """
-    Valence(긍정/부정) 1차 분류 -> 그룹별 세부 감정 2차 분류(조건부 실행) 및 Love 테마 독립 분리.
+    가사에서 6대 감정(happy, sad, angry, love, lonely, confident)을 1회의 Zero-Shot Classification 호출로 동시 분류하여
+    성능을 2배 단축하고, 감정 배제(0점 처리) 없이 더욱 정확하게 혼합 감정(mixed vibe)을 잡아냅니다.
     """
     th = threshold_override or thresholds
     
@@ -167,55 +215,40 @@ async def classify_lyrics(lyrics: str, threshold_override: dict = None):
         print("ERROR: HUGGINGFACE_API_KEY가 환경변수(.env)에 설정되어 있지 않습니다.")
         raise HTTPException(status_code=500, detail="HUGGINGFACE_API_KEY가 누락되었습니다.")
         
-    api_url = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-mnli"
+    api_url = "https://router.huggingface.co/hf-inference/models/joeddav/xlm-roberta-large-xnli"
     headers = {"Authorization": f"Bearer {hf_key}"}
     weighted_lyrics = extract_and_duplicate_chorus(lyrics)
     safe_lyrics = weighted_lyrics[:1024]
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        # 1단계: Valence 분류
-        val_res = await call_hf_zero_shot(client, api_url, headers, safe_lyrics, valence_hypotheses, multi_label=False)
-        pos_val = val_res.get(valence_hypotheses[0], 0.0)
-        neg_val = val_res.get(valence_hypotheses[1], 0.0)
-        
-        valence_group = "positive" if pos_val >= neg_val else "negative"
+    all_emotions = ["happy", "sad", "angry", "love", "lonely", "confident"]
+    candidate_hyps = [emotion_hypotheses[emo] for emo in all_emotions]
 
-        # 2단계: 그룹별 세부 감정 라벨 분류
-        if valence_group == "positive":
-            active_emotions = ["happy", "confident"]
-        else:
-            active_emotions = ["angry", "sad", "lonely"]
-            
-        # 3단계: Love는 항상 함께 독립 주제로 분류
-        active_labels = active_emotions + ["love"]
-        candidate_hyps = [emotion_hypotheses[emo] for emo in active_labels]
-        
+    async with httpx.AsyncClient(timeout=15.0) as client:
         emo_res = await call_hf_zero_shot(client, api_url, headers, safe_lyrics, candidate_hyps, multi_label=True)
 
-    # 점수 병합 및 미평가 라벨 0.0 처리 (이 시점은 raw 점수)
+    # 점수 매핑
     scores = {}
-    for emo in ["happy", "confident", "angry", "sad", "lonely"]:
-        if emo in active_emotions:
-            hyp = emotion_hypotheses[emo]
-            scores[emo] = round(emo_res.get(hyp, 0.0), 3)
-        else:
-            scores[emo] = 0.0
-            
-    # Love 점수 별도 처리
-    love_hyp = emotion_hypotheses["love"]
-    scores["love"] = round(emo_res.get(love_hyp, 0.0), 3)
+    for emo in all_emotions:
+        hyp = emotion_hypotheses[emo]
+        scores[emo] = round(emo_res.get(hyp, 0.0), 3)
 
-    # Valence 그룹 내 후보 중 최고 점수를 대표 감정으로 결정
-    primary_emotion = max(active_emotions, key=scores.get)
+    # Valence 및 polarity 계산에 근거한 동적 valence_group 판별
+    pos_score = scores["happy"] * 0.4 + scores["love"] * 0.3 + scores["confident"] * 0.3
+    neg_score = scores["sad"] * 0.4 + scores["lonely"] * 0.3 + scores["angry"] * 0.3
+    valence_group = "positive" if pos_score >= neg_score else "negative"
+
+    # 전체 6대 감정 중 최고 점수를 대표 감정으로 결정
+    primary_emotion = max(["happy", "confident", "angry", "sad", "lonely", "love"], key=scores.get)
     
     love_theme_score = scores["love"]
     is_love_themed = love_theme_score >= th.get("love", 0.20)
     
-    matched_labels = [emo for emo in active_emotions if scores[emo] >= th.get(emo, 0.30)]
+    # 가사에서 기준치(threshold)를 넘긴 감정 라벨들의 목록
+    matched_labels = [emo for emo in ["happy", "confident", "angry", "sad", "lonely"] if scores[emo] >= th.get(emo, 0.30)]
     if is_love_themed:
         matched_labels.append("love")
 
-    # 4단계: Temperature Scaling 적용 (보정 및 극단값 완화)
+    # Temperature Scaling 적용 (보정 및 극단값 완화)
     scaled_scores = {}
     for emo, val in scores.items():
         scaled_scores[emo] = apply_temperature(val, temperature=2.0)
@@ -260,6 +293,33 @@ async def calibrate_thresholds(lyrics_list, ground_truth_labels):
 async def analyze_lyrics(request: AnalyzeRequest):
     start_time = time.time()
     
+    # AI 분석 API 호출 전 가사 텍스트 유효성 검사 수행
+    if not validate_lyrics(request.lyrics):
+        print(f"[DEBUG] Lyrics validation failed for {request.artist} - {request.title}")
+        neutral_scores = {
+            "happy": 0.5,
+            "sad": 0.5,
+            "angry": 0.5,
+            "love": 0.5,
+            "lonely": 0.5,
+            "confident": 0.5
+        }
+        result = {
+            "scores": neutral_scores,
+            "matched_labels": [],
+            "top_label": "none",
+            "primary_emotion": "none",
+            "valence_group": "neutral",
+            "love_theme_score": 0.5,
+            "is_love_themed": False,
+            "raw_scores": neutral_scores,
+            "insufficient_data": True,
+            "no_info": True
+        }
+        for label, score in neutral_scores.items():
+            result[label] = score
+        return result
+
     # 1. 캐시 확인 (가사의 MD5 해시값을 키로 사용)
     lyrics_hash = hashlib.md5(request.lyrics.encode('utf-8')).hexdigest()
     if lyrics_hash in analyze_cache:
@@ -317,7 +377,10 @@ async def get_lyrics(title: str, artist: str):
     if cache_key in lyrics_cache:
         print("PROFILING: [CACHE HIT] /api/lyrics returned from memory cache")
         print(f"PROFILING: Total /api/lyrics execution took {time.time() - start_time:.3f} seconds")
-        return {"lyrics": lyrics_cache[cache_key]}
+        cached_val = lyrics_cache[cache_key]
+        if cached_val is None:
+            return {"lyrics": None, "is_lyrics_available": False}
+        return {"lyrics": cached_val, "is_lyrics_available": True}
 
     try:
         def clean_text(text):
@@ -346,7 +409,7 @@ async def get_lyrics(title: str, artist: str):
                 lyrics_cache[cache_key] = lyrics
                 total_duration = time.time() - start_time
                 print(f"PROFILING: Total /api/lyrics execution (1st try hit) took {total_duration:.3f} seconds")
-                return {"lyrics": lyrics}
+                return {"lyrics": lyrics, "is_lyrics_available": True}
         
         # 2차 시도 (search)
         api_start2 = time.time()
@@ -363,7 +426,8 @@ async def get_lyrics(title: str, artist: str):
                 found_artist = first_result.get("artistName", "").lower()
                 
                 if artist.lower() not in found_artist and found_artist not in artist.lower():
-                    raise HTTPException(status_code=404, detail="정확한 가사를 찾을 수 없습니다.")
+                    lyrics_cache[cache_key] = None
+                    return {"lyrics": None, "is_lyrics_available": False, "reason": "정확한 가사를 찾을 수 없습니다."}
 
                 lyrics = None
                 if first_result.get("plainLyrics"):
@@ -375,17 +439,17 @@ async def get_lyrics(title: str, artist: str):
                     lyrics_cache[cache_key] = lyrics
                     total_duration = time.time() - start_time
                     print(f"PROFILING: Total /api/lyrics execution (2nd try hit) took {total_duration:.3f} seconds")
-                    return {"lyrics": lyrics}
+                    return {"lyrics": lyrics, "is_lyrics_available": True}
         
         total_duration = time.time() - start_time
         print(f"PROFILING: Total /api/lyrics execution (fail) took {total_duration:.3f} seconds")
-        raise HTTPException(status_code=404, detail="가사를 찾을 수 없습니다.")
+        lyrics_cache[cache_key] = None
+        return {"lyrics": None, "is_lyrics_available": False, "reason": "가사를 찾을 수 없습니다."}
     except Exception as e:
         import traceback
         traceback.print_exc()
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(status_code=500, detail=f"Lyrics service error: {type(e).__name__} - {str(e)}")
+        lyrics_cache[cache_key] = None
+        return {"lyrics": None, "is_lyrics_available": False, "reason": f"Lyrics service error: {type(e).__name__} - {str(e)}"}
         
 @app.get("/api/itunes")
 async def search_itunes(term: str, limit: int = 1, country: str = None):
