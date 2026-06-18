@@ -294,8 +294,8 @@ async def analyze_lyrics(request: AnalyzeRequest):
     start_time = time.time()
     
     # AI 분석 API 호출 전 가사 텍스트 유효성 검사 수행
-    if not validate_lyrics(request.lyrics):
-        print(f"[DEBUG] Lyrics validation failed for {request.artist} - {request.title}")
+    if not request.lyrics or not validate_lyrics(request.lyrics):
+        print(f"[DEBUG] Lyrics validation failed or empty for {request.artist} - {request.title}")
         neutral_scores = {
             "happy": 0.5,
             "sad": 0.5,
@@ -361,19 +361,44 @@ async def analyze_lyrics(request: AnalyzeRequest):
         return result
 
     except Exception as e:
-        if isinstance(e, HTTPException):
-            raise e
         import traceback
         print(f"Internal Exception during lyrics analysis: {e}")
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail="감정 분석 요청 중 오류가 발생했습니다.")
+        # 500 에러를 반환하지 않고 안전하게 중립 점수 및 에러 정보를 200 OK로 반환합니다.
+        neutral_scores = {
+            "happy": 0.5,
+            "sad": 0.5,
+            "angry": 0.5,
+            "love": 0.5,
+            "lonely": 0.5,
+            "confident": 0.5
+        }
+        result = {
+            "scores": neutral_scores,
+            "matched_labels": [],
+            "top_label": "none",
+            "primary_emotion": "none",
+            "valence_group": "neutral",
+            "love_theme_score": 0.5,
+            "is_love_themed": False,
+            "raw_scores": neutral_scores,
+            "insufficient_data": True,
+            "no_info": True,
+            "error_detail": str(e)
+        }
+        for label, score in neutral_scores.items():
+            result[label] = score
+        return result
 
 @app.get("/api/lyrics")
-async def get_lyrics(title: str, artist: str):
+async def get_lyrics(title: str = "", artist: str = ""):
     start_time = time.time()
     
-    # 1. 캐시 확인
-    cache_key = f"{title.lower().strip()}_{artist.lower().strip()}"
+    # 1. 안전하게 캐시 키 생성 및 확인 (None 방지)
+    title_str = (title or "").lower().strip()
+    artist_str = (artist or "").lower().strip()
+    cache_key = f"{title_str}_{artist_str}"
+    
     if cache_key in lyrics_cache:
         print("PROFILING: [CACHE HIT] /api/lyrics returned from memory cache")
         print(f"PROFILING: Total /api/lyrics execution took {time.time() - start_time:.3f} seconds")
@@ -391,7 +416,7 @@ async def get_lyrics(title: str, artist: str):
         # 1차 시도 (get)
         api_start = time.time()
         url = "https://lrclib.net/api/get"
-        params = {"artist_name": artist, "track_name": title}
+        params = {"artist_name": artist_str, "track_name": title_str}
         headers = {"User-Agent": "MMMHAK-LyricsFinder/1.0 (https://mmmhak.vercel.app)"}
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.get(url, params=params, headers=headers)
@@ -414,7 +439,7 @@ async def get_lyrics(title: str, artist: str):
         # 2차 시도 (search)
         api_start2 = time.time()
         search_url = "https://lrclib.net/api/search"
-        params = {"q": f"{artist} {title}"}
+        params = {"q": f"{artist_str} {title_str}".strip()}
         async with httpx.AsyncClient(timeout=20.0) as client:
             search_response = await client.get(search_url, params=params, headers=headers)
             
@@ -425,7 +450,7 @@ async def get_lyrics(title: str, artist: str):
                 first_result = search_data[0]
                 found_artist = first_result.get("artistName", "").lower()
                 
-                if artist.lower() not in found_artist and found_artist not in artist.lower():
+                if artist_str not in found_artist and found_artist not in artist_str:
                     lyrics_cache[cache_key] = None
                     return {"lyrics": None, "is_lyrics_available": False, "reason": "정확한 가사를 찾을 수 없습니다."}
 
@@ -452,7 +477,7 @@ async def get_lyrics(title: str, artist: str):
         return {"lyrics": None, "is_lyrics_available": False, "reason": f"Lyrics service error: {type(e).__name__} - {str(e)}"}
         
 @app.get("/api/itunes")
-async def search_itunes(term: str, limit: int = 1, country: str = None):
+async def search_itunes(term: str = "", limit: int = 1, country: str = None):
     try:
         url = f"https://itunes.apple.com/search?term={term}&entity=song&limit={limit}"
         if country:
@@ -462,4 +487,5 @@ async def search_itunes(term: str, limit: int = 1, country: str = None):
         return response.json()
     except Exception as e:
         print(f"iTunes Fetch Error: {e}")
-        raise HTTPException(status_code=500, detail="아이튠즈 데이터를 가져오는 데 실패했습니다.")
+        # 500 에러를 반환하지 않고 빈 결과를 200 OK로 안전하게 반환합니다.
+        return {"resultCount": 0, "results": []}
