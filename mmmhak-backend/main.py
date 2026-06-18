@@ -330,7 +330,7 @@ async def get_lyrics(title: str, artist: str):
         url = "https://lrclib.net/api/get"
         params = {"artist_name": artist, "track_name": title}
         headers = {"User-Agent": "MMMHAK-LyricsFinder/1.0 (https://mmmhak.vercel.app)"}
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.get(url, params=params, headers=headers)
             
         print(f"PROFILING: Lyrics 1st try (get) API took {time.time() - api_start:.3f} seconds")
@@ -352,7 +352,7 @@ async def get_lyrics(title: str, artist: str):
         api_start2 = time.time()
         search_url = "https://lrclib.net/api/search"
         params = {"q": f"{artist} {title}"}
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=20.0) as client:
             search_response = await client.get(search_url, params=params, headers=headers)
             
         print(f"PROFILING: Lyrics 2nd try (search) API took {time.time() - api_start2:.3f} seconds")
@@ -381,9 +381,11 @@ async def get_lyrics(title: str, artist: str):
         print(f"PROFILING: Total /api/lyrics execution (fail) took {total_duration:.3f} seconds")
         raise HTTPException(status_code=404, detail="가사를 찾을 수 없습니다.")
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         if isinstance(e, HTTPException):
             raise e
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Lyrics service error: {type(e).__name__} - {str(e)}")
         
 @app.get("/api/itunes")
 async def search_itunes(term: str, limit: int = 1, country: str = None):
@@ -391,7 +393,7 @@ async def search_itunes(term: str, limit: int = 1, country: str = None):
         url = f"https://itunes.apple.com/search?term={term}&entity=song&limit={limit}"
         if country:
             url += f"&country={country}"
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.get(url)
         return response.json()
     except Exception as e:

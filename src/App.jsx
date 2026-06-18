@@ -3,6 +3,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { PieChart, Pie, Cell } from "recharts";
 import "./App.css";
 import EmotionRadarChart from "./EmotionRadarChart";
+import {
+  useTrackCatalog,
+  useTrackAnalysis,
+  useMoodHistory
+} from "./hooks";
 
 // Optimized: LocalStorage caching + Incremental rendering (15-track batch)
 const MUSIC_PLACEHOLDER = "/default_album_art.png";
@@ -24,38 +29,6 @@ const EMPATHY_THEMES = {
   sad: { messages: ["괜찮다고 말했지만 사실은 그렇지 않지?", "오늘같이 숨이 찬 날이 있지."] },
   love: { messages: ["마치 누가 떠오르는 듯한 노래야.", "네 머릿속에 떠오르는 그 사람은 누구야?"] }
 };
-
-const getApiBaseUrl = () => {
-  if (import.meta.env.VITE_API_BASE_URL) {
-    return import.meta.env.VITE_API_BASE_URL;
-  }
-  const hostname = window.location.hostname;
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
-    return "http://127.0.0.1:8000";
-  }
-  return `http://${hostname}:8000`;
-};
-
-const getLocalCache = (key) => {
-  try {
-    const val = localStorage.getItem(key);
-    return val ? JSON.parse(val) : {};
-  } catch {
-    return {};
-  }
-};
-
-const setLocalCache = (key, data) => {
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch {
-    /* ignore */
-  }
-};
-
-let itunesCache = getLocalCache("mm_itunes_cache");
-let lastfmCache = getLocalCache("mm_lastfm_cache");
-let aiScoresCache = getLocalCache("mm_ai_scores_cache");
 
 // ── Custom Cursor ─────────────────────────────────────────────────────────────
 function CustomCursor() {
@@ -83,101 +56,6 @@ function CustomCursor() {
 
   return <div id="custom-cursor" ref={cursorRef} />;
 }
-
-// ── Mock Data & Scoring ───────────────────────────────────────────────────────
-const MOCK_TRACKS = [
-  { id: "1", title: "Espresso", artist: "Sabrina Carpenter", bpm: 120, mode: "major", valence: 0.69, energy: 0.76, loudness: -3.5, streams: 1420000000, lyrics_sentiment: { happy: 0.72, sad: 0.08, angry: 0.05, love: 0.65, lonely: 0.10, confident: 0.60 } },
-  { id: "2", title: "BIRDS OF A FEATHER", artist: "Billie Eilish", bpm: 105, mode: "major", valence: 0.43, energy: 0.51, loudness: -7.8, streams: 1280000000, lyrics_sentiment: { happy: 0.45, sad: 0.28, angry: 0.12, love: 0.55, lonely: 0.35, confident: 0.40 } },
-  { id: "3", title: "Beautiful Things", artist: "Benson Boone", bpm: 105, mode: "major", valence: 0.31, energy: 0.47, loudness: -5.6, streams: 1610000000, lyrics_sentiment: { happy: 0.32, sad: 0.38, angry: 0.35, love: 0.45, lonely: 0.42, confident: 0.30 } },
-  { id: "4", title: "Too Sweet", artist: "Hozier", bpm: 117, mode: "minor", valence: 0.65, energy: 0.62, loudness: -4.9, streams: 980000000, lyrics_sentiment: { happy: 0.58, sad: 0.18, angry: 0.15, love: 0.50, lonely: 0.22, confident: 0.45 } },
-  { id: "5", title: "Gata Only", artist: "FloyyMenor", bpm: 100, mode: "minor", valence: 0.81, energy: 0.72, loudness: -5.4, streams: 1140000000, lyrics_sentiment: { happy: 0.78, sad: 0.05, angry: 0.08, love: 0.52, lonely: 0.12, confident: 0.50 } },
-  { id: "6", title: "Cruel Summer", artist: "Taylor Swift", bpm: 170, mode: "major", valence: 0.53, energy: 0.70, loudness: -5.7, streams: 2450000000, lyrics_sentiment: { happy: 0.62, sad: 0.15, angry: 0.10, love: 0.58, lonely: 0.28, confident: 0.55 } },
-  { id: "7", title: "Magnetic", artist: "ILLIT", bpm: 132, mode: "major", valence: 0.69, energy: 0.78, loudness: -4.8, streams: 580000000, lyrics_sentiment: { happy: 0.82, sad: 0.06, angry: 0.05, love: 0.68, lonely: 0.15, confident: 0.60 } },
-  { id: "8", title: "Spot!", artist: "ZICO", bpm: 110, mode: "minor", valence: 0.78, energy: 0.83, loudness: -4.2, streams: 320000000, lyrics_sentiment: { happy: 0.76, sad: 0.08, angry: 0.12, love: 0.60, lonely: 0.18, confident: 0.65 } },
-];
-
-function computeVirusScores(track) {
-  const { mode, valence, energy, loudness, lyrics_sentiment, streams } = track;
-  const modeFactor = mode === "minor" ? 0.3 : -0.1;
-  const loudNorm = Math.min(Math.max((loudness + 20) / 20, 0), 1);
-  const contagion = Math.log10(Math.max(streams, 10)) / Math.log10(3000000000);
-
-  // ① 순수 감정 점수 (인기도 무관)
-  const spread = {
-    happy: (lyrics_sentiment?.happy ?? 0.1) * 0.5 + valence * 0.35,
-    sad: (lyrics_sentiment?.sad ?? 0.1) * 0.5 + (1 - valence) * 0.3 + modeFactor * 0.2,
-    angry: (lyrics_sentiment?.angry ?? 0.05) * 0.5 + loudNorm * 0.2 + energy * 0.1,
-    love: (lyrics_sentiment?.love ?? 0.1) * 0.5 + valence * 0.2 + energy * 0.1,
-    lonely: (lyrics_sentiment?.lonely ?? 0.1) * 0.5 + (1 - valence) * 0.3 + (1 - energy) * 0.1,
-    confident: (lyrics_sentiment?.confident ?? 0.1) * 0.5 + energy * 0.3 + loudNorm * 0.1,
-  };
-
-  // ② 전염성은 별도 메타데이터로만 사용
-  const viralRisk = Object.values(spread)
-    .reduce((sum, v) => sum + v, 0) / 6 * contagion; // 평균 감정 강도 × 전파력
-
-  const positive_score = Math.min((spread.happy ?? 0) * 0.4 + (spread.love ?? 0) * 0.3 + (spread.confident ?? 0) * 0.3, 1);
-  const negative_score = Math.min((spread.sad ?? 0) * 0.4 + (spread.lonely ?? 0) * 0.3 + (spread.angry ?? 0) * 0.3, 1);
-  const polarity = positive_score - negative_score;
-  const confidence = Math.abs(polarity);
-  const classification = polarity > 0.25 ? "POSITIVE" : polarity < -0.25 ? "NEGATIVE" : "MIXED";
-  const primary_emotion = (() => {
-    const emos = ["happy", "confident", "angry", "sad", "lonely"];
-    let maxVal = -1;
-    let top = "happy";
-    emos.forEach((emo) => {
-      if ((spread[emo] ?? 0) > maxVal) {
-        maxVal = spread[emo];
-        top = emo;
-      }
-    });
-    return top;
-  })();
-
-  const is_love_themed = (spread.love ?? 0) >= 0.35;
-  const valence_group = polarity > 0.0 ? "positive" : "negative";
-
-  return {
-    ...spread,
-    positive_score,
-    negative_score,
-    polarity,
-    confidence,
-    classification,
-    discomfort: ((spread.angry ?? 0) * 0.4 + (spread.sad ?? 0) * 0.3 + (spread.lonely ?? 0) * 0.3),
-    contagion,
-    viralRisk,
-    streams,
-    primary_emotion,
-    valence_group,
-    love_theme_score: spread.love,
-    is_love_themed,
-  };
-}
-
-const safeMergeTracks = (prev, batchItems) => {
-  const combined = [...prev, ...batchItems];
-  const uniqueMap = new Map();
-  combined.forEach(track => {
-    const existing = uniqueMap.get(track.id);
-    if (existing) {
-      if (existing.isAI && !track.isAI) {
-        uniqueMap.set(track.id, {
-          ...track,
-          isAI: true,
-          lyrics: existing.lyrics,
-          aiScores: existing.aiScores,
-          lyrics_sentiment: existing.lyrics_sentiment
-        });
-      } else {
-        uniqueMap.set(track.id, track);
-      }
-    } else {
-      uniqueMap.set(track.id, track);
-    }
-  });
-  return Array.from(uniqueMap.values()).sort((a, b) => a.rank - b.rank);
-};
 
 
 // Removed old global fetchLyrics, using backend instead
@@ -262,7 +140,7 @@ function generateStructuredInsights(track, scores) {
 
   let finalVibe = vibe;
   if (scores.is_love_themed) {
-    finalVibe += " ❤️ 이 곡은 사랑과 관계, 혹은 누군가를 향한 아련한 그리움을 주요 테마로 하고 있습니다.";
+    finalVibe += " ❤️ 이 곡은 사랑과 관계를 주요 테마로 하고 있습니다.";
   }
 
   return { vibe: finalVibe, insight, profile };
@@ -967,6 +845,36 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// ── aggregateHistoryByEmotion Helper ──────────────────────────────────────────
+const aggregateHistoryByEmotion = (history) => {
+  const counts = { happy: 0, confident: 0, angry: 0, sad: 0, lonely: 0, love: 0 };
+  history.forEach(item => {
+    if (counts[item.emotion] !== undefined) counts[item.emotion]++;
+  });
+
+  const hasHistory = history.length > 0;
+  let dominant = "-";
+  let maxVal = 0;
+  Object.keys(counts).forEach(key => {
+    if (counts[key] > maxVal) {
+      maxVal = counts[key];
+      dominant = key.toUpperCase();
+    }
+  });
+
+  const pieData = hasHistory
+    ? Object.keys(counts)
+        .filter(key => counts[key] > 0)
+        .map(key => ({
+          name: key,
+          value: counts[key],
+          color: EMOTION_COLORS[key]
+        }))
+    : [{ name: "empty", value: 1, color: "rgba(255, 255, 255, 0.1)" }];
+
+  return { counts, dominant, pieData, hasHistory };
+};
+
 // ── Center Panel (핑크색 섹션 내부 가사 스크롤 구현 완료) ───────────────────────
 function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onToggleGraph, onToggleSearch, isSearchOpen, searchQuery, setSearchQuery, onSearch, playing, setPlaying, currentEmotion, onAddToHistory, history }) {
   const [openPopup, setOpenPopup] = useState(null);
@@ -981,6 +889,8 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
 
   const toggle = (id) => setOpenPopup((prev) => (prev === id ? null : id));
   const close = () => setOpenPopup(null);
+
+  const { dominant, pieData, hasHistory } = aggregateHistoryByEmotion(history);
 
   return (
     <div
@@ -1146,44 +1056,18 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
               }}>
                 <PieChart width={120} height={120}>
                   <Pie
-                    data={(() => {
-                      const counts = { happy: 0, confident: 0, angry: 0, sad: 0, lonely: 0, love: 0 };
-                      history.forEach(item => {
-                        if (counts[item.emotion] !== undefined) counts[item.emotion]++;
-                      });
-                      const hasHistory = history.length > 0;
-                      if (!hasHistory) return [{ name: "empty", value: 1, color: "rgba(255, 255, 255, 0.1)" }];
-                      return Object.keys(counts)
-                        .filter(key => counts[key] > 0)
-                        .map(key => ({
-                          name: key,
-                          value: counts[key],
-                          color: EMOTION_COLORS[key]
-                        }));
-                    })()}
+                    data={pieData}
                     cx="50%"
                     cy="50%"
                     innerRadius={36}
                     outerRadius={48}
-                    paddingAngle={history.length > 0 ? 2 : 0}
+                    paddingAngle={hasHistory ? 2 : 0}
                     dataKey="value"
                     isAnimationActive={false}
                   >
-                    {(() => {
-                      const counts = { happy: 0, confident: 0, angry: 0, sad: 0, lonely: 0, love: 0 };
-                      history.forEach(item => {
-                        if (counts[item.emotion] !== undefined) counts[item.emotion]++;
-                      });
-                      const hasHistory = history.length > 0;
-                      const data = hasHistory
-                        ? Object.keys(counts)
-                          .filter(key => counts[key] > 0)
-                          .map(key => ({ name: key, value: counts[key], color: EMOTION_COLORS[key] }))
-                        : [{ name: "empty", value: 1, color: "rgba(255, 255, 255, 0.1)" }];
-                      return data.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ));
-                    })()}
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
                   </Pie>
                 </PieChart>
 
@@ -1207,43 +1091,15 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
                   }}>
                     Dominant
                   </span>
-                  <span style={(() => {
-                    const counts = { happy: 0, confident: 0, angry: 0, sad: 0, lonely: 0, love: 0 };
-                    history.forEach(item => {
-                      if (counts[item.emotion] !== undefined) counts[item.emotion]++;
-                    });
-                    let dominant = "-";
-                    let maxVal = 0;
-                    Object.keys(counts).forEach(key => {
-                      if (counts[key] > maxVal) {
-                        maxVal = counts[key];
-                        dominant = key.toUpperCase();
-                      }
-                    });
-                    return {
-                      fontSize: dominant.length > 8 ? 8 : 10,
-                      color: history.length > 0 ? (EMOTION_COLORS[dominant.toLowerCase()] || "#CCFF00") : "#888",
-                      fontWeight: 800,
-                      fontFamily: "'Space Mono', monospace",
-                      letterSpacing: "0.02em",
-                      marginTop: 2
-                    };
-                  })()}>
-                    {(() => {
-                      const counts = { happy: 0, confident: 0, angry: 0, sad: 0, lonely: 0, love: 0 };
-                      history.forEach(item => {
-                        if (counts[item.emotion] !== undefined) counts[item.emotion]++;
-                      });
-                      let dominant = "-";
-                      let maxVal = 0;
-                      Object.keys(counts).forEach(key => {
-                        if (counts[key] > maxVal) {
-                          maxVal = counts[key];
-                          dominant = key.toUpperCase();
-                        }
-                      });
-                      return dominant;
-                    })()}
+                  <span style={{
+                    fontSize: dominant.length > 8 ? 8 : 10,
+                    color: hasHistory ? (EMOTION_COLORS[dominant.toLowerCase()] || "#CCFF00") : "#888",
+                    fontWeight: 800,
+                    fontFamily: "'Space Mono', monospace",
+                    letterSpacing: "0.02em",
+                    marginTop: 2
+                  }}>
+                    {dominant}
                   </span>
                 </div>
               </div>
@@ -1606,34 +1462,50 @@ function Header({ isMobile, tracksCount, onLogoClick }) {
 
 // ── App ───────────────────────────────────────────────────────────────────────
 export default function MMMHAKApp() {
-  const [tracks, setTracks] = useState([]);
   const [activeTrack, setActiveTrack] = useState(null);
-  const [scores, setScores] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [loadingStatus, setLoadingStatus] = useState("CONNECTING LAST.FM API...");
   const [isMobile, setIsMobile] = useState(false);
   const [playing, setPlaying] = useState(false);
 
-  // 💖 가사 상태 관리를 위한 신규 State 추가
-  const [lyrics, setLyrics] = useState("LOADING LYRICS...");
   const [isGraphOpen, setIsGraphOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const requestIdRef = useRef(0);
-  const selectedTrackIdRef = useRef(null);
 
-  const [moodHistory, setMoodHistory] = useState([]);
+  const {
+    tracks,
+    loading,
+    loadingStatus,
+    search,
+    reloadGlobalChart,
+    updateTrackData
+  } = useTrackCatalog(setActiveTrack);
 
-  const handleAddToHistory = useCallback((track, emotion) => {
-    setMoodHistory((prev) => [
+  const handleTrackAnalyzed = useCallback((track, lyrics, aiScores) => {
+    updateTrackData(track.id, {
+      isAI: true,
+      lyrics,
+      aiScores,
+      lyrics_sentiment: aiScores
+    });
+    setActiveTrack(prev => (prev && prev.id === track.id ? {
       ...prev,
-      {
-        id: track.id + "_" + Date.now(),
-        title: track.title,
-        artist: track.artist,
-        emotion: emotion
-      }
-    ]);
+      isAI: true,
+      lyrics,
+      aiScores,
+      lyrics_sentiment: aiScores
+    } : prev));
+  }, [updateTrackData]);
+
+  const { scores, lyrics } = useTrackAnalysis(activeTrack, handleTrackAnalyzed);
+  const { history: moodHistory, addEntry: handleAddToHistory } = useMoodHistory();
+
+  const handleSearch = useCallback((query) => {
+    setIsSearchOpen(false);
+    search(query);
+  }, [search]);
+
+  const patchTrackSelection = useCallback((track) => {
+    setPlaying(false);
+    setActiveTrack(track);
   }, []);
 
   // Derive dominant emotion from scores during render
@@ -1654,306 +1526,6 @@ export default function MMMHAKApp() {
     }
   }
 
-  const LASTFM_API_KEY = "8031c3fd85fae84e3a1970b02e22a231";
-  const LASTFM_BASE = "https://ws.audioscrobbler.com/2.0";
-
-  // 🎵 1. 더 안전해진 아이튠즈 우회 함수 (에러 방어력 MAX - 다중 복구 및 국가별 스토어 폴백 적용)
-  const fetchItunesData = async (title, artist) => {
-    const fetchWithTerm = async (term, country = "") => {
-      try {
-        const q = encodeURIComponent(term);
-        const countryParam = country ? `&country=${country}` : "";
-        const useDirect = window.location.protocol === "https:";
-        const res = useDirect
-          ? await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=5${countryParam}`)
-          : await fetch(`${getApiBaseUrl()}/api/itunes?term=${q}&limit=5${countryParam}`);
-        if (!res.ok) return [];
-        const data = await res.json();
-        return data.results || [];
-      } catch {
-        return [];
-      }
-    };
-
-    const searchSequence = async (country = "") => {
-      const safeTitle = title || "";
-      const safeArtist = artist || "";
-
-      // 1차 시도: 원본 곡명 + 아티스트명
-      let results = await fetchWithTerm(`${safeTitle} ${safeArtist}`, country);
-
-      // 2차 시도: 원본 곡명 + 아티스트 첫 단어 (아티스트 명칭이 너무 길거나 피처링 정보가 붙어있을 때 대비)
-      if (results.length === 0) {
-        const cleanArtist = safeArtist.split(/[,/&]|\bfeat\b/i)[0].trim();
-        results = await fetchWithTerm(`${safeTitle} ${cleanArtist}`, country);
-      }
-
-      // 3차 시도: 괄호 및 불필요한 단어를 제거한 정제된 쿼리 (Remastered, Radio Edit 등)
-      if (results.length === 0) {
-        const cleanTitle = safeTitle
-          .replace(/\(.*?\)/g, '')
-          .replace(/\[.*?\]/g, '')
-          .replace(/- \d{4} Remaster.*/gi, '')
-          .replace(/remastered/gi, '')
-          .replace(/feat\..*/gi, '')
-          .replace(/ft\..*/gi, '')
-          .trim();
-        const cleanArtist = safeArtist.split(/[,/&]|\bfeat\b/i)[0].trim();
-        results = await fetchWithTerm(`${cleanTitle} ${cleanArtist}`, country);
-      }
-
-      if (results.length === 0) {
-        const cleanTitle = safeTitle
-          .replace(/\(.*?\)/g, '')
-          .replace(/\[.*?\]/g, '')
-          .trim();
-        results = await fetchWithTerm(cleanTitle, country);
-      }
-
-      const match = results.find(r =>
-        r.artistName?.toLowerCase().includes(safeArtist.toLowerCase().split(' ')[0]) ||
-        r.trackName?.toLowerCase().includes(safeTitle.toLowerCase().split(' ')[0])
-      ) || results[0];
-
-      return match || null;
-    };
-
-    try {
-      let match = await searchSequence("");
-
-      // 2단계: 프리뷰가 없다면 미국(US) 스토어에서 시도 (글로벌 팝송 매칭율 극대화)
-      if (!match || !match.previewUrl) {
-        const usMatch = await searchSequence("US");
-        if (usMatch && usMatch.previewUrl) {
-          match = usMatch;
-        }
-      }
-
-      // 3단계: 여전히 없다면 한국(KR) 스토어에서 시도 (국내 가요/K-pop 매칭율 극대화)
-      if (!match || !match.previewUrl) {
-        const krMatch = await searchSequence("KR");
-        if (krMatch && krMatch.previewUrl) {
-          match = krMatch;
-        }
-      }
-
-      if (!match) return { artworkUrl: null, previewUrl: null };
-
-      return {
-        artworkUrl: match.artworkUrl100?.replace('100x100bb', '400x400bb') || null,
-        previewUrl: match.previewUrl || null,
-      };
-    } catch (error) {
-      console.error('iTunes fetch error:', error);
-      return { artworkUrl: null, previewUrl: null };
-    }
-  };
-
-  // 🚀 2. 백그라운드 50곡 처리를 보장하는 프로세스 함수
-  const processTracks = async (rawTracks, startIdx = 0, onBatchComplete = null) => {
-    const BATCH = 15;
-    let allItems = [];
-
-    for (let b = 0; b < rawTracks.length; b += BATCH) {
-      const batch = rawTracks.slice(b, b + BATCH);
-
-      try {
-        const batchItems = await Promise.all(
-          batch.map(async (raw, batchIdx) => {
-            const idx = startIdx + b + batchIdx;
-            const artistName = typeof raw.artist === 'string' ? raw.artist : raw.artist?.name || 'Unknown Artist';
-            const playcount = parseInt(raw.playcount || '0', 10);
-            const listeners = parseInt(raw.listeners || '0', 10);
-            const cacheKey = `${artistName}_${raw.name}`.toLowerCase();
-
-            // 1. Last.fm 캐시 적용
-            let tags = [];
-            let lastfmCover = null;
-            if (lastfmCache[cacheKey]) {
-              tags = lastfmCache[cacheKey].tags;
-              lastfmCover = lastfmCache[cacheKey].cover;
-            } else {
-              try {
-                const infoRes = await fetch(`${LASTFM_BASE}/?method=track.getInfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artistName)}&track=${encodeURIComponent(raw.name)}&format=json`);
-                if (infoRes.ok) {
-                  const infoData = await infoRes.json();
-                  tags = (infoData?.track?.toptags?.tag || []).map(t => t.name.toLowerCase());
-                  const albumImages = infoData?.track?.album?.image;
-                  if (Array.isArray(albumImages) && albumImages.length > 0) {
-                    const largeImg = albumImages.find(img => img.size === 'extralarge') || albumImages[albumImages.length - 1];
-                    if (largeImg && largeImg['#text'] && !largeImg['#text'].includes('default_album')) {
-                      lastfmCover = largeImg['#text'];
-                    }
-                  }
-                  // 캐시 갱신
-                  lastfmCache[cacheKey] = { tags, cover: lastfmCover };
-                  setLocalCache("mm_lastfm_cache", lastfmCache);
-                }
-              } catch {
-                /* ignore */
-              }
-            }
-
-            // 2. raw.image 백업
-            if (!lastfmCover && Array.isArray(raw.image) && raw.image.length > 0) {
-              const largeImg = raw.image.find(img => img.size === 'extralarge') || raw.image[raw.image.length - 1];
-              if (largeImg && largeImg['#text'] && !largeImg['#text'].includes('default_album')) {
-                lastfmCover = largeImg['#text'];
-              }
-            }
-
-            // 3. iTunes 캐시 적용 (기존 빈 캐시 치유 로직 포함)
-            let itunes;
-            if (itunesCache[cacheKey] && (itunesCache[cacheKey].previewUrl || itunesCache[cacheKey].hasNoPreview)) {
-              itunes = itunesCache[cacheKey];
-            } else {
-              itunes = await fetchItunesData(raw.name, artistName);
-              if (!itunes.previewUrl) {
-                itunes.hasNoPreview = true;
-              }
-              itunesCache[cacheKey] = itunes;
-              setLocalCache("mm_itunes_cache", itunesCache);
-            }
-
-            const artworkUrl = itunes.artworkUrl || lastfmCover || null;
-
-            const hasSad = tags.some(t => ['sad', 'melancholy', 'heartbreak', 'depression', 'dark', 'emo', 'blues'].some(k => t.includes(k)));
-            const hasAngry = tags.some(t => ['angry', 'aggressive', 'metal', 'hardcore', 'rage', 'punk'].some(k => t.includes(k)));
-            const hasHappy = tags.some(t => ['happy', 'upbeat', 'dance', 'party', 'summer', 'pop', 'fun', 'joy'].some(k => t.includes(k)));
-            const hasCalm = tags.some(t => ['calm', 'chill', 'relax', 'ambient', 'peaceful', 'acoustic'].some(k => t.includes(k)));
-            const hasLove = tags.some(t => ['love', 'romantic', 'heart', 'affection', 'together', 'sweet'].some(k => t.includes(k)));
-            const hasLonely = tags.some(t => ['lonely', 'loneliness', 'alone', 'isolated', 'solitude'].some(k => t.includes(k)));
-            const hasConfident = tags.some(t => ['confident', 'confidence', 'proud', 'power', 'strong', 'bold', 'badass', 'anthem', 'energy'].some(k => t.includes(k)));
-
-            const getPseudoRandom = (str) => {
-              let hash = 0;
-              for (let i = 0; i < str.length; i++) {
-                hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
-              }
-              const x = Math.sin(hash) * 10000;
-              return x - Math.floor(x);
-            };
-
-            const trackSeed = raw.name + artistName;
-            const randVal = getPseudoRandom(trackSeed);
-            const randVal2 = getPseudoRandom(trackSeed + 'alt');
-
-            const genreStr = tags.join(' ');
-            const isHighTempoGenre = ['dance', 'electronic', 'rock', 'metal', 'punk', 'house', 'edm', 'upbeat'].some(g => genreStr.includes(g));
-            const isLowTempoGenre = ['r&b', 'soul', 'ballad', 'acoustic', 'classical', 'jazz', 'ambient', 'chill', 'downtempo', 'lo-fi'].some(g => genreStr.includes(g));
-
-            let baseBpm;
-            let baseEnergy;
-
-            if (isHighTempoGenre || hasAngry) {
-              baseBpm = 130 + Math.floor(randVal * 40);
-              baseEnergy = 0.75 + randVal2 * 0.2;
-            } else if (isLowTempoGenre || hasCalm || hasSad) {
-              baseBpm = 65 + Math.floor(randVal * 30);
-              baseEnergy = 0.2 + randVal2 * 0.25;
-            } else if (hasHappy) {
-              baseBpm = 110 + Math.floor(randVal * 25);
-              baseEnergy = 0.6 + randVal2 * 0.2;
-            } else {
-              baseBpm = 90 + Math.floor(randVal * 35);
-              baseEnergy = 0.45 + randVal2 * 0.3;
-            }
-
-            const valence = hasHappy ? 0.65 + randVal * 0.25 : hasSad ? 0.10 + randVal * 0.20 : hasAngry ? 0.20 + randVal * 0.20 : 0.35 + randVal * 0.30;
-            const loudness = hasAngry || isHighTempoGenre ? -3 - randVal * 3 : hasCalm || isLowTempoGenre ? -10 - randVal * 5 : -5 - randVal * 4;
-            const mode = (hasSad || hasAngry) ? 'minor' : 'major';
-
-            const modeModifier = mode === 'minor' ? 0.6 : 1.0;
-            const normalizedBpm = Math.min(Math.max((baseBpm - 60) / 100, 0), 1);
-            const intensity = (baseEnergy * 0.6) + (normalizedBpm * 0.4);
-
-            const lyrics_sentiment = {
-              happy: Math.max(0.01, parseFloat(((((hasHappy ? 0.5 : 0.1) + valence * 0.3) * modeModifier) * (0.5 + intensity)).toFixed(2))),
-              sad: Math.max(0.01, parseFloat((((hasSad ? 0.4 : 0.05) + (1 - valence) * 0.4) * (1.5 - intensity)).toFixed(2))),
-              angry: Math.max(0.01, parseFloat((((hasAngry ? 0.4 : 0.05) + (1 - valence) * 0.3) * (0.5 + intensity)).toFixed(2))),
-              love: Math.max(0.01, parseFloat(((((hasLove ? 0.5 : 0.1) + valence * 0.2) * modeModifier) * (0.8 + intensity * 0.2)).toFixed(2))),
-              lonely: Math.max(0.01, parseFloat((((hasLonely ? 0.4 : 0.1) + (1 - valence) * 0.3) * (1.2 - intensity * 0.2)).toFixed(2))),
-              confident: Math.max(0.01, parseFloat((((hasConfident ? 0.4 : 0.1) + valence * 0.2) * (0.5 + intensity)).toFixed(2))),
-            };
-
-            return {
-              id: `${artistName}_${raw.name}_${idx}`,
-              title: raw.name,
-              artist: artistName,
-              bpm: baseBpm,
-              mode,
-              valence: parseFloat(valence.toFixed(3)),
-              energy: parseFloat(baseEnergy.toFixed(3)),
-              loudness: parseFloat(loudness.toFixed(1)),
-              streams: playcount || (listeners * 3) || ((50 - idx) * 20000000 + 50000000),
-              listeners,
-              tags,
-              artworkUrl: artworkUrl,
-              previewUrl: itunes.previewUrl,
-              lyrics_sentiment,
-              rank: idx,
-            };
-          })
-        );
-
-        allItems = [...allItems, ...batchItems];
-        if (onBatchComplete) {
-          onBatchComplete(batchItems);
-        }
-      } catch (err) {
-        console.error(`Batch processing error at index ${b}:`, err);
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 10));
-    }
-    return allItems;
-  };
-
-  const handleSearch = async (query) => {
-    if (!query.trim()) return;
-    setIsSearchOpen(false);
-    const myRequestId = ++requestIdRef.current;
-    try {
-      setLoading(true);
-      setLoadingStatus(`🔍 SEARCHING FOR ${query.toUpperCase()}...`);
-
-      const searchRes = await fetch(`${LASTFM_BASE}/?method=track.search&track=${encodeURIComponent(query)}&api_key=${LASTFM_API_KEY}&format=json&limit=30`);
-      if (!searchRes.ok) throw new Error("Search request failed");
-
-      const searchData = await searchRes.json();
-      let rawTracks = searchData?.results?.trackmatches?.track || [];
-      if (!Array.isArray(rawTracks)) {
-        rawTracks = [rawTracks];
-      }
-
-      if (rawTracks.length === 0) {
-        alert("No tracks found for your search.");
-        setLoading(false);
-        return;
-      }
-
-      setLoadingStatus(`🎵 ANALYZING ${rawTracks.length} SEARCH RESULTS...`);
-
-      const firstItem = await processTracks([rawTracks[0]], 0);
-      if (myRequestId !== requestIdRef.current) return;
-
-      setTracks(firstItem);
-      handleSelect(firstItem[0]);
-      setLoading(false);
-
-      if (rawTracks.length > 1) {
-        processTracks(rawTracks.slice(1), 1, (batchItems) => {
-          if (myRequestId !== requestIdRef.current) return;
-          setTracks(prev => safeMergeTracks(prev, batchItems));
-        }).catch(err => console.error("Background loading error:", err));
-      }
-    } catch (err) {
-      console.error("Search error:", err);
-      alert("Failed to search tracks.");
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     handleResize();
@@ -1961,253 +1533,17 @@ export default function MMMHAKApp() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Removed unused useEffect that synchronously set currentEmotion state
-
   useEffect(() => {
     const targetColor = playing ? (EMOTION_COLORS[currentEmotion] || "#1A0050") : "#1A0050";
     document.body.style.backgroundColor = targetColor;
   }, [playing, currentEmotion]);
 
-
-
-  const fetchLyrics = useCallback(async (title, artist) => {
-    try {
-      const response = await fetch(`${getApiBaseUrl()}/api/lyrics?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`);
-      if (!response.ok) {
-        throw new Error('Lyrics fetch failed');
-      }
-      const data = await response.json();
-      return data.lyrics || "현재 이 곡의 가사를 제공할 수 없습니다.";
-    } catch (e) {
-      console.error(`Lyrics fetch error:`, e);
-      const apiBase = getApiBaseUrl();
-      const isLocalBackend = apiBase.includes("http://localhost") || apiBase.includes("http://127.0.0.1");
-      const isFetchFailure = e.name === "TypeError" || e.message?.toLowerCase().includes("failed to fetch") || e.message?.toLowerCase().includes("fetch failed");
-      if (window.location.protocol === "https:" && isLocalBackend && isFetchFailure) {
-        return `⚠️ [보안 제한 안내] HTTPS 환경에서 로컬 백엔드 서버(HTTP) 호출이 차단되었습니다.\n\n해결하려면 브라우저 주소창 왼쪽 [자물쇠 아이콘(설정)] ➔ [사이트 설정] ➔ [안전하지 않은 콘텐츠(Insecure content)]를 '허용(Allow)'으로 변경하고 새로고침해 주세요.`;
-      }
-      return "현재 이 곡의 가사를 제공할 수 없습니다.";
-    }
-  }, []);
-
-  const handleSelect = useCallback(async (track) => {
-    setPlaying(false); // Stop playing immediately to avoid layout background color flicker
-    selectedTrackIdRef.current = track.id;
-    const myTrackId = track.id;
-
-    const cacheKey = `${track.title.toLowerCase().trim()}_${track.artist.toLowerCase().trim()}`;
-
-    // 1. Check in-memory session track state
-    if (track.isAI && track.lyrics) {
-      setActiveTrack(track);
-      setScores(track.aiScores);
-      setLyrics(track.lyrics);
-      setIsGraphOpen(false);
-      setIsSearchOpen(false);
-      return;
-    }
-
-    // 2. Check localStorage cache
-    const cachedData = aiScoresCache[cacheKey];
-    if (cachedData && cachedData.lyrics && cachedData.aiScores) {
-      const updatedTrack = {
-        ...track,
-        isAI: true,
-        lyrics: cachedData.lyrics,
-        aiScores: cachedData.aiScores,
-        lyrics_sentiment: cachedData.aiScores
-      };
-      setActiveTrack(updatedTrack);
-      setScores(cachedData.aiScores);
-      setLyrics(cachedData.lyrics);
-      setIsGraphOpen(false);
-      setIsSearchOpen(false);
-      
-      // Update tracks array if not already marked isAI
-      if (!track.isAI) {
-        setTracks(prev => prev.map(t => t.id === track.id ? updatedTrack : t));
-      }
-      return;
-    }
-
-    setActiveTrack(track);
-    setScores(computeVirusScores(track));
-    setLyrics("LOADING LYRICS...");
-    setIsGraphOpen(false);
-    setIsSearchOpen(false);
-
-    try {
-      const fetchedLyrics = await fetchLyrics(track.title, track.artist);
-      
-      if (selectedTrackIdRef.current !== myTrackId) return;
-      setLyrics(fetchedLyrics);
-
-      if (fetchedLyrics !== "현재 이 곡의 가사를 제공할 수 없습니다.") {
-        const analyzeRes = await fetch(`${getApiBaseUrl()}/api/analyze`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            lyrics: fetchedLyrics,
-            title: track.title,
-            artist: track.artist
-          })
-        });
-
-        if (selectedTrackIdRef.current !== myTrackId) return;
-        if (!analyzeRes.ok) throw new Error("AI Analysis API error");
-
-        const aiScores = await analyzeRes.json();
-        console.log('AI Analysis Data:', aiScores);
-
-        const finalScores = (() => {
-          const { streams } = track;
-          const contagion = Math.log10(Math.max(streams, 10)) / Math.log10(3000000000);
-
-          const legacyMapping = {
-            happy: ["happy", "joy"],
-            sad: ["sad", "depression"],
-            angry: ["angry", "anger"],
-            lonely: ["lonely", "anxiety"],
-            confident: ["confident", "stability"],
-            love: ["love"]
-          };
-
-          const getVal = (key) => {
-            const keysToTry = legacyMapping[key] || [key];
-            let val = undefined;
-            for (const k of keysToTry) {
-              val = aiScores.scores?.[k] ?? aiScores[k] ?? aiScores.emotions?.[k];
-              if (val !== undefined) break;
-            }
-            return Math.min(Math.max(Number(val) || 0, 0), 1.0);
-          };
-
-          const spread = {
-            happy: getVal('happy'),
-            sad: getVal('sad'),
-            angry: getVal('angry'),
-            love: getVal('love'),
-            lonely: getVal('lonely'),
-            confident: getVal('confident'),
-          };
-
-          const viralRisk = Object.values(spread).reduce((sum, v) => sum + v, 0) / 6 * contagion;
-          const positive_score = Math.min((spread.happy ?? 0) * 0.4 + (spread.love ?? 0) * 0.3 + (spread.confident ?? 0) * 0.3, 1);
-          const negative_score = Math.min((spread.sad ?? 0) * 0.4 + (spread.lonely ?? 0) * 0.3 + (spread.angry ?? 0) * 0.3, 1);
-          const polarity = positive_score - negative_score;
-          const confidence = Math.abs(polarity);
-          const classification = polarity > 0.25 ? "POSITIVE" : polarity < -0.25 ? "NEGATIVE" : "MIXED";
-
-          const primary_emotion = aiScores.primary_emotion || (() => {
-            const emos = ["happy", "confident", "angry", "sad", "lonely"];
-            let maxVal = -1;
-            let top = "happy";
-            emos.forEach((emo) => {
-              if ((spread[emo] ?? 0) > maxVal) {
-                maxVal = spread[emo];
-                top = emo;
-              }
-            });
-            return top;
-          })();
-
-          const valence_group = aiScores.valence_group || (polarity > 0.0 ? "positive" : "negative");
-          const love_theme_score = aiScores.love_theme_score ?? spread.love;
-          const is_love_themed = aiScores.is_love_themed ?? (love_theme_score >= 0.35);
-
-          return {
-            ...spread,
-            positive_score,
-            negative_score,
-            polarity,
-            confidence,
-            classification,
-            discomfort: ((spread.angry ?? 0) * 0.4 + (spread.sad ?? 0) * 0.3 + (spread.lonely ?? 0) * 0.3),
-            contagion,
-            viralRisk,
-            streams,
-            isAI: true,
-            primary_emotion,
-            valence_group,
-            love_theme_score,
-            is_love_themed
-          };
-        })();
-
-        if (selectedTrackIdRef.current !== myTrackId) return;
-        setScores(finalScores);
-
-        // Update activeTrack and update the track in the tracks list with AI scores and lyrics
-        const updatedTrack = {
-          ...track,
-          isAI: true,
-          lyrics: fetchedLyrics,
-          aiScores: finalScores,
-          lyrics_sentiment: finalScores
-        };
-        setActiveTrack(updatedTrack);
-        setTracks(prev => prev.map(t => t.id === track.id ? updatedTrack : t));
-
-        // Save to LocalStorage cache
-        aiScoresCache[cacheKey] = {
-          lyrics: fetchedLyrics,
-          aiScores: finalScores
-        };
-        setLocalCache("mm_ai_scores_cache", aiScoresCache);
-      }
-    } catch (err) {
-      console.error("Analysis fallback:", err);
-    }
-  }, [setPlaying, setTracks, fetchLyrics]);
-
-  // 🌟 3. 글로벌 차트 50곡을 백그라운드에서 안전하게 로드
-  const fetchGlobalChart = async () => {
-    const myRequestId = ++requestIdRef.current;
-    try {
-      setLoading(true);
-      setLoadingStatus("📡 FETCHING LAST.FM GLOBAL CHART...");
-
-      const chartRes = await fetch(`${LASTFM_BASE}/?method=chart.getTopTracks&api_key=${LASTFM_API_KEY}&format=json&limit=50`);
-      if (!chartRes.ok) throw new Error("Last.fm request failed");
-
-      const chartData = await chartRes.json();
-      const rawTracks = chartData?.tracks?.track || [];
-      if (rawTracks.length === 0) throw new Error("No tracks found");
-
-      setLoadingStatus(`🎵 LOADED ${rawTracks.length} TRACKS. STARTING ANALYSIS...`);
-
-      const firstItem = await processTracks([rawTracks[0]], 0);
-      if (myRequestId !== requestIdRef.current) return;
-
-      setTracks(firstItem);
-      handleSelect(firstItem[0]);
-      setLoading(false);
-
-      if (rawTracks.length > 1) {
-        processTracks(rawTracks.slice(1), 1, (batchItems) => {
-          if (myRequestId !== requestIdRef.current) return;
-          setTracks(prev => safeMergeTracks(prev, batchItems));
-        }).catch(err => console.error("Background loading error:", err));
-      }
-    } catch (err) {
-      console.error("API error, using mock data:", err);
-      if (myRequestId !== requestIdRef.current) return;
-      const mock = typeof MOCK_TRACKS !== 'undefined' ? MOCK_TRACKS.map((t, idx) => ({ ...t, id: t.id + idx, rank: idx, streams: t.streams || 500000000, artworkUrl: null, previewUrl: null })) : [];
-      if (mock.length > 0) {
-        setTracks(mock);
-        handleSelect(mock[0]);
-      }
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchGlobalChart();
+      reloadGlobalChart();
     }, 0);
     return () => clearTimeout(timer);
-    /* eslint-disable-next-line react-hooks/exhaustive-deps */
-  }, []);
+  }, [reloadGlobalChart]);
 
   if (loading || !activeTrack || !scores) {
     return (
@@ -2231,11 +1567,6 @@ export default function MMMHAKApp() {
   const leftTracks = tracks.slice(0, half);
   const rightTracks = tracks.slice(half);
 
-  // LYRICS 버튼 클릭 트리거 감지를 위해 handleSelect를 감싼 래퍼 생성 및 개조
-  const patchTrackSelection = (track) => {
-    handleSelect(track);
-  };
-
   return (
     <>
       <CustomCursor />
@@ -2254,7 +1585,7 @@ export default function MMMHAKApp() {
       />
 
       <div style={{ width: "100%", height: "100%" }}>
-        <Header isMobile={isMobile} tracksCount={tracks.length} onLogoClick={fetchGlobalChart} />
+        <Header isMobile={isMobile} tracksCount={tracks.length} onLogoClick={reloadGlobalChart} />
 
         {/* ── DESKTOP layout ── */}
         {!isMobile && (
