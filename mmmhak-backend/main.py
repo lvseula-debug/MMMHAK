@@ -51,8 +51,8 @@ def log_frontend(msg: str):
 
 # 1. 라벨별 맞춤 hypothesis template (Valence 및 감정)
 valence_hypotheses = [
-    "이 노래는 긍정적이고 신나는 분위기이다.",
-    "이 노래는 부정적이고 무겁거나 어두운 분위기이다."
+    "This song has a positive and upbeat vibe.",
+    "This song has a negative, heavy, or dark vibe."
 ]
 
 emotion_hypotheses = {
@@ -327,9 +327,11 @@ async def get_lyrics(title: str, artist: str):
 
         # 1차 시도 (get)
         api_start = time.time()
-        url = f"https://lrclib.net/api/get?artist_name={artist}&track_name={title}"
+        url = "https://lrclib.net/api/get"
+        params = {"artist_name": artist, "track_name": title}
+        headers = {"User-Agent": "MMMHAK-LyricsFinder/1.0 (https://mmmhak.vercel.app)"}
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(url)
+            response = await client.get(url, params=params, headers=headers)
             
         print(f"PROFILING: Lyrics 1st try (get) API took {time.time() - api_start:.3f} seconds")
         if response.status_code == 200:
@@ -348,9 +350,10 @@ async def get_lyrics(title: str, artist: str):
         
         # 2차 시도 (search)
         api_start2 = time.time()
-        search_url = f"https://lrclib.net/api/search?q={artist} {title}"
+        search_url = "https://lrclib.net/api/search"
+        params = {"q": f"{artist} {title}"}
         async with httpx.AsyncClient(timeout=10.0) as client:
-            search_response = await client.get(search_url)
+            search_response = await client.get(search_url, params=params, headers=headers)
             
         print(f"PROFILING: Lyrics 2nd try (search) API took {time.time() - api_start2:.3f} seconds")
         if search_response.status_code == 200:

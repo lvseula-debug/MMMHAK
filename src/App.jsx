@@ -55,6 +55,7 @@ const setLocalCache = (key, data) => {
 
 let itunesCache = getLocalCache("mm_itunes_cache");
 let lastfmCache = getLocalCache("mm_lastfm_cache");
+let aiScoresCache = getLocalCache("mm_ai_scores_cache");
 
 // ── Custom Cursor ─────────────────────────────────────────────────────────────
 function CustomCursor() {
@@ -1619,6 +1620,7 @@ export default function MMMHAKApp() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const requestIdRef = useRef(0);
+  const selectedTrackIdRef = useRef(null);
 
   const [moodHistory, setMoodHistory] = useState([]);
 
@@ -1936,10 +1938,7 @@ export default function MMMHAKApp() {
       if (myRequestId !== requestIdRef.current) return;
 
       setTracks(firstItem);
-      setActiveTrack(firstItem[0]);
-      setScores(computeVirusScores(firstItem[0]));
-      setLyrics("LOADING LYRICS...");
-      fetchLyrics(firstItem[0].title, firstItem[0].artist).then(setLyrics);
+      handleSelect(firstItem[0]);
       setLoading(false);
 
       if (rawTracks.length > 1) {
@@ -1981,7 +1980,10 @@ export default function MMMHAKApp() {
       return data.lyrics || "현재 이 곡의 가사를 제공할 수 없습니다.";
     } catch (e) {
       console.error(`Lyrics fetch error:`, e);
-      if (window.location.protocol === "https:" && (e.name === "TypeError" || e.message?.includes("fetch"))) {
+      const apiBase = getApiBaseUrl();
+      const isLocalBackend = apiBase.includes("http://localhost") || apiBase.includes("http://127.0.0.1");
+      const isFetchFailure = e.name === "TypeError" || e.message?.toLowerCase().includes("failed to fetch") || e.message?.toLowerCase().includes("fetch failed");
+      if (window.location.protocol === "https:" && isLocalBackend && isFetchFailure) {
         return `⚠️ [보안 제한 안내] HTTPS 환경에서 로컬 백엔드 서버(HTTP) 호출이 차단되었습니다.\n\n해결하려면 브라우저 주소창 왼쪽 [자물쇠 아이콘(설정)] ➔ [사이트 설정] ➔ [안전하지 않은 콘텐츠(Insecure content)]를 '허용(Allow)'으로 변경하고 새로고침해 주세요.`;
       }
       return "현재 이 곡의 가사를 제공할 수 없습니다.";
@@ -1990,14 +1992,41 @@ export default function MMMHAKApp() {
 
   const handleSelect = useCallback(async (track) => {
     setPlaying(false); // Stop playing immediately to avoid layout background color flicker
+    selectedTrackIdRef.current = track.id;
+    const myTrackId = track.id;
 
-    // Check if the track is already AI analyzed
+    const cacheKey = `${track.title.toLowerCase().trim()}_${track.artist.toLowerCase().trim()}`;
+
+    // 1. Check in-memory session track state
     if (track.isAI && track.lyrics) {
       setActiveTrack(track);
       setScores(track.aiScores);
       setLyrics(track.lyrics);
       setIsGraphOpen(false);
       setIsSearchOpen(false);
+      return;
+    }
+
+    // 2. Check localStorage cache
+    const cachedData = aiScoresCache[cacheKey];
+    if (cachedData && cachedData.lyrics && cachedData.aiScores) {
+      const updatedTrack = {
+        ...track,
+        isAI: true,
+        lyrics: cachedData.lyrics,
+        aiScores: cachedData.aiScores,
+        lyrics_sentiment: cachedData.aiScores
+      };
+      setActiveTrack(updatedTrack);
+      setScores(cachedData.aiScores);
+      setLyrics(cachedData.lyrics);
+      setIsGraphOpen(false);
+      setIsSearchOpen(false);
+      
+      // Update tracks array if not already marked isAI
+      if (!track.isAI) {
+        setTracks(prev => prev.map(t => t.id === track.id ? updatedTrack : t));
+      }
       return;
     }
 
@@ -2009,6 +2038,8 @@ export default function MMMHAKApp() {
 
     try {
       const fetchedLyrics = await fetchLyrics(track.title, track.artist);
+      
+      if (selectedTrackIdRef.current !== myTrackId) return;
       setLyrics(fetchedLyrics);
 
       if (fetchedLyrics !== "현재 이 곡의 가사를 제공할 수 없습니다.") {
@@ -2022,6 +2053,7 @@ export default function MMMHAKApp() {
           })
         });
 
+        if (selectedTrackIdRef.current !== myTrackId) return;
         if (!analyzeRes.ok) throw new Error("AI Analysis API error");
 
         const aiScores = await analyzeRes.json();
@@ -2102,6 +2134,7 @@ export default function MMMHAKApp() {
           };
         })();
 
+        if (selectedTrackIdRef.current !== myTrackId) return;
         setScores(finalScores);
 
         // Update activeTrack and update the track in the tracks list with AI scores and lyrics
@@ -2114,6 +2147,13 @@ export default function MMMHAKApp() {
         };
         setActiveTrack(updatedTrack);
         setTracks(prev => prev.map(t => t.id === track.id ? updatedTrack : t));
+
+        // Save to LocalStorage cache
+        aiScoresCache[cacheKey] = {
+          lyrics: fetchedLyrics,
+          aiScores: finalScores
+        };
+        setLocalCache("mm_ai_scores_cache", aiScoresCache);
       }
     } catch (err) {
       console.error("Analysis fallback:", err);
