@@ -256,9 +256,30 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores })
       content = `GENRE: ${genres}`;
     }
     else if (btn.id === 'mode') {
-      content = track.mode === 'minor'
-        ? "MODE: Minor Key — 슬픔과 내면의 침잠을 유도하는 단조 스케일입니다."
-        : "MODE: Major Key — 밝고 긍정적인 에너지를 주는 장조 스케일입니다.";
+      const primaryEmotion = scores?.primary_emotion;
+      let derived_mode = "unknown";
+      if (primaryEmotion === "happy") {
+        derived_mode = "ionian";
+        content = "MODE: Ionian — 밝고 긍정적인 에너지를 주며 기분 전환을 유도하는 스케일입니다.";
+      } else if (primaryEmotion === "confident") {
+        derived_mode = "mixolydian";
+        content = "MODE: Mixolydian — 당당하고 활기찬 해방감을 선사하는 스케일입니다.";
+      } else if (primaryEmotion === "love") {
+        derived_mode = "lydian";
+        content = "MODE: Lydian — 공중에 뜬 듯한 신비롭고 환상적인 느낌을 주는 스케일입니다.";
+      } else if (primaryEmotion === "sad") {
+        derived_mode = "aeolian";
+        content = "MODE: Aeolian — 슬픔과 내면의 깊은 침잠을 유도하는 정통 단조 스케일입니다.";
+      } else if (primaryEmotion === "lonely") {
+        derived_mode = "dorian";
+        content = "MODE: Dorian — 세련되고 신비로운 무드로, 절제된 슬픔과 위로를 주는 스케일입니다.";
+      } else if (primaryEmotion === "angry") {
+        derived_mode = "locrian";
+        content = "MODE: Locrian — 극도의 불안정과 파괴적인 긴장감을 유발하여 다크한 감정을 자극하는 스케일입니다.";
+      } else {
+        derived_mode = "unknown";
+        content = "MODE: Analyzing — 곡의 스케일 정보를 분석 중입니다.";
+      }
     }
     else if (btn.id === 'energy') content = `Energy Score: ${track.energy.toFixed(2)} / 1.0`;
     else if (btn.id === 'plays') content = `Total Plays: ${track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + 'M' : track.streams}`;
