@@ -59,16 +59,23 @@ function CustomCursor() {
 
 
 // Removed old global fetchLyrics, using backend instead
-function generateStructuredInsights(track, scores, lyrics) {
+function generateStructuredInsights(track, scores) {
   if (!track || !scores) return { vibe: "트랙 데이터를 분석 중입니다.", insight: "", profile: "" };
 
-  const cleanLyrics = (lyrics && lyrics !== "LOADING LYRICS..." && lyrics !== "가사 정보를 불러올 수 없는 곡입니다.")
-    ? lyrics
-    : "아무것도 할 힘이 없어. 하루 종일 침대에 누워만 있는 중. 우울감이 심해서 누구랑도 얘기하고 싶지 않아. 그냥 무기력해.";
+  const vibeMap = {
+    sad: "아무것도 할 힘이 없어. 하루 종일 침대에 누워만 있는 중. 우울감이 심해서 누구랑도 얘기하고 싶지 않아. 그냥 무기력해.",
+    confident: "난 무조건 성공해. 내 선택과 능력을 완벽하게 믿으니까. 누구도 날 막을 수 없고, 이대로 멈추지 않고 끝까지 밀고 나갈거야.",
+    love: "너랑 같이 있을 때 제일 편안해. 마주 잡은 손이 따뜻하고, 함께 걷는 이 시간이 소중해. 진심으로 널 사랑하고 있어.",
+    angry: "더 이상 못 참겠어. 속에서 화가 치밀어 오르고 한계에 부딪힌 기분이야. 날 그냥 내버려 둬. 짜증나고 분노가 조절이 안 돼.",
+    happy: "오늘 날씨도 좋고 모든 게 다 마음에 들어. 기분 좋은 리듬에 발걸음이 가벼워져. 아무 걱정 없이 행복한 하루야.",
+    lonely: "늦은 밤 텅 빈 거리를 혼자 걷고 있어. 주변에 아무도 없다는 게 실감 나서 쓸쓸하네. 갑자기 외로워져서 네 생각이 나."
+  };
+
+  const fallbackVibe = "아무것도 할 힘이 없어. 하루 종일 침대에 누워만 있는 중. 우울감이 심해서 누구랑도 얘기하고 싶지 않아. 그냥 무기력해.";
 
   if (scores.insufficient_data || scores.no_info) {
     return {
-      vibe: cleanLyrics,
+      vibe: fallbackVibe,
       insight: "차트에서 어떤 축도 두드러지지 않습니다. 데이터의 품질이나 가사 양이 부족하면 모든 점수가 0.5(중립)로 평탄화됩니다.",
       profile: `${track.mode === "minor" ? "Minor" : "Major"} Key · ${track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + "M" : track.streams} Plays`
     };
@@ -89,6 +96,9 @@ function generateStructuredInsights(track, scores, lyrics) {
   const top1 = sortedEmotions[0][0];
   const top2 = sortedEmotions[1][0];
 
+  const primaryKey = scores.primary_emotion || top1;
+  const vibe = vibeMap[primaryKey] || fallbackVibe;
+
   // 한글 라벨 매핑 (다시 추가 요청됨)
   const labels = {
     happy: "행복(Happy)",
@@ -104,7 +114,7 @@ function generateStructuredInsights(track, scores, lyrics) {
   const plays = track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + "M" : track.streams;
   const profile = `${track.mode === "minor" ? "Minor" : "Major"} Key · Energy ${track.energy.toFixed(2)} · ${plays} Plays`;
 
-  return { vibe: cleanLyrics, insight, profile };
+  return { vibe, insight, profile };
 }
 
 // ── Info Buttons Data ─────────────────────────────────────────────────────────
@@ -232,7 +242,7 @@ function Sidebar({ tracks, side, activeTrack, onSelect, isMobile }) {
 }
 
 // ── Info Button + Popup ───────────────────────────────────────────────────────
-function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores, lyrics }) {
+function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores }) {
   const wrapRef = useRef(null);
 
   // Removed click-away closer as per user request
@@ -267,7 +277,7 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores, l
     }
     // 🌟 새로 추가된 MOOD 로직
     else if (btn.id === 'mood' && scores) {
-      const insights = generateStructuredInsights(track, scores, lyrics);
+      const insights = generateStructuredInsights(track, scores);
       content = (
         <div style={{
           display: "flex",
@@ -1174,7 +1184,6 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
             isMobile={isMobile}
             track={activeTrack}
             scores={scores}
-            lyrics={lyrics}
           />
         ))}
       </div>
