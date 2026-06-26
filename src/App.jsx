@@ -59,14 +59,18 @@ function CustomCursor() {
 
 
 // Removed old global fetchLyrics, using backend instead
-function generateStructuredInsights(track, scores) {
+function generateStructuredInsights(track, scores, lyrics) {
   if (!track || !scores) return { vibe: "트랙 데이터를 분석 중입니다.", insight: "", profile: "" };
+
+  const cleanLyrics = (lyrics && lyrics !== "LOADING LYRICS..." && lyrics !== "가사 정보를 불러올 수 없는 곡입니다.")
+    ? lyrics
+    : "아무것도 할 힘이 없어. 하루 종일 침대에 누워만 있는 중. 우울감이 심해서 누구랑도 얘기하고 싶지 않아. 그냥 무기력해.";
 
   if (scores.insufficient_data || scores.no_info) {
     return {
-      vibe: "가사 정보가 없거나 분석에 필요한 데이터가 부족하여 감정을 판별할 수 없습니다. ⚠️",
+      vibe: cleanLyrics,
       insight: "차트에서 어떤 축도 두드러지지 않습니다. 데이터의 품질이나 가사 양이 부족하면 모든 점수가 0.5(중립)로 평탄화됩니다.",
-      profile: `${track.bpm} BPM · ${track.mode === "minor" ? "Minor" : "Major"} Key · ${track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + "M" : track.streams} Plays`
+      profile: `${track.mode === "minor" ? "Minor" : "Major"} Key · ${track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + "M" : track.streams} Plays`
     };
   }
 
@@ -95,69 +99,17 @@ function generateStructuredInsights(track, scores) {
     confident: "자신감(Confident)"
   };
 
-  // 2. 6단계 심박수(BPM) 구간 판별
-  let bpmTier;
-  const bpm = track.bpm;
-  if (bpm <= 65) bpmTier = "deep_rest";        // 수면 및 명상
-  else if (bpm <= 85) bpmTier = "resting";     // 안정 시 심박수
-  else if (bpm <= 105) bpmTier = "walking";    // 가벼운 산책
-  else if (bpm <= 125) bpmTier = "jogging";    // 빠른 걸음
-  else if (bpm <= 150) bpmTier = "cardio";     // 유산소 (아드레날린 폭발)
-  else bpmTier = "overdrive";                  // 전력 질주 (극도의 흥분)
-
-  // 3. VIBE 텍스트 생성 (교차 분석)
-  let vibe;
-  switch (top1) {
-    case "happy":
-      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "심박수를 한계까지 끌어올리는 폭발적인 도파민 뱅어(Banger)입니다. 춤추기 완벽한 트랙입니다.";
-      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "경쾌한 발걸음을 만들어주는 산뜻한 그루브. 일상의 텐션을 기분 좋게 올려줍니다.";
-      else vibe = "입가에 여유로운 미소를 띠게 만드는 따뜻하고 긍정적인 무드의 트랙입니다.";
-      break;
-    case "sad":
-      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "빠른 템포 속에서 비극적인 감정이 폭발합니다. 빗속을 질주하며 억눌린 슬픔을 토해내는 듯한 카타르시스를 줍니다.";
-      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "걷잡을 수 없는 멜랑콜리함이 묻어납니다. 복잡한 생각과 함께 정처 없이 걷기 좋은 분위기입니다.";
-      else vibe = "시간이 멈춘 듯한 깊은 심연. 혼자만의 사색에 잠기거나 묵은 감정을 위로받기 완벽합니다.";
-      break;
-    case "angry":
-      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "혈관에 아드레날린을 직접 꽂는 듯한 파괴적인 에너지! 모든 스트레스를 박살 내는 강렬한 트랙입니다.";
-      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "날카롭고 냉소적인 그루브가 긴장감을 조성하며, 묘한 반항심을 불러일으킵니다.";
-      else vibe = "무겁고 압도적인 프레셔가 짓누르는 듯한, 다크하고 카리스마 넘치는 분위기를 뿜어냅니다.";
-      break;
-    case "love":
-      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "심장 박동을 닮은 빠른 비트 위에 달콤하고 정열적인 사랑의 고백이 펼쳐집니다. 에너제틱한 설렘을 줍니다.";
-      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "달콤하고 부드러운 멜로디가 낭만적인 분위기를 고조시키며, 누군가를 떠올리게 만듭니다.";
-      else vibe = "포근하고 깊은 사랑의 감정이 공간을 가득 채웁니다. 가장 편안하고 따뜻하게 마음을 녹여주는 트랙입니다.";
-      break;
-    case "lonely":
-      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "빠른 속도로 흘러가는 세상 속 홀로 남겨진 고독함. 가슴 한구석을 조여오는 아련한 감각을 줍니다.";
-      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "외로운 밤길을 걸을 때 나지막이 들려오는 동반자 같은 곡. 조용한 위로를 전해줍니다.";
-      else vibe = "한없이 깊고 고요한 방 안, 오롯이 혼자만의 감정에 침잠하여 차분하게 마음을 가라앉혀 줍니다.";
-      break;
-    case "confident":
-      if (bpmTier === "cardio" || bpmTier === "overdrive") vibe = "넘치는 패기와 강인한 에너지가 당당하게 뿜어져 나옵니다. 세상의 중심에 선 듯한 강력한 자신감을 불어넣습니다.";
-      else if (bpmTier === "jogging" || bpmTier === "walking") vibe = "자신감 넘치는 당당한 발걸음과 세련된 바이브. 어떤 난관도 헤쳐 나갈 수 있을 것만 같은 에너지를 줍니다.";
-      else vibe = "내면에 잠재된 강한 신념과 확신을 일깨워주는 진중하고 품격 있는 무드의 트랙입니다.";
-      break;
-    default:
-      vibe = "다양한 감정이 교차하는 트랙으로, 현재의 기분에 따라 새로운 매력을 발견할 수 있습니다.";
-  }
-
-  // 4. GRAPH INSIGHT 및 PROFILE 생성
+  // 2. GRAPH INSIGHT 및 PROFILE 생성
   const insight = `차트에서 **${labels[top1]}**와(과) **${labels[top2]}** 축이 가장 두드러지게 뻗어 있습니다. 이는 곡 전반에 걸쳐 두 감정선이 얽히며 메인 테마로 작용하고 있음을 시각적으로 보여줍니다.`;
   const plays = track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + "M" : track.streams;
-  const profile = `${track.bpm} BPM · ${track.mode === "minor" ? "Minor" : "Major"} Key · Energy ${track.energy.toFixed(2)} · ${plays} Plays`;
+  const profile = `${track.mode === "minor" ? "Minor" : "Major"} Key · Energy ${track.energy.toFixed(2)} · ${plays} Plays`;
 
-  let finalVibe = vibe;
-  if (scores.is_love_themed) {
-    finalVibe += " ❤️ 이 곡은 사랑과 관계를 주요 테마로 하고 있습니다.";
-  }
-
-  return { vibe: finalVibe, insight, profile };
+  return { vibe: cleanLyrics, insight, profile };
 }
 
 // ── Info Buttons Data ─────────────────────────────────────────────────────────
 const INFO_BUTTONS = [
-  { id: "bpm", label: "BPM", icon: "♫", content: 'Tempo: 128 BPM — High energy dance rhythm' },
+  { id: "genre", label: "GENRE", icon: "🎸", content: "" },
   { id: "key", label: "KEY", icon: "♪", content: 'Key: A minor — Creates tension and emotional depth' },
   { id: "graph", label: "GRAPH", icon: "📈", content: "" },
   { id: "mood", label: "MOOD", icon: "✨", content: "" },
@@ -280,14 +232,19 @@ function Sidebar({ tracks, side, activeTrack, onSelect, isMobile }) {
 }
 
 // ── Info Button + Popup ───────────────────────────────────────────────────────
-function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores }) {
+function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores, lyrics }) {
   const wrapRef = useRef(null);
 
   // Removed click-away closer as per user request
 
   let content = btn.content;
   if (track) {
-    if (btn.id === 'bpm') content = `Tempo: ${track.bpm} BPM — ${track.bpm > 120 ? 'High energy' : 'Chill'} rhythm`;
+    if (btn.id === 'genre') {
+      const genres = track.tags && track.tags.length > 0
+        ? track.tags.slice(0, 3).map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(" / ")
+        : "R&B / City Pop";
+      content = `GENRE: ${genres} — 곡 전반에 흐르는 세련된 그루브가 특징인 장르입니다.`;
+    }
     else if (btn.id === 'key') content = `Key: ${track.mode === 'minor' ? 'Minor' : 'Major'} — ${track.mode === 'minor' ? 'Emotional depth' : 'Bright feel'}`;
     else if (btn.id === 'energy') content = `Energy Score: ${track.energy.toFixed(2)} / 1.0`;
     else if (btn.id === 'plays') content = `Total Plays: ${track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + 'M' : track.streams}`;
@@ -310,7 +267,7 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores })
     }
     // 🌟 새로 추가된 MOOD 로직
     else if (btn.id === 'mood' && scores) {
-      const insights = generateStructuredInsights(track, scores);
+      const insights = generateStructuredInsights(track, scores, lyrics);
       content = (
         <div style={{
           display: "flex",
@@ -1217,6 +1174,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
             isMobile={isMobile}
             track={activeTrack}
             scores={scores}
+            lyrics={lyrics}
           />
         ))}
       </div>
