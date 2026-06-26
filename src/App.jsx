@@ -253,7 +253,7 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores })
       const genres = track.tags && track.tags.length > 0
         ? track.tags.slice(0, 3).map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(" / ")
         : "R&B / City Pop";
-      content = `GENRE: ${genres} — 곡 전반에 흐르는 세련된 그루브가 특징인 장르입니다.`;
+      content = `GENRE: ${genres}`;
     }
     else if (btn.id === 'key') content = `Key: ${track.mode === 'minor' ? 'Minor' : 'Major'} — ${track.mode === 'minor' ? 'Emotional depth' : 'Bright feel'}`;
     else if (btn.id === 'energy') content = `Energy Score: ${track.energy.toFixed(2)} / 1.0`;
