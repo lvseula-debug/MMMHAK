@@ -120,7 +120,7 @@ function generateStructuredInsights(track, scores) {
 // ── Info Buttons Data ─────────────────────────────────────────────────────────
 const INFO_BUTTONS = [
   { id: "genre", label: "GENRE", icon: "🎸", content: "" },
-  { id: "key", label: "KEY", icon: "♪", content: 'Key: A minor — Creates tension and emotional depth' },
+  { id: "mode", label: "MODE", icon: "♭", content: "" },
   { id: "graph", label: "GRAPH", icon: "📈", content: "" },
   { id: "mood", label: "MOOD", icon: "✨", content: "" },
 ];
@@ -255,7 +255,11 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores })
         : "R&B / City Pop";
       content = `GENRE: ${genres}`;
     }
-    else if (btn.id === 'key') content = `Key: ${track.mode === 'minor' ? 'Minor' : 'Major'} — ${track.mode === 'minor' ? 'Emotional depth' : 'Bright feel'}`;
+    else if (btn.id === 'mode') {
+      content = track.mode === 'minor'
+        ? "MODE: Minor Key — 슬픔과 내면의 침잠을 유도하는 단조 스케일입니다."
+        : "MODE: Major Key — 밝고 긍정적인 에너지를 주는 장조 스케일입니다.";
+    }
     else if (btn.id === 'energy') content = `Energy Score: ${track.energy.toFixed(2)} / 1.0`;
     else if (btn.id === 'plays') content = `Total Plays: ${track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + 'M' : track.streams}`;
     else if (btn.id === 'graph') {
