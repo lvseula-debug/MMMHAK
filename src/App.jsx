@@ -1618,6 +1618,7 @@ export default function MMMHAKApp() {
   }, []);
 
   useEffect(() => {
+    document.body.style.transition = "background-color 1.5s ease-in-out";
     const targetColor = playing ? (EMOTION_COLORS[currentEmotion] || "#1A0050") : "#1A0050";
     document.body.style.backgroundColor = targetColor;
   }, [playing, currentEmotion]);
