@@ -382,6 +382,34 @@ const processTracks = async (rawTracks, startIdx = 0, onBatchComplete = null) =>
             confident: Math.max(0.01, parseFloat((((hasConfident ? 0.4 : 0.1) + valence * 0.2) * (0.5 + intensity)).toFixed(2))),
           };
 
+          const cleanTags = [];
+          const rawTags = tags || [];
+          for (let t of rawTags) {
+            if (!t || typeof t !== 'string') continue;
+            const cleanT = t.toLowerCase().trim();
+            if (cleanT.includes("bts") || cleanT.includes("아리랑") || cleanT.includes("arirang") || cleanT === "k-pop" || cleanT === "kpop" || cleanT === "korean") {
+              continue;
+            }
+            if (cleanT.includes("r&b") || cleanT.includes("rnb") || cleanT === "r and b" || cleanT === "soul") {
+              if (!cleanTags.includes("r&b")) cleanTags.push("r&b");
+            } else if (cleanT.includes("hip-hop") || cleanT.includes("hip hop") || cleanT.includes("hiphop") || cleanT.includes("rap")) {
+              if (!cleanTags.includes("hip-hop")) cleanTags.push("hip-hop");
+            } else if (cleanT.includes("pop")) {
+              if (!cleanTags.includes("pop")) cleanTags.push("pop");
+            } else if (cleanT.includes("ballad")) {
+              if (!cleanTags.includes("ballad")) cleanTags.push("ballad");
+            } else if (cleanT.includes("indie")) {
+              if (!cleanTags.includes("indie")) cleanTags.push("indie");
+            } else if (cleanT.includes("rock") || cleanT.includes("metal") || cleanT.includes("punk") || cleanT.includes("grunge")) {
+              if (!cleanTags.includes("rock")) cleanTags.push("rock");
+            } else if (cleanT.includes("electronic") || cleanT.includes("electro") || cleanT.includes("house") || cleanT.includes("techno") || cleanT.includes("edm") || cleanT.includes("synth")) {
+              if (!cleanTags.includes("electronic")) cleanTags.push("electronic");
+            } else if (cleanT.includes("dance") || cleanT.includes("disco")) {
+              if (!cleanTags.includes("dance")) cleanTags.push("dance");
+            }
+          }
+          const finalTags = cleanTags.length > 0 ? cleanTags : ["pop", "r&b"];
+
           return {
             id: `${artistName}_${raw.name}_${idx}`,
             title: raw.name,
@@ -393,7 +421,7 @@ const processTracks = async (rawTracks, startIdx = 0, onBatchComplete = null) =>
             loudness: parseFloat(loudness.toFixed(1)),
             streams: playcount || (listeners * 3) || ((50 - idx) * 20000000 + 50000000),
             listeners,
-            tags,
+            tags: finalTags,
             artworkUrl: artworkUrl,
             previewUrl: itunes.previewUrl,
             lyrics_sentiment,

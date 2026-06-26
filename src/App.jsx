@@ -250,9 +250,33 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores })
   let content = btn.content;
   if (track) {
     if (btn.id === 'genre') {
-      const genres = track.tags && track.tags.length > 0
-        ? track.tags.slice(0, 3).map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(" / ")
-        : "R&B / City Pop";
+      const genresList = [];
+      const rawTags = track.tags || [];
+      for (let t of rawTags) {
+        if (!t || typeof t !== 'string') continue;
+        const cleanT = t.toLowerCase().trim();
+        if (cleanT.includes("bts") || cleanT.includes("아리랑") || cleanT.includes("arirang") || cleanT === "k-pop" || cleanT === "kpop" || cleanT === "korean") {
+          continue;
+        }
+        if (cleanT.includes("r&b") || cleanT.includes("rnb") || cleanT === "r and b" || cleanT === "soul") {
+          if (!genresList.includes("R&B")) genresList.push("R&B");
+        } else if (cleanT.includes("hip-hop") || cleanT.includes("hip hop") || cleanT.includes("hiphop") || cleanT.includes("rap")) {
+          if (!genresList.includes("Hip-Hop")) genresList.push("Hip-Hop");
+        } else if (cleanT.includes("pop")) {
+          if (!genresList.includes("Pop")) genresList.push("Pop");
+        } else if (cleanT.includes("ballad")) {
+          if (!genresList.includes("Ballad")) genresList.push("Ballad");
+        } else if (cleanT.includes("indie")) {
+          if (!genresList.includes("Indie")) genresList.push("Indie");
+        } else if (cleanT.includes("rock") || cleanT.includes("metal") || cleanT.includes("punk") || cleanT.includes("grunge")) {
+          if (!genresList.includes("Rock")) genresList.push("Rock");
+        } else if (cleanT.includes("electronic") || cleanT.includes("electro") || cleanT.includes("house") || cleanT.includes("techno") || cleanT.includes("edm") || cleanT.includes("synth")) {
+          if (!genresList.includes("Electronic")) genresList.push("Electronic");
+        } else if (cleanT.includes("dance") || cleanT.includes("disco")) {
+          if (!genresList.includes("Dance")) genresList.push("Dance");
+        }
+      }
+      const genres = genresList.length > 0 ? genresList.slice(0, 3).join(" / ") : "Pop / R&B";
       content = `GENRE: ${genres}`;
     }
     else if (btn.id === 'mode') {
