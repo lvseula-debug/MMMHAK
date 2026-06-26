@@ -585,7 +585,8 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
             body: JSON.stringify({
               lyrics: fetchedLyrics,
               title: track.title,
-              artist: track.artist
+              artist: track.artist,
+              bpm: track.bpm
             })
           });
 

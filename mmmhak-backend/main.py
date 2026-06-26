@@ -16,6 +16,10 @@ load_dotenv(dotenv_path, override=True)
 
 app = FastAPI()
 
+from analyzer import MusicEmotionAnalyzer
+emotion_analyzer = MusicEmotionAnalyzer(use_api_fallback=True)
+
+
 # CORS 설정
 origins = [
     "http://localhost:5173",
@@ -39,6 +43,8 @@ class AnalyzeRequest(BaseModel):
     lyrics: str
     title: str = "Unknown Title"
     artist: str = "Unknown Artist"
+    bpm: float = 100.0
+
 
 @app.get("/")
 def read_root():
@@ -333,26 +339,12 @@ async def analyze_lyrics(request: AnalyzeRequest):
         return cached_res
 
     try:
-        # 2. classify_lyrics 호출
-        result_classification = await classify_lyrics(request.lyrics)
+        # 2. analyze 호출
+        result = emotion_analyzer.analyze(request.lyrics, request.bpm)
         
         # 원인 진단을 위한 로그 추가
-        print(f"[DEBUG] {request.artist} - {request.title} raw_scores: {result_classification['raw_scores']}")
+        print(f"[DEBUG] {request.artist} - {request.title} analysis results: {result}")
         
-        # Build backward-compatible flat structure
-        result = {
-            "scores": result_classification["scores"],
-            "matched_labels": result_classification["matched_labels"],
-            "top_label": result_classification["top_label"],
-            "primary_emotion": result_classification["primary_emotion"],
-            "valence_group": result_classification["valence_group"],
-            "love_theme_score": result_classification["love_theme_score"],
-            "is_love_themed": result_classification["is_love_themed"],
-            "raw_scores": result_classification["raw_scores"]
-        }
-        for label, score in result_classification["scores"].items():
-            result[label] = score
-
         # 캐시에 결과 저장
         analyze_cache[lyrics_hash] = result
 
