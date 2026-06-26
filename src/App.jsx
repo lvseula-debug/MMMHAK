@@ -241,6 +241,89 @@ function Sidebar({ tracks, side, activeTrack, onSelect, isMobile }) {
   );
 }
 
+// ── Get Sanitized Genre Info Helper ──────────────────────────────────────────
+function getSanitizedGenreInfo(track, scores) {
+  const allowedGenres = [
+    "K-Pop",
+    "City Pop",
+    "Lo-Fi",
+    "R&B / Soul",
+    "Hip-Hop / Rap",
+    "Pop",
+    "Indie / Alternative",
+    "Electronic / Dance"
+  ];
+
+  const descriptions = {
+    "K-Pop": "글로벌 음악 시장을 선도하는 감각적이고 트렌디한 사운드입니다.",
+    "City Pop": "레트로한 감성과 도시적인 청량함을 담은 낭만적인 장르입니다.",
+    "Lo-Fi": "아날로그한 질감과 잔잔한 비트로 새벽 감성을 자극하는 칠(Chill)한 장르입니다.",
+    "R&B / Soul": "감미로운 그루브와 깊고 풍부한 보컬 소울이 특징인 장르입니다.",
+    "Hip-Hop / Rap": "리드미컬한 비트와 플로우 위에 강렬한 메시지를 전하는 장르입니다.",
+    "Pop": "중독성 있는 멜로디와 대중적인 편곡으로 대중들의 마음을 사로잡는 장르입니다.",
+    "Indie / Alternative": "독창적인 감성과 자유분방하고 개성 넘치는 음악 세계가 돋보이는 장르입니다.",
+    "Electronic / Dance": "에너지 넘치는 신스 비트와 그루비한 리듬으로 강렬한 흥을 돋우는 장르입니다."
+  };
+
+  const matchedGenres = [];
+  const rawTags = track?.tags || [];
+  const artistLower = (track?.artist || "").toLowerCase();
+  const titleLower = (track?.title || "").toLowerCase();
+  const lyrics = (track?.lyrics || "").toLowerCase();
+
+  const hasKorean = (text) => /[\u3131-\u318E\uAC00-\uD7A3]/.test(text);
+
+  for (let tag of rawTags) {
+    if (!tag || typeof tag !== 'string') continue;
+    const t = tag.toLowerCase().trim();
+
+    if (t.includes("bts") || t.includes("아리랑") || t.includes("arirang")) {
+      continue;
+    }
+
+    if (t.includes("city pop") || t.includes("citypop")) {
+      if (!matchedGenres.includes("City Pop")) matchedGenres.push("City Pop");
+    } else if (t.includes("k-pop") || t.includes("kpop") || t === "korean") {
+      if (!matchedGenres.includes("K-Pop")) matchedGenres.push("K-Pop");
+    } else if (t.includes("lo-fi") || t.includes("lofi") || t.includes("chillhop")) {
+      if (!matchedGenres.includes("Lo-Fi")) matchedGenres.push("Lo-Fi");
+    } else if (t.includes("r&b") || t.includes("rnb") || t === "soul" || t === "neo-soul") {
+      if (!matchedGenres.includes("R&B / Soul")) matchedGenres.push("R&B / Soul");
+    } else if (t.includes("hip-hop") || t.includes("hip hop") || t.includes("hiphop") || t.includes("rap")) {
+      if (!matchedGenres.includes("Hip-Hop / Rap")) matchedGenres.push("Hip-Hop / Rap");
+    } else if (t.includes("pop") || t === "dance-pop") {
+      if (!matchedGenres.includes("Pop")) matchedGenres.push("Pop");
+    } else if (t.includes("indie") || t.includes("alternative")) {
+      if (!matchedGenres.includes("Indie / Alternative")) matchedGenres.push("Indie / Alternative");
+    } else if (t.includes("electronic") || t.includes("electro") || t.includes("house") || t.includes("techno") || t.includes("edm") || t.includes("dance") || t.includes("disco") || t.includes("club")) {
+      if (!matchedGenres.includes("Electronic / Dance")) matchedGenres.push("Electronic / Dance");
+    }
+  }
+
+  if (matchedGenres.length === 0 || artistLower.includes("bts") || titleLower.includes("arirang") || titleLower.includes("아리랑") || artistLower.includes("아리랑")) {
+    matchedGenres.length = 0;
+    if (artistLower.includes("bts") || artistLower.includes("zico") || artistLower.includes("illit") || hasKorean(artistLower) || hasKorean(titleLower) || hasKorean(lyrics)) {
+      matchedGenres.push("K-Pop");
+    } else if (scores?.primary_emotion === "happy" || scores?.primary_emotion === "confident") {
+      matchedGenres.push("Pop");
+    } else if (scores?.primary_emotion === "sad" || scores?.primary_emotion === "lonely" || scores?.primary_emotion === "love") {
+      matchedGenres.push("R&B / Soul");
+    } else {
+      matchedGenres.push("Pop");
+    }
+  }
+
+  const finalGenres = matchedGenres.slice(0, 2);
+  const genreText = finalGenres.join(" / ");
+  const primaryGenre = finalGenres[0] || "Pop";
+  const desc = descriptions[primaryGenre] || descriptions["Pop"];
+
+  return {
+    genreText,
+    content: `GENRE: ${genreText} — ${desc}`
+  };
+}
+
 // ── Info Button + Popup ───────────────────────────────────────────────────────
 function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores }) {
   const wrapRef = useRef(null);
@@ -250,34 +333,8 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores })
   let content = btn.content;
   if (track) {
     if (btn.id === 'genre') {
-      const genresList = [];
-      const rawTags = track.tags || [];
-      for (let t of rawTags) {
-        if (!t || typeof t !== 'string') continue;
-        const cleanT = t.toLowerCase().trim();
-        if (cleanT.includes("bts") || cleanT.includes("아리랑") || cleanT.includes("arirang") || cleanT === "k-pop" || cleanT === "kpop" || cleanT === "korean") {
-          continue;
-        }
-        if (cleanT.includes("r&b") || cleanT.includes("rnb") || cleanT === "r and b" || cleanT === "soul") {
-          if (!genresList.includes("R&B")) genresList.push("R&B");
-        } else if (cleanT.includes("hip-hop") || cleanT.includes("hip hop") || cleanT.includes("hiphop") || cleanT.includes("rap")) {
-          if (!genresList.includes("Hip-Hop")) genresList.push("Hip-Hop");
-        } else if (cleanT.includes("pop")) {
-          if (!genresList.includes("Pop")) genresList.push("Pop");
-        } else if (cleanT.includes("ballad")) {
-          if (!genresList.includes("Ballad")) genresList.push("Ballad");
-        } else if (cleanT.includes("indie")) {
-          if (!genresList.includes("Indie")) genresList.push("Indie");
-        } else if (cleanT.includes("rock") || cleanT.includes("metal") || cleanT.includes("punk") || cleanT.includes("grunge")) {
-          if (!genresList.includes("Rock")) genresList.push("Rock");
-        } else if (cleanT.includes("electronic") || cleanT.includes("electro") || cleanT.includes("house") || cleanT.includes("techno") || cleanT.includes("edm") || cleanT.includes("synth")) {
-          if (!genresList.includes("Electronic")) genresList.push("Electronic");
-        } else if (cleanT.includes("dance") || cleanT.includes("disco")) {
-          if (!genresList.includes("Dance")) genresList.push("Dance");
-        }
-      }
-      const genres = genresList.length > 0 ? genresList.slice(0, 3).join(" / ") : "Pop / R&B";
-      content = `GENRE: ${genres}`;
+      const genreInfo = getSanitizedGenreInfo(track, scores);
+      content = genreInfo.content;
     }
     else if (btn.id === 'mode') {
       const primaryEmotion = scores?.primary_emotion;
