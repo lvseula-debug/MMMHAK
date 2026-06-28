@@ -260,7 +260,7 @@ function getSanitizedGenreInfo(track, scores) {
     "Lo-Fi": "아날로그한 질감과 잔잔한 비트로 새벽 감성을 자극하는 칠(Chill)한 장르입니다.",
     "R&B / Soul": "감미로운 그루브와 깊고 풍부한 보컬 소울이 특징인 장르입니다.",
     "Hip-Hop / Rap": "리드미컬한 비트와 플로우 위에 강렬한 메시지를 전하는 장르입니다.",
-    "Pop": "중독성 있는 멜로디와 대중적인 편곡으로 대중들의 마음을 사로잡는 장르입니다.",
+    "Pop": "",
     "Indie / Alternative": "독창적인 감성과 자유분방하고 개성 넘치는 음악 세계가 돋보이는 장르입니다.",
     "Electronic / Dance": "에너지 넘치는 신스 비트와 그루비한 리듬으로 강렬한 흥을 돋우는 장르입니다."
   };
@@ -316,11 +316,11 @@ function getSanitizedGenreInfo(track, scores) {
   const finalGenres = matchedGenres.slice(0, 2);
   const genreText = finalGenres.join(" / ");
   const primaryGenre = finalGenres[0] || "Pop";
-  const desc = descriptions[primaryGenre] || descriptions["Pop"];
+  const desc = descriptions[primaryGenre] !== undefined ? descriptions[primaryGenre] : descriptions["Pop"];
 
   return {
     genreText,
-    content: `GENRE: ${genreText} — ${desc}`
+    content: desc ? `GENRE: ${genreText} — ${desc}` : `GENRE: ${genreText}`
   };
 }
 
