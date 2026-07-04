@@ -24,10 +24,10 @@ const EMOTION_COLORS = {
 const EMPATHY_THEMES = {
   angry: { messages: ["누가 널 화나게 했어? 나한테 데리고 와."] },
   confident: { messages: ["그 누가 지금 널 말릴 수 있을까?"] },
-  lonely: { messages: ["손에 쥔 모래처럼 날아가는 것들이 있지.", "생각이 많아지는 날에는 산책이 최고야."] },
-  happy: { messages: ["여기 해피 바이러스를 느껴봐!", "이 노래 들으면서 나랑 여행갈래?"] },
-  sad: { messages: ["괜찮다고 말했지만 사실은 그렇지 않지?", "오늘같이 숨이 찬 날이 있지."] },
-  love: { messages: ["마치 누가 떠오르는 듯한 노래야.", "네 머릿속에 떠오르는 그 사람은 누구야?"] }
+  lonely: { messages: ["생각이 많아지는 날에는 산책이 최고야."] },
+  happy: { messages: ["여기 해피 바이러스를 느껴봐"] },
+  sad: { messages: ["오늘같이 숨이 찬 날이 있지."] },
+  love: { messages: ["마치 누가 떠오르는 듯한 노래야."] }
 };
 
 // ── Custom Cursor ─────────────────────────────────────────────────────────────
