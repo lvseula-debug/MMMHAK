@@ -5,10 +5,14 @@ import math
 import asyncio
 import hashlib
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from typing import Optional, Dict, Any, List
+from urllib.parse import urlparse
+
+
 
 # .env 파일 로드 (override=True를 설정하여 파일이 변경되었을 때 환경변수를 강제 덮어씁니다.)
 dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
@@ -18,6 +22,10 @@ app = FastAPI()
 
 from analyzer import MusicEmotionAnalyzer
 emotion_analyzer = MusicEmotionAnalyzer(use_api_fallback=True)
+
+from music_analysis.emotion_engine_v2 import EmotionEngineV2
+emotion_engine_v2 = EmotionEngineV2()
+
 
 
 # CORS 설정
@@ -39,11 +47,20 @@ app.add_middleware(
 lyrics_cache = {}
 analyze_cache = {}
 
+class AudioFeaturesInput(BaseModel):
+    bpm: float
+    energy: float
+    spectral_centroid: float
+    dynamic_range: Optional[float] = 0.5
+    vocal_range_energy: Optional[float] = 0.4
+
 class AnalyzeRequest(BaseModel):
     lyrics: str
     title: str = "Unknown Title"
     artist: str = "Unknown Artist"
     bpm: float = 100.0
+    audio_features: Optional[AudioFeaturesInput] = None
+
 
 
 @app.get("/")
@@ -320,33 +337,47 @@ async def analyze_lyrics(request: AnalyzeRequest):
             "is_love_themed": False,
             "raw_scores": neutral_scores,
             "insufficient_data": True,
-            "no_info": True
+            "no_info": True,
+            "is_cached": True
         }
         for label, score in neutral_scores.items():
             result[label] = score
         return result
 
-    # 1. 캐시 확인 (가사의 MD5 해시값을 키로 사용)
+    # 1. 로컬 캐시 확인
     lyrics_hash = hashlib.md5(request.lyrics.encode('utf-8')).hexdigest()
     if lyrics_hash in analyze_cache:
         cached_res = analyze_cache[lyrics_hash]
-        if "raw_scores" in cached_res:
-            print(f"[DEBUG] [CACHE HIT] {request.artist} - {request.title} raw_scores: {cached_res['raw_scores']}")
-        else:
-            print(f"[DEBUG] [CACHE HIT] {request.artist} - {request.title} raw_scores: (not in cache)")
-        print("PROFILING: [CACHE HIT] /api/analyze returned from memory cache")
-        print(f"PROFILING: Total /api/analyze execution took {time.time() - start_time:.3f} seconds")
+        cached_res["is_cached"] = True
+        print(f"[DEBUG] [CACHE HIT] {request.artist} - {request.title}")
         return cached_res
 
     try:
-        # 2. analyze 호출
-        result = emotion_analyzer.analyze(request.lyrics, request.bpm)
+        audio_feat_dict = None
+        if request.audio_features:
+            audio_feat_dict = {
+                "bpm": request.audio_features.bpm,
+                "energy": request.audio_features.energy,
+                "spectral_centroid": request.audio_features.spectral_centroid,
+                "dynamic_range": request.audio_features.dynamic_range,
+                "vocal_range_energy": request.audio_features.vocal_range_energy
+            }
+
+        # 2. analyze 호출 (오디오 피처 인자 추가 전달)
+        result = await emotion_engine_v2.analyze_track(
+            lyrics=request.lyrics,
+            title=request.title,
+            artist=request.artist,
+            bpm=request.bpm,
+            audio_features=audio_feat_dict
+        )
         
-        # 원인 진단을 위한 로그 추가
-        print(f"[DEBUG] {request.artist} - {request.title} analysis results: {result}")
-        
-        # 캐시에 결과 저장
-        analyze_cache[lyrics_hash] = result
+        # 캐싱 완료 상태 반영
+        if result.get("is_cached", True):
+            analyze_cache[lyrics_hash] = result
+            result["is_cached"] = True
+        else:
+            result["is_cached"] = False
 
         total_duration = time.time() - start_time
         print(f"PROFILING: Total /api/analyze execution took {total_duration:.3f} seconds")
@@ -354,33 +385,12 @@ async def analyze_lyrics(request: AnalyzeRequest):
 
     except Exception as e:
         import traceback
-        print(f"Internal Exception during lyrics analysis: {e}")
+        print(f"[Internal Analysis Error] {e}")
         traceback.print_exc()
-        # 500 에러를 반환하지 않고 안전하게 중립 점수 및 에러 정보를 200 OK로 반환합니다.
-        neutral_scores = {
-            "happy": 0.5,
-            "sad": 0.5,
-            "angry": 0.5,
-            "love": 0.5,
-            "lonely": 0.5,
-            "confident": 0.5
-        }
-        result = {
-            "scores": neutral_scores,
-            "matched_labels": [],
-            "top_label": "none",
-            "primary_emotion": "none",
-            "valence_group": "neutral",
-            "love_theme_score": 0.5,
-            "is_love_themed": False,
-            "raw_scores": neutral_scores,
-            "insufficient_data": True,
-            "no_info": True,
-            "error_detail": str(e)
-        }
-        for label, score in neutral_scores.items():
-            result[label] = score
-        return result
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal Engine Error: {str(e)}"
+        )
 
 @app.get("/api/lyrics")
 async def get_lyrics(title: str = "", artist: str = ""):
@@ -481,3 +491,53 @@ async def search_itunes(term: str = "", limit: int = 1, country: str = None):
         print(f"iTunes Fetch Error: {e}")
         # 500 에러를 반환하지 않고 빈 결과를 200 OK로 안전하게 반환합니다.
         return {"resultCount": 0, "results": []}
+
+from fastapi.responses import StreamingResponse
+
+@app.get("/api/audio-proxy")
+async def audio_proxy(url: str = Query(..., description="CORS bypass URL for iTunes assets")):
+    # SSRF verification: Extract hostname and perform whitelist matching
+    try:
+        parsed_url = urlparse(url)
+        hostname = parsed_url.hostname
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid target URL for proxying.")
+
+    if not hostname:
+        raise HTTPException(status_code=403, detail="Forbidden: Missing hostname.")
+
+    # Suffix comparison: only audio-ssl.itunes.apple.com or *.itunes.apple.com
+    is_valid = (
+        hostname == "audio-ssl.itunes.apple.com" or 
+        hostname.endswith(".itunes.apple.com")
+    )
+    if not is_valid:
+        raise HTTPException(
+            status_code=403,
+            detail="Forbidden: Requested URL is not whitelisted for proxying."
+        )
+
+    try:
+        client = httpx.AsyncClient(timeout=15.0)
+        
+        async def stream_generator():
+            try:
+                async with client.stream("GET", url) as response:
+                    if response.status_code != 200:
+                        yield b"Failed to retrieve stream"
+                        return
+                    async for chunk in response.iter_bytes(chunk_size=8192):
+                        yield chunk
+            except Exception as stream_err:
+                print(f"[Proxy Stream Error] {stream_err}")
+            finally:
+                await client.aclose()
+
+        headers = {
+            "Access-Control-Allow-Origin": "*",
+            "Content-Type": "audio/x-m4a"
+        }
+        return StreamingResponse(stream_generator(), headers=headers)
+    except Exception as e:
+        print(f"[Proxy Exception] {e}")
+        raise HTTPException(status_code=500, detail=f"Proxy processing error: {str(e)}")

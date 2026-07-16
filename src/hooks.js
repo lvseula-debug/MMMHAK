@@ -561,6 +561,41 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const selectedTrackIdRef = useRef(null);
 
+  const parseBackendScores = (backendData, streams) => {
+    const scoresObj = backendData.scores || backendData;
+    const legacyMapping = {
+      happy: ["happy", "joy"],
+      sad: ["sad", "depression"],
+      angry: ["angry", "anger"],
+      lonely: ["lonely", "anxiety"],
+      confident: ["confident", "stability"],
+      love: ["love"]
+    };
+
+    const getVal = (key) => {
+      const keysToTry = legacyMapping[key] || [key];
+      let val = undefined;
+      for (const k of keysToTry) {
+        val = scoresObj[k] ?? backendData[k] ?? backendData.emotions?.[k];
+        if (val !== undefined) break;
+      }
+      return Number(val) || 0;
+    };
+
+    const rawSpread = {
+      happy: getVal('happy'),
+      sad: getVal('sad'),
+      angry: getVal('angry'),
+      love: getVal('love'),
+      lonely: getVal('lonely'),
+      confident: getVal('confident'),
+      insufficient_data: backendData.insufficient_data || backendData.no_info || false,
+      no_info: backendData.no_info || false
+    };
+
+    return normalizeEmotionScores(rawSpread, "ai", streams);
+  };
+
   useEffect(() => {
     if (!track) {
       setScores(null);
@@ -607,6 +642,7 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
           const fetchedLyrics = lyricData.lyrics;
           setLyrics(fetchedLyrics);
 
+          // 1단계: 백엔드에 1차 분석 요청 및 CORS Pre-Flag 조회
           const analyzeRes = await fetch(`${getApiBaseUrl()}/api/analyze`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -621,41 +657,61 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
           if (selectedTrackIdRef.current !== myTrackId || isCancelled) return;
           if (!analyzeRes.ok) throw new Error("AI Analysis API error");
 
-          const aiScores = await analyzeRes.json();
-          const finalScores = (() => {
-            const { streams } = track;
-            const legacyMapping = {
-              happy: ["happy", "joy"],
-              sad: ["sad", "depression"],
-              angry: ["angry", "anger"],
-              lonely: ["lonely", "anxiety"],
-              confident: ["confident", "stability"],
-              love: ["love"]
-            };
+          const step1Result = await analyzeRes.json();
+          let finalScores = null;
 
-            const getVal = (key) => {
-              const keysToTry = legacyMapping[key] || [key];
-              let val = undefined;
-              for (const k of keysToTry) {
-                val = aiScores.scores?.[k] ?? aiScores[k] ?? aiScores.emotions?.[k];
-                if (val !== undefined) break;
+          // 백엔드 캐시가 이미 존재하여 최종 결과가 반환된 경우
+          if (step1Result.is_cached) {
+            finalScores = parseBackendScores(step1Result, track.streams);
+          } else {
+            // 캐시 미스인 경우 클라이언트 MIR 피처 연산 실행
+            const { previewUrl, useProxy } = step1Result;
+            let targetAudioUrl = previewUrl;
+
+            if (targetAudioUrl) {
+              if (useProxy) {
+                targetAudioUrl = `${getApiBaseUrl()}/api/audio-proxy?url=${encodeURIComponent(previewUrl)}`;
               }
-              return Number(val) || 0;
-            };
 
-            const rawSpread = {
-              happy: getVal('happy'),
-              sad: getVal('sad'),
-              angry: getVal('angry'),
-              love: getVal('love'),
-              lonely: getVal('lonely'),
-              confident: getVal('confident'),
-              insufficient_data: aiScores.insufficient_data || aiScores.no_info || false,
-              no_info: aiScores.no_info || false
-            };
+              let audioFeatures = { energy: 0.5, spectralCentroid: 2000 };
+              try {
+                const audioRes = await fetch(targetAudioUrl);
+                if (audioRes.ok) {
+                  const arrayBuffer = await audioRes.arrayBuffer();
+                  const { analyzeAudioData } = await import("./utils/audioAnalyzer");
+                  audioFeatures = await analyzeAudioData(arrayBuffer);
+                }
+              } catch (e) {
+                console.warn("[hooks] Browser audio analysis failed, using fallbacks.", e);
+              }
 
-            return normalizeEmotionScores(rawSpread, "ai", streams);
-          })();
+              // 2단계: 추출된 피처를 백엔드로 보내 최종 결합 및 외부 캐시 저장
+              const mergeRes = await fetch(`${getApiBaseUrl()}/api/analyze`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  lyrics: fetchedLyrics,
+                  title: track.title,
+                  artist: track.artist,
+                  bpm: track.bpm,
+                  audio_features: {
+                    bpm: track.bpm, // Use metadata heuristic BPM directly
+                    energy: audioFeatures.energy,
+                    spectral_centroid: audioFeatures.spectralCentroid
+                  }
+                })
+              });
+
+              if (selectedTrackIdRef.current !== myTrackId || isCancelled) return;
+              if (!mergeRes.ok) throw new Error("AI Merge API error");
+
+              const mergeResult = await mergeRes.json();
+              finalScores = parseBackendScores(mergeResult, track.streams);
+            } else {
+              // 미리보기 URL이 없을 경우 1단계 결과 적용
+              finalScores = parseBackendScores(step1Result, track.streams);
+            }
+          }
 
           if (selectedTrackIdRef.current !== myTrackId || isCancelled) return;
           setScores(finalScores);
