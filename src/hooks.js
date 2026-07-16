@@ -673,20 +673,29 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
                 targetAudioUrl = `${getApiBaseUrl()}/api/audio-proxy?url=${encodeURIComponent(previewUrl)}`;
               }
 
-              let audioFeatures = { energy: 0.5, spectralCentroid: 2000 };
+              // Display micro loading state while decoding & running FFT/Spectral Flux (approx. 161ms)
+              setLyrics("멜로디 주파수 분석 중...");
+
+              let audioFeatures = { energy: 0.5, spectralCentroid: 2000, dynamicRange: 0.4, vocalRangeEnergy: 0.4 };
               try {
                 const audioRes = await fetch(targetAudioUrl);
                 if (audioRes.ok) {
                   const arrayBuffer = await audioRes.arrayBuffer();
                   const { analyzeAudioData } = await import("./utils/audioAnalyzer");
                   audioFeatures = await analyzeAudioData(arrayBuffer);
+                } else {
+                  throw new Error(`Audio fetch failed with status: ${audioRes.status}`);
                 }
               } catch (e) {
-                console.warn("[hooks] Browser audio analysis failed, using fallbacks.", e);
+                console.warn("[hooks] Browser audio analysis failed, using robust fallbacks.", e);
+                audioFeatures = { energy: 0.5, spectralCentroid: 2000, dynamicRange: 0.4, vocalRangeEnergy: 0.4 };
               }
 
-              // 2단계: 추출된 피처를 백엔드로 보내 최종 결합 및 외부 캐시 저장
-              const mergeRes = await fetch(`${getApiBaseUrl()}/api/analyze`, {
+              // Restore lyrics view
+              setLyrics(fetchedLyrics);
+
+              // 2단계: 추출된 피처를 백엔드 최종 병합 API로 전송 (/api/analyze/merge)
+              const mergeRes = await fetch(`${getApiBaseUrl()}/api/analyze/merge`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -695,9 +704,11 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
                   artist: track.artist,
                   bpm: track.bpm,
                   audio_features: {
-                    bpm: track.bpm, // Use metadata heuristic BPM directly
+                    bpm: track.bpm, // Bound Last.fm metadata BPM directly
                     energy: audioFeatures.energy,
-                    spectral_centroid: audioFeatures.spectralCentroid
+                    spectral_centroid: audioFeatures.spectralCentroid,
+                    dynamic_range: audioFeatures.dynamicRange,
+                    vocal_range_energy: audioFeatures.vocalRangeEnergy
                   }
                 })
               });

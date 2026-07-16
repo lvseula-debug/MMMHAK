@@ -392,6 +392,55 @@ async def analyze_lyrics(request: AnalyzeRequest):
             detail=f"Internal Engine Error: {str(e)}"
         )
 
+@app.post("/api/analyze/merge")
+async def analyze_merge(request: AnalyzeRequest):
+    start_time = time.time()
+    
+    # Validate lyrics first
+    if not request.lyrics or not validate_lyrics(request.lyrics):
+        print(f"[DEBUG] [Merge] Lyrics validation failed or empty for {request.artist} - {request.title}")
+        raise HTTPException(
+            status_code=400,
+            detail="Lyrics validation failed. Cannot perform merge analysis."
+        )
+
+    if not request.audio_features:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing audio_features payload for merge endpoint."
+        )
+
+    try:
+        audio_feat_dict = {
+            "bpm": request.audio_features.bpm,
+            "energy": request.audio_features.energy,
+            "spectral_centroid": request.audio_features.spectral_centroid,
+            "dynamic_range": request.audio_features.dynamic_range,
+            "vocal_range_energy": request.audio_features.vocal_range_energy
+        }
+
+        # Execute Phase 2: concurrency-locked fusion and cache save (30 days TTL)
+        result = await emotion_engine_v2.analyze_track(
+            lyrics=request.lyrics,
+            title=request.title,
+            artist=request.artist,
+            bpm=request.bpm,
+            audio_features=audio_feat_dict
+        )
+        
+        total_duration = time.time() - start_time
+        print(f"PROFILING: Total /api/analyze/merge execution took {total_duration:.3f} seconds")
+        return result
+
+    except Exception as e:
+        import traceback
+        print(f"[Internal Merge Error] {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal Engine Error during merge: {str(e)}"
+        )
+
 @app.get("/api/lyrics")
 async def get_lyrics(title: str = "", artist: str = ""):
     start_time = time.time()
