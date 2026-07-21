@@ -203,6 +203,13 @@ const renderCustomDot = (scores) => (props) => {
 
 export default function EmotionRadarChart({ scores }) {
   const [showModal, setShowModal] = useState(false);
+  const btnRef = useRef(null);
+  const [modalPos, setModalPos] = useState({ bottom: 0, left: 0 });
+
+  // Reset modal whenever the track (scores) changes
+  useEffect(() => {
+    setShowModal(false);
+  }, [scores]);
 
   if (!scores) return null;
 
@@ -234,14 +241,33 @@ export default function EmotionRadarChart({ scores }) {
       {/* GRAPH button + modal popup — floats ABOVE the blob chart */}
       <div className="relative z-50 mb-1">
         <button
-          onClick={() => setShowModal(!showModal)}
+          ref={btnRef}
+          onClick={() => {
+            if (!showModal && btnRef.current) {
+              const rect = btnRef.current.getBoundingClientRect();
+              setModalPos({
+                bottom: window.innerHeight - rect.top + 8,
+                left: rect.left + rect.width / 2,
+              });
+            }
+            setShowModal(!showModal);
+          }}
           className="px-4 py-1.5 bg-[#CCFF00] text-[#1A0050] font-['Space_Mono'] text-[11px] font-extrabold rounded-full shadow-[0_0_12px_rgba(204,255,0,0.4)] hover:scale-105 transition-transform"
         >
           GRAPH
         </button>
 
         {showModal && (
-          <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 w-[280px] bg-[#1A0050] border-2 border-[#CCFF00] rounded-2xl p-4 shadow-[0_0_20px_rgba(26,0,80,0.8)] z-[9999]">
+          <div
+            style={{
+              position: 'fixed',
+              bottom: modalPos.bottom,
+              left: modalPos.left,
+              transform: 'translateX(-50%)',
+              width: 280,
+              zIndex: 9999,
+            }}
+            className="bg-[#1A0050] border-2 border-[#CCFF00] rounded-2xl p-4 shadow-[0_0_20px_rgba(26,0,80,0.8)]">
             <div className="flex justify-between items-center mb-2">
               <span className="font-['Space_Mono'] text-[11px] text-[#CCFF00] font-extrabold tracking-wider">GRAPH</span>
               <button onClick={() => setShowModal(false)} className="text-white text-xs font-bold hover:text-[#CCFF00]">✕</button>
