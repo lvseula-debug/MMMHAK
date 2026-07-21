@@ -152,9 +152,20 @@ const renderCustomDot = (scores) => (props) => {
   const { cx, cy, payload } = props;
   if (!payload || !scores) return null;
 
-  const emotionsList = ["happy", "confident", "angry", "sad", "lonely", "love"];
+  const emotionsList = ["Uplifting", "Energetic", "Aggressive", "Melancholic", "Desolation", "Serenity"];
   const sorted = emotionsList
-    .map(emo => ({ name: emo, val: scores[emo] ?? 0 }))
+    .map(emo => {
+      const fallbackMap = {
+        Uplifting: "love",
+        Energetic: "confident",
+        Aggressive: "angry",
+        Melancholic: "sad",
+        Desolation: "lonely",
+        Serenity: "happy"
+      };
+      const val = scores[emo] ?? scores[fallbackMap[emo]] ?? 0;
+      return { name: emo, val };
+    })
     .sort((a, b) => b.val - a.val);
 
   const top1 = sorted[0].name;
