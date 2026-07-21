@@ -1,5 +1,6 @@
 // src/EmotionRadarChart.jsx
 import { useState, useEffect, useRef } from "react";
+import { getConfidenceLabel } from "./utils/confidenceUtils";
 import {
   Radar,
   RadarChart,
@@ -218,6 +219,8 @@ export default function EmotionRadarChart({ scores }) {
     );
   }
 
+  const confInfo = getConfidenceLabel(scores.confidence);
+
   // Chart labels sequence strictly in (Uplifting-Energetic-Aggressive-Melancholic-Desolation-Serenity) order for symmetry
   // Values are doubled for visual prominence (and will be clamped in drawing or plotted against PolarRadiusAxis)
   const data = [
@@ -260,6 +263,21 @@ export default function EmotionRadarChart({ scores }) {
               })()}
             </div>
             
+            {/* Mixed Vibe Labeling Badge */}
+            <div className="flex flex-col items-center gap-1 mb-2 mt-0.5">
+              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold border uppercase tracking-wider" style={{
+                backgroundColor: confInfo.level === 'clear_dominant' ? 'rgba(0, 255, 136, 0.12)' : 'rgba(255, 6, 234, 0.12)',
+                borderColor: confInfo.level === 'clear_dominant' ? '#00FF88' : '#FF06EA',
+                color: confInfo.level === 'clear_dominant' ? '#00FF88' : '#FF06EA',
+                fontFamily: '"Pretendard Variable", sans-serif'
+              }}>
+                {confInfo.label}
+              </span>
+              <span className="text-[9px] text-[#E0D0FF] max-w-[210px] text-center font-medium leading-normal" style={{ fontFamily: '"Pretendard Variable", sans-serif' }}>
+                {confInfo.description}
+              </span>
+            </div>
+
             <div className="w-[260px] h-[260px] flex items-center justify-center relative">
               <RadarChart width={260} height={260} cx="50%" cy="50%" outerRadius={70} data={data}>
                 <defs>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PieChart, Pie, Cell } from "recharts";
 import "./App.css";
+import { getConfidenceLabel } from "./utils/confidenceUtils";
 import EmotionRadarChart from "./EmotionRadarChart";
 import {
   useTrackCatalog,
@@ -385,6 +386,7 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores })
     else if (btn.id === 'energy') content = `Energy Score: ${track.energy.toFixed(2)} / 1.0`;
     else if (btn.id === 'plays') content = `Total Plays: ${track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + 'M' : track.streams}`;
     else if (btn.id === 'graph') {
+      const confInfo = getConfidenceLabel(scores?.confidence);
       content = (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {scores && (
@@ -396,6 +398,30 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores })
               marginTop: "4px"
             }}>
               EMOTION CONFIDENCE: {Math.round(scores.confidence * 100)}%
+              <div style={{
+                fontSize: "10px",
+                fontWeight: "800",
+                marginTop: "8px",
+                color: confInfo.level === 'clear_dominant' ? '#00FF88' : '#FF06EA',
+                border: `1px solid ${confInfo.level === 'clear_dominant' ? '#00FF88' : '#FF06EA'}`,
+                borderRadius: "16px",
+                padding: "2px 8px",
+                display: "inline-block",
+                backgroundColor: confInfo.level === 'clear_dominant' ? 'rgba(0, 255, 136, 0.12)' : 'rgba(255, 6, 234, 0.12)',
+                fontFamily: '"Pretendard Variable", sans-serif'
+              }}>
+                {confInfo.label}
+              </div>
+              <div style={{
+                fontSize: "10px",
+                color: "#E0D0FF",
+                fontWeight: "normal",
+                lineHeight: "1.4",
+                marginTop: "6px",
+                fontFamily: '"Pretendard Variable", sans-serif'
+              }}>
+                {confInfo.description}
+              </div>
             </div>
           )}
         </div>
