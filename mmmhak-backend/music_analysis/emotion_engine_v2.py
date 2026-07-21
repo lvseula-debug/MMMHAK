@@ -181,7 +181,8 @@ class EmotionEngineV2:
                 "우울", "슬픔", "눈물", "자괴감", "alone", "dark", "dancing on my own", "heartbreak",
                 "broken", "lie", "lonely", "whine", "neurotic", "paranoid", "die", "crashes",
                 "hard times", "survive", "bloody", "bad guy", "smile", "laugh", "kiss her",
-                "trap", "leak", "drippings", "needle", "needle tears", "kill", "run", "gun"
+                "trap", "leak", "drippings", "needle", "needle tears", "kill", "run", "gun",
+                "drink up", "pressure", "forget", "promise", "stay up", "night"
             ]
             sad_count = sum(1 for kw in sad_keywords if kw in lyrics_lower)
             if sad_count >= 1:
@@ -258,10 +259,7 @@ class EmotionEngineV2:
                 
             harmonic_tension = (normalized_features["dynamic_range"] * 0.6) + (1.0 - consonance) * 0.4
             
-            # Identify general major key sadness with high arousal distortion pattern
-            sad_keywords = ["cry", "sad", "tear", "hurt", "pain", "creep", "weirdo", "don't belong", "우울", "슬픔", "눈물", "자괴감", "alone", "dark"]
-            sad_count = sum(1 for kw in sad_keywords if kw in lyrics_lower)
-            
+            # Identify general major key sadness with high arousal distortion pattern (using unified sad_count)
             is_sad_major_distortion = (
                 sad_count >= 2 and 
                 normalized_features["energy"] > 0.5 and 
