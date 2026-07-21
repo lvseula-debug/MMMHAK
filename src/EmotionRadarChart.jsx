@@ -8,8 +8,8 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Tooltip,
-  ResponsiveContainer,
 } from "recharts";
+
 const colorMap = {
   Uplifting: "#FF06EA",
   Energetic: "#FF5F2A",
@@ -23,7 +23,6 @@ const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const color = colorMap[data.subject] || "#CCFF00";
-    // Divide by 2 because the charted value is doubled for visual prominence
     const originalValue = data.value / 2;
     return (
       <div
@@ -38,6 +37,7 @@ const CustomTooltip = ({ active, payload }) => {
           fontWeight: 700,
           boxShadow: `0 0 12px ${color}55`,
           textTransform: "uppercase",
+          zIndex: 10000,
         }}
       >
         {data.subject}: {Math.round(originalValue * 100)}%
@@ -49,8 +49,6 @@ const CustomTooltip = ({ active, payload }) => {
 
 const renderPolarAngleAxisTick = ({ payload, x, y, cx, cy, ...rest }) => {
   const labelColor = colorMap[payload.value] || "#CCFF00";
-  
-  // Dynamic offset calculation for labels around the hexagon
   let textAnchor = "middle";
   if (x > cx + 15) {
     textAnchor = "start";
@@ -58,8 +56,7 @@ const renderPolarAngleAxisTick = ({ payload, x, y, cx, cy, ...rest }) => {
     textAnchor = "end";
   }
 
-  // Adjust y position slightly based on position relative to center
-  const yOffset = y > cy ? 6 : y < cy ? -6 : 0;
+  const yOffset = y > cy ? 4 : y < cy ? -4 : 0;
 
   return (
     <text
@@ -81,7 +78,7 @@ const renderPolarAngleAxisTick = ({ payload, x, y, cx, cy, ...rest }) => {
   );
 };
 
-function DraggableChartGroup({ children, blobWidth = 260, blobHeight = 260 }) {
+function DraggableChartGroup({ children, blobWidth = 310, blobHeight = 310 }) {
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const dragging = useRef(false);
@@ -123,7 +120,7 @@ function DraggableChartGroup({ children, blobWidth = 260, blobHeight = 260 }) {
 
   return (
     <div
-      className="relative z-10 flex justify-center items-center select-none w-full max-w-[260px] mx-auto"
+      className="relative z-10 flex justify-center items-center select-none w-full max-w-[310px] mx-auto"
       style={{
         transform: `translate(${pos.x}px, ${pos.y}px)`,
         cursor: isDragging ? "grabbing" : "grab",
@@ -142,7 +139,7 @@ function DraggableChartGroup({ children, blobWidth = 260, blobHeight = 260 }) {
         }}
       />
       {/* Chart content on top of blob */}
-      <div className="relative z-10 p-4 w-full flex justify-center items-center">
+      <div className="relative z-10 p-2 w-full flex justify-center items-center">
         {children}
       </div>
     </div>
@@ -182,11 +179,11 @@ const renderCustomDot = (scores) => (props) => {
   if (currentSubject === top1) {
     r = 6.5;
     strokeWidth = 3;
-    stroke = "#CCFF00"; // Neon yellow highlight
+    stroke = "#CCFF00";
   } else if (currentSubject === top2) {
     r = 4.5;
     strokeWidth = 2.5;
-    stroke = "#00FF88"; // Bright green highlight
+    stroke = "#00FF88";
   } else {
     return <circle cx={cx} cy={cy} r={2.5} fill={color} stroke="none" />;
   }
@@ -205,6 +202,8 @@ const renderCustomDot = (scores) => (props) => {
 };
 
 export default function EmotionRadarChart({ scores }) {
+  const [showModal, setShowModal] = useState(false);
+
   if (!scores) return null;
 
   if (scores.insufficient_data || scores.no_info) {
@@ -221,39 +220,64 @@ export default function EmotionRadarChart({ scores }) {
 
   const confInfo = getConfidenceLabel(scores.confidence);
 
-  // Chart labels sequence strictly in (Uplifting-Energetic-Aggressive-Melancholic-Desolation-Serenity) order for symmetry
-  // Values are doubled for visual prominence (and will be clamped in drawing or plotted against PolarRadiusAxis)
   const data = [
-    // 핑크(#FF06EA) 축: 기존 love 값 fallback
     { subject: "Uplifting", value: ((scores.Uplifting ?? scores.love) ?? 0) * 2 },
-
     { subject: "Energetic", value: ((scores.Energetic ?? scores.confident) ?? 0) * 2 },
     { subject: "Aggressive", value: ((scores.Aggressive ?? scores.angry) ?? 0) * 2 },
     { subject: "Melancholic", value: ((scores.Melancholic ?? scores.sad) ?? 0) * 2 },
     { subject: "Desolation", value: ((scores.Desolation ?? scores.lonely) ?? 0) * 2 },
-
-    // 초록(#34A853) 축: 기존 happy 값 fallback
     { subject: "Serenity", value: ((scores.Serenity ?? scores.happy) ?? 0) * 2 },
   ];
 
   return (
-    <div className="flex flex-col items-center gap-4 mt-2 w-full">
-      <div className="flex flex-col items-center justify-center p-4 w-full">
-        <DraggableChartGroup blobWidth={285} blobHeight={285}>
-          <div className="flex flex-col items-center w-full" style={{ pointerEvents: "auto" }}>
-            <div className="font-['Space_Mono'] text-[14px] text-[#CCFF00] tracking-[0.2em] uppercase font-extrabold mb-1 text-center">
+    <div className="flex flex-col items-center gap-2 mt-1 w-full relative">
+      {/* GRAPH button + modal popup — floats ABOVE the blob chart */}
+      <div className="relative z-50 mb-1">
+        <button
+          onClick={() => setShowModal(!showModal)}
+          className="px-4 py-1.5 bg-[#CCFF00] text-[#1A0050] font-['Space_Mono'] text-[11px] font-extrabold rounded-full shadow-[0_0_12px_rgba(204,255,0,0.4)] hover:scale-105 transition-transform"
+        >
+          GRAPH
+        </button>
+
+        {showModal && (
+          <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 w-[280px] bg-[#1A0050] border-2 border-[#CCFF00] rounded-2xl p-4 shadow-[0_0_20px_rgba(26,0,80,0.8)] z-[9999]">
+            <div className="flex justify-between items-center mb-2">
+              <span className="font-['Space_Mono'] text-[11px] text-[#CCFF00] font-extrabold tracking-wider">GRAPH</span>
+              <button onClick={() => setShowModal(false)} className="text-white text-xs font-bold hover:text-[#CCFF00]">✕</button>
+            </div>
+
+            <div className="text-center font-['Space_Mono'] text-[12px] text-[#CCFF00] font-bold mb-2">
+              EMOTION CONFIDENCE: {Math.round((scores.confidence ?? 0.19) * 100)}%
+            </div>
+
+            <div className="flex flex-col items-center gap-1.5">
+              <span className="px-3 py-1 rounded-full text-[10px] font-extrabold border uppercase tracking-wider bg-[#FF06EA]/20 border-[#FF06EA] text-[#FF06EA] font-['Pretendard_Variable',sans-serif]">
+                {confInfo.label}
+              </span>
+              <p className="text-[10px] text-[#E0D0FF] text-center font-medium leading-relaxed font-['Pretendard_Variable',sans-serif]">
+                {confInfo.description}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Draggable blob chart — no confInfo text inside */}
+      <div className="flex flex-col items-center justify-center w-full">
+        <DraggableChartGroup blobWidth={310} blobHeight={310}>
+          <div className="flex flex-col items-center w-full pt-1" style={{ pointerEvents: "auto" }}>
+            <div className="font-['Space_Mono'] text-[13px] text-[#CCFF00] tracking-[0.2em] uppercase font-extrabold mb-0.5 text-center">
               EMOTION LANDSCAPE
             </div>
-            <div className="font-['Space_Mono'] text-[10px] text-white tracking-[0.1em] uppercase font-bold mb-3 text-center">
+            <div className="font-['Space_Mono'] text-[10px] text-white tracking-[0.1em] uppercase font-bold mb-1 text-center">
               {(() => {
-                const emotionsList = ["Uplifting", "Energetic", "Aggressive", "Melancholic", "Desolation", "Serenity"];
                 const sorted = data
                   .map(item => ({ name: item.subject, val: item.value }))
                   .sort((a, b) => b.val - a.val);
 
                 const top1 = sorted[0];
                 const top2 = sorted[1];
-
                 const formatName = (name) => name.toUpperCase();
 
                 if (top2 && (top1.val - top2.val <= 0.3) && top2.val > 0) {
@@ -262,55 +286,31 @@ export default function EmotionRadarChart({ scores }) {
                 return formatName(top1.name);
               })()}
             </div>
-            
-            {/* Mixed Vibe Labeling Badge */}
-            <div className="flex flex-col items-center gap-1 mb-2 mt-0.5">
-              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold border uppercase tracking-wider" style={{
-                backgroundColor: confInfo.level === 'clear_dominant' ? 'rgba(0, 255, 136, 0.12)' : 'rgba(255, 6, 234, 0.12)',
-                borderColor: confInfo.level === 'clear_dominant' ? '#00FF88' : '#FF06EA',
-                color: confInfo.level === 'clear_dominant' ? '#00FF88' : '#FF06EA',
-                fontFamily: '"Pretendard Variable", sans-serif'
-              }}>
-                {confInfo.label}
-              </span>
-              <span className="text-[9px] text-[#E0D0FF] max-w-[210px] text-center font-medium leading-normal" style={{ fontFamily: '"Pretendard Variable", sans-serif' }}>
-                {confInfo.description}
-              </span>
-            </div>
 
-            <div className="w-[260px] h-[260px] flex items-center justify-center relative">
-              <RadarChart width={260} height={260} cx="50%" cy="50%" outerRadius={70} data={data}>
+            <div className="w-[270px] h-[250px] flex items-center justify-center relative -mt-1">
+              <RadarChart width={270} height={250} cx="50%" cy="50%" outerRadius={65} data={data}>
                 <defs>
                   <linearGradient id="radarGradient" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#FF06EA" />       {/* Uplifting */}
-                    <stop offset="20%" stopColor="#FF5F2A" />      {/* Energetic */}
-                    <stop offset="40%" stopColor="#BF1111" />      {/* Aggressive */}
-                    <stop offset="60%" stopColor="#6139FF" />      {/* Melancholic */}
-                    <stop offset="80%" stopColor="#BEB729" />      {/* Desolation */}
-                    <stop offset="100%" stopColor="#34A853" />     {/* Serenity */}
+                    <stop offset="0%" stopColor="#FF06EA" />
+                    <stop offset="20%" stopColor="#FF5F2A" />
+                    <stop offset="40%" stopColor="#BF1111" />
+                    <stop offset="60%" stopColor="#6139FF" />
+                    <stop offset="80%" stopColor="#BEB729" />
+                    <stop offset="100%" stopColor="#34A853" />
                   </linearGradient>
                 </defs>
-                
-                {/* Hexagonal grid configuration */}
-                <PolarGrid gridType="polygon" stroke="rgba(204,255,0,0.18)" strokeWidth={0.8} />
-                
-                {/* Axis settings for 6 points */}
+
+                <PolarGrid gridType="polygon" stroke="rgba(204,255,0,0.22)" strokeWidth={0.8} />
                 <PolarAngleAxis dataKey="subject" tick={renderPolarAngleAxisTick} />
-                
-                {/* Fixed PolarRadiusAxis domain [0, 0.6] to zoom and size relative to chart space */}
                 <PolarRadiusAxis domain={[0, 0.6]} tick={false} axisLine={false} />
-                
-                {/* Tooltip to view percentages */}
                 <Tooltip content={<CustomTooltip />} cursor={false} />
-                
-                {/* Radar shape definition */}
                 <Radar
                   name="Emotion"
                   dataKey="value"
                   stroke="url(#radarGradient)"
                   strokeWidth={2}
                   fill="url(#radarGradient)"
-                  fillOpacity={0.25}
+                  fillOpacity={0.28}
                   isAnimationActive={false}
                   dot={renderCustomDot(scores)}
                 />
