@@ -313,15 +313,15 @@ function getSanitizedGenreInfo(track, scores) {
     if (artistLower.includes("bts") || artistLower.includes("zico") || artistLower.includes("illit") || hasKorean(artistLower) || hasKorean(titleLower) || hasKorean(lyrics)) {
       matchedGenres.push("K-Pop");
     } else if (
-      scores?.primary_emotion === "happy" || 
+      scores?.primary_emotion === "happy" ||
       scores?.primary_emotion === "confident" ||
       scores?.primary_emotion === "Serenity" ||
       scores?.primary_emotion === "Energetic"
     ) {
       matchedGenres.push("Pop");
     } else if (
-      scores?.primary_emotion === "sad" || 
-      scores?.primary_emotion === "lonely" || 
+      scores?.primary_emotion === "sad" ||
+      scores?.primary_emotion === "lonely" ||
       scores?.primary_emotion === "love" ||
       scores?.primary_emotion === "Melancholic" ||
       scores?.primary_emotion === "Desolation" ||
@@ -569,7 +569,15 @@ function PreviewSection({ track, playing, setPlaying, scores, onAddToHistory }) 
     if (!playing || !track || !scores) return;
 
     // Determine primary emotion
-    const topEmotion = scores.primary_emotion || "happy";
+    const emotionNameMap = {
+      happy: "Serenity",
+      love: "Uplifting",
+      confident: "Energetic",
+      angry: "Aggressive",
+      sad: "Melancholic",
+      lonely: "Desolation"
+    };
+    const topEmotion = emotionNameMap[scores.primary_emotion] || (scores.primary_emotion || "Serenity");
 
     // Set 30 second timer
     const timer = setTimeout(() => {
@@ -588,7 +596,15 @@ function PreviewSection({ track, playing, setPlaying, scores, onAddToHistory }) 
     setPlaying(false);
     if (track && scores && !loggedRef.current) {
       loggedRef.current = true;
-      const topEmotion = scores.primary_emotion || "happy";
+      const emotionNameMap = {
+        happy: "Serenity",
+        love: "Uplifting",
+        confident: "Energetic",
+        angry: "Aggressive",
+        sad: "Melancholic",
+        lonely: "Desolation"
+      };
+      const topEmotion = emotionNameMap[scores.primary_emotion] || (scores.primary_emotion || "Serenity");
       if (onAddToHistory) {
         onAddToHistory(track, topEmotion);
       }
@@ -959,9 +975,18 @@ class ErrorBoundary extends React.Component {
 
 // ── aggregateHistoryByEmotion Helper ──────────────────────────────────────────
 const aggregateHistoryByEmotion = (history) => {
-  const counts = { happy: 0, confident: 0, angry: 0, sad: 0, lonely: 0, love: 0 };
+  const counts = { Uplifting: 0, Energetic: 0, Aggressive: 0, Melancholic: 0, Desolation: 0, Serenity: 0 };
+  const emotionNameMap = {
+    happy: "Serenity",
+    love: "Uplifting",
+    confident: "Energetic",
+    angry: "Aggressive",
+    sad: "Melancholic",
+    lonely: "Desolation"
+  };
   history.forEach(item => {
-    if (counts[item.emotion] !== undefined) counts[item.emotion]++;
+    const emo = emotionNameMap[item.emotion] || item.emotion;
+    if (counts[emo] !== undefined) counts[emo]++;
   });
 
   const hasHistory = history.length > 0;
@@ -1376,7 +1401,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
         }}
       >
         {activeTrack?.lyrics_sentiment && (
-          <div style={{ fontSize: "15px", fontWeight: "800", marginBottom: "16px", color: "#CCFF00", textShadow: "0 0 5px rgba(204,255,0,0.3)" }}>
+          <div style={{ fontSize: "15px", fontWeight: "800", marginBottom: "16px", color: "#1A0050", fontFamily: "'Playfair Display', serif", fontStyle: "italic" }}>
             Sentiment: Uplifting {Math.round((activeTrack.lyrics_sentiment.Uplifting ?? activeTrack.lyrics_sentiment.love ?? 0) * 100)}% · Melancholic {Math.round((activeTrack.lyrics_sentiment.Melancholic ?? activeTrack.lyrics_sentiment.sad ?? 0) * 100)}% · Aggressive {Math.round((activeTrack.lyrics_sentiment.Aggressive ?? activeTrack.lyrics_sentiment.angry ?? 0) * 100)}% · Serenity {Math.round((activeTrack.lyrics_sentiment.Serenity ?? activeTrack.lyrics_sentiment.happy ?? 0) * 100)}% · Desolation {Math.round((activeTrack.lyrics_sentiment.Desolation ?? activeTrack.lyrics_sentiment.lonely ?? 0) * 100)}% · Energetic {Math.round((activeTrack.lyrics_sentiment.Energetic ?? activeTrack.lyrics_sentiment.confident ?? 0) * 100)}%
           </div>
         )}
