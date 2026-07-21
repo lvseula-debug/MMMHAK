@@ -13,12 +13,12 @@ import {
 const MUSIC_PLACEHOLDER = "/default_album_art.png";
 
 const EMOTION_COLORS = {
-  angry: "#BF1111",
-  confident: "#FF5F2A",
-  lonely: "#BEB729",
-  happy: "#34A853",
-  sad: "#6139FF",
-  love: "#FF06EA",
+  Aggressive: "#BF1111",
+  Energetic: "#FF5F2A",
+  Desolation: "#BEB729",
+  Uplifting: "#FF06EA",
+  Melancholic: "#6139FF",
+  Serenity: "#34A853",
 };
 
 const EMPATHY_THEMES = {
@@ -946,12 +946,12 @@ const aggregateHistoryByEmotion = (history) => {
 
   const pieData = hasHistory
     ? Object.keys(counts)
-        .filter(key => counts[key] > 0)
-        .map(key => ({
-          name: key,
-          value: counts[key],
-          color: EMOTION_COLORS[key]
-        }))
+      .filter(key => counts[key] > 0)
+      .map(key => ({
+        name: key,
+        value: counts[key],
+        color: EMOTION_COLORS[key]
+      }))
     : [{ name: "empty", value: 1, color: "rgba(255, 255, 255, 0.1)" }];
 
   return { counts, dominant, pieData, hasHistory };

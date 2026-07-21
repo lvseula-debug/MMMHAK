@@ -10,12 +10,12 @@ import {
   ResponsiveContainer,
 } from "recharts";
 const colorMap = {
-  happy: "#34A853",
-  confident: "#FF5F2A",
-  angry: "#BF1111",
-  sad: "#6139FF",
-  lonely: "#BEB729",
-  love: "#FF06EA",
+  Uplifting: "#FF06EA",
+  Energetic: "#FF5F2A",
+  Aggressive: "#BF1111",
+  Melancholic: "#6139FF",
+  Desolation: "#BEB729",
+  Serenity: "#34A853",
 };
 
 const CustomTooltip = ({ active, payload }) => {
@@ -207,15 +207,15 @@ export default function EmotionRadarChart({ scores }) {
     );
   }
 
-  // Chart labels sequence strictly in (happy-confident-angry-sad-lonely-love) order for symmetry
+  // Chart labels sequence strictly in (Uplifting-Energetic-Aggressive-Melancholic-Desolation-Serenity) order for symmetry
   // Values are doubled for visual prominence (and will be clamped in drawing or plotted against PolarRadiusAxis)
   const data = [
-    { subject: "happy", value: (scores.happy ?? 0) * 2 },
-    { subject: "confident", value: (scores.confident ?? 0) * 2 },
-    { subject: "angry", value: (scores.angry ?? 0) * 2 },
-    { subject: "sad", value: (scores.sad ?? 0) * 2 },
-    { subject: "lonely", value: (scores.lonely ?? 0) * 2 },
-    { subject: "love", value: (scores.love ?? 0) * 2 },
+    { subject: "Uplifting", value: ((scores.Uplifting ?? scores.happy) ?? 0) * 2 },
+    { subject: "Energetic", value: ((scores.Energetic ?? scores.confident) ?? 0) * 2 },
+    { subject: "Aggressive", value: ((scores.Aggressive ?? scores.angry) ?? 0) * 2 },
+    { subject: "Melancholic", value: ((scores.Melancholic ?? scores.sad) ?? 0) * 2 },
+    { subject: "Desolation", value: ((scores.Desolation ?? scores.lonely) ?? 0) * 2 },
+    { subject: "Serenity", value: ((scores.Serenity ?? scores.love) ?? 0) * 2 },
   ];
 
   return (
@@ -228,27 +228,17 @@ export default function EmotionRadarChart({ scores }) {
             </div>
             <div className="font-['Space_Mono'] text-[10px] text-white tracking-[0.1em] uppercase font-bold mb-3 text-center">
               {(() => {
-                const emotionsList = ["happy", "confident", "angry", "sad", "lonely", "love"];
-                const sorted = emotionsList
-                  .map(emo => ({ name: emo, val: scores[emo] ?? 0 }))
+                const emotionsList = ["Uplifting", "Energetic", "Aggressive", "Melancholic", "Desolation", "Serenity"];
+                const sorted = data
+                  .map(item => ({ name: item.subject, val: item.value }))
                   .sort((a, b) => b.val - a.val);
 
                 const top1 = sorted[0];
                 const top2 = sorted[1];
 
-                const formatName = (name) => {
-                  const maps = {
-                    happy: "HAPPY",
-                    confident: "CONFIDENT",
-                    angry: "ANGRY",
-                    sad: "SAD",
-                    lonely: "LONELY",
-                    love: "LOVE"
-                  };
-                  return maps[name] || name.toUpperCase();
-                };
+                const formatName = (name) => name.toUpperCase();
 
-                if (top2 && (top1.val - top2.val <= 0.15) && top2.val > 0) {
+                if (top2 && (top1.val - top2.val <= 0.3) && top2.val > 0) {
                   return `${formatName(top1.name)} + ${formatName(top2.name)}`;
                 }
                 return formatName(top1.name);
@@ -259,12 +249,12 @@ export default function EmotionRadarChart({ scores }) {
               <RadarChart width={260} height={260} cx="50%" cy="50%" outerRadius={70} data={data}>
                 <defs>
                   <linearGradient id="radarGradient" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#34A853" />       {/* happy */}
-                    <stop offset="20%" stopColor="#FF5F2A" />      {/* confident */}
-                    <stop offset="40%" stopColor="#BF1111" />      {/* angry */}
-                    <stop offset="60%" stopColor="#6139FF" />      {/* sad */}
-                    <stop offset="80%" stopColor="#BEB729" />      {/* lonely */}
-                    <stop offset="100%" stopColor="#FF06EA" />     {/* love */}
+                    <stop offset="0%" stopColor="#FF06EA" />       {/* Uplifting */}
+                    <stop offset="20%" stopColor="#FF5F2A" />      {/* Energetic */}
+                    <stop offset="40%" stopColor="#BF1111" />      {/* Aggressive */}
+                    <stop offset="60%" stopColor="#6139FF" />      {/* Melancholic */}
+                    <stop offset="80%" stopColor="#BEB729" />      {/* Desolation */}
+                    <stop offset="100%" stopColor="#34A853" />     {/* Serenity */}
                   </linearGradient>
                 </defs>
                 
