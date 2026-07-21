@@ -1347,7 +1347,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
       >
         {activeTrack?.lyrics_sentiment && (
           <div style={{ fontSize: "15px", fontWeight: "800", marginBottom: "16px", color: "#CCFF00", textShadow: "0 0 5px rgba(204,255,0,0.3)" }}>
-            Sentiment: Happy {Math.round((activeTrack.lyrics_sentiment.happy ?? activeTrack.lyrics_sentiment.joy ?? 0) * 100)}% · Sad {Math.round((activeTrack.lyrics_sentiment.sad ?? activeTrack.lyrics_sentiment.depression ?? 0) * 100)}% · Angry {Math.round((activeTrack.lyrics_sentiment.angry ?? 0) * 100)}% · Love {Math.round((activeTrack.lyrics_sentiment.love ?? 0) * 100)}% · Lonely {Math.round((activeTrack.lyrics_sentiment.lonely ?? activeTrack.lyrics_sentiment.anxiety ?? 0) * 100)}% · Confident {Math.round((activeTrack.lyrics_sentiment.confident ?? activeTrack.lyrics_sentiment.stability ?? 0) * 100)}%
+            Sentiment: Uplifting {Math.round((activeTrack.lyrics_sentiment.Uplifting ?? activeTrack.lyrics_sentiment.love ?? 0) * 100)}% · Melancholic {Math.round((activeTrack.lyrics_sentiment.Melancholic ?? activeTrack.lyrics_sentiment.sad ?? 0) * 100)}% · Aggressive {Math.round((activeTrack.lyrics_sentiment.Aggressive ?? activeTrack.lyrics_sentiment.angry ?? 0) * 100)}% · Serenity {Math.round((activeTrack.lyrics_sentiment.Serenity ?? activeTrack.lyrics_sentiment.happy ?? 0) * 100)}% · Desolation {Math.round((activeTrack.lyrics_sentiment.Desolation ?? activeTrack.lyrics_sentiment.lonely ?? 0) * 100)}% · Energetic {Math.round((activeTrack.lyrics_sentiment.Energetic ?? activeTrack.lyrics_sentiment.confident ?? 0) * 100)}%
           </div>
         )}
         <div style={{ fontWeight: "700" }}>

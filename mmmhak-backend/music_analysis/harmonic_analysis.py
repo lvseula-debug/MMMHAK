@@ -7,7 +7,11 @@ Provides key/mode-based fallback values when raw audio is unavailable.
 """
 
 import numpy as np
-import librosa
+try:
+    import librosa
+    HAS_LIBROSA = True
+except ImportError:
+    HAS_LIBROSA = False
 from typing import Dict, Any, Optional
 
 # Pitch Interval Consonance Weights based on psychoacoustic consonance perception
@@ -33,6 +37,8 @@ def calculate_chroma_consonance(y: np.ndarray, sr: int) -> float:
     Extracts CENS chromagram, averages over time, and calculates the pairwise
     consonance of pitch class distributions.
     """
+    if not HAS_LIBROSA:
+        return 0.65
     try:
         # Extract CENS chromagram (stable against noise/dynamics)
         chroma = librosa.feature.chroma_cens(y=y, sr=sr)
