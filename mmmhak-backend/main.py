@@ -283,8 +283,10 @@ async def classify_lyrics(lyrics: str, threshold_override: dict = None):
         "raw_scores": scores,
         "primary_emotion": primary_emotion,
         "valence_group": valence_group,
-        "love_theme_score": scaled_scores["love"],
-        "is_love_themed": is_love_themed,
+        "love_theme_score": scaled_scores.get("Uplifting", 0.0),
+        "is_love_themed": is_uplifting_themed,
+        "uplifting_theme_score": scaled_scores.get("Uplifting", 0.0),
+        "is_uplifting_themed": is_uplifting_themed,
         "matched_labels": matched_labels,
         "top_label": primary_emotion,
     }
