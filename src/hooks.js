@@ -47,6 +47,14 @@ export function normalizeEmotionScores(rawSpread, source, streams) {
     confident: Math.min(Math.max(Number(rawSpread.confident) || 0, 0), 1.0),
   };
 
+  // Map 6-axis new names for native support
+  spread.Uplifting = spread.love;
+  spread.Energetic = spread.confident;
+  spread.Aggressive = spread.angry;
+  spread.Melancholic = spread.sad;
+  spread.Desolation = spread.lonely;
+  spread.Serenity = spread.happy;
+
   const insufficient_data = rawSpread.insufficient_data || false;
   const no_info = rawSpread.no_info || false;
 

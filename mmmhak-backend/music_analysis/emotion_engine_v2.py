@@ -50,14 +50,14 @@ class EmotionEngineV2:
         self.locks = {}
 
         
-        # Mathematical centers for the RBF Kernel
+        # Mathematical centers for the RBF Kernel (Mapped to new 6-axis names)
         self.centers = {
-            "happy": (0.65, 0.65),
-            "confident": (0.50, 0.85),
-            "angry": (-0.60, 0.80),
-            "sad": (-0.65, 0.20),
-            "lonely": (-0.25, 0.40),
-            "love": (0.65, 0.25)
+            "Serenity": (0.65, 0.65),     # Swapped: Serenity maps to happy (green)
+            "Energetic": (0.50, 0.85),    # Energetic maps to confident
+            "Aggressive": (-0.60, 0.80),   # Aggressive maps to angry
+            "Melancholic": (-0.65, 0.20),  # Melancholic maps to sad
+            "Desolation": (-0.25, 0.40),   # Desolation maps to lonely
+            "Uplifting": (0.65, 0.25)      # Swapped: Uplifting maps to love (pink)
         }
         self.gamma = 2.5
 
@@ -174,7 +174,19 @@ class EmotionEngineV2:
             instrument_info = calculate_instrument_offsets(normalized_features)
 
             # --- Feature Fusion & Projection Layer ---
-            # --- Feature Fusion & Projection Layer ---
+            # --- Lexicon-based sad keyword valence capping (Uptempo Sad & Irony contrast protection) ---
+            lyrics_lower = lyrics.lower()
+            sad_keywords = [
+                "cry", "sad", "tear", "hurt", "pain", "creep", "weirdo", "don't belong",
+                "우울", "슬픔", "눈물", "자괴감", "alone", "dark", "dancing on my own", "heartbreak",
+                "broken", "lie", "lonely", "whine", "neurotic", "paranoid", "die", "crashes",
+                "hard times", "survive", "bloody", "bad guy", "smile", "laugh", "kiss her",
+                "trap", "leak", "drippings", "needle", "needle tears", "kill", "run", "gun"
+            ]
+            sad_count = sum(1 for kw in sad_keywords if kw in lyrics_lower)
+            if sad_count >= 1:
+                lyrics_valence = min(lyrics_valence, 0.1 - 0.18 * sad_count)
+
             av_projection = project_features_to_av(
                 lyrics_valence=lyrics_valence,
                 bpm=normalized_features["tempo"],
@@ -247,7 +259,6 @@ class EmotionEngineV2:
             harmonic_tension = (normalized_features["dynamic_range"] * 0.6) + (1.0 - consonance) * 0.4
             
             # Identify general major key sadness with high arousal distortion pattern
-            lyrics_lower = lyrics.lower()
             sad_keywords = ["cry", "sad", "tear", "hurt", "pain", "creep", "weirdo", "don't belong", "우울", "슬픔", "눈물", "자괴감", "alone", "dark"]
             sad_count = sum(1 for kw in sad_keywords if kw in lyrics_lower)
             
@@ -269,27 +280,22 @@ class EmotionEngineV2:
                     penalty_factor = max(0.0, harmonic_tension - 0.4) * 0.9 + max(0.0, normalized_features["dynamic_range"] - 0.5) * 0.7
                     penalty_factor = min(0.75, penalty_factor)
 
-                # Suppress happy (Serenity) and love (Uplifting)
-                raw_happy = emotion_ratios["happy"]
-                raw_love = emotion_ratios["love"]
-                
-                happy_penalty = raw_happy * penalty_factor
-                love_penalty = raw_love * penalty_factor
-                
-                emotion_ratios["happy"] = round(raw_happy - happy_penalty, 4)
-                emotion_ratios["love"] = round(raw_love - love_penalty, 4)
+                # Suppress happy (Serenity) only. No Uplifting (love) suppression!
+                raw_serenity = emotion_ratios["Serenity"]
+                serenity_penalty = raw_serenity * penalty_factor
+                emotion_ratios["Serenity"] = round(raw_serenity - serenity_penalty, 4)
                 
                 # Distribute suppressed energy to Melancholic (sad), Aggressive (angry), and Desolation (lonely)
-                total_penalty = happy_penalty + love_penalty
+                total_penalty = serenity_penalty
                 if total_penalty > 0:
                     if normalized_features["dynamic_range"] > 0.6:
-                        emotion_ratios["angry"] = round(emotion_ratios["angry"] + total_penalty * 0.5, 4)
-                        emotion_ratios["sad"] = round(emotion_ratios["sad"] + total_penalty * 0.3, 4)
-                        emotion_ratios["lonely"] = round(emotion_ratios["lonely"] + total_penalty * 0.2, 4)
+                        emotion_ratios["Aggressive"] = round(emotion_ratios["Aggressive"] + total_penalty * 0.5, 4)
+                        emotion_ratios["Melancholic"] = round(emotion_ratios["Melancholic"] + total_penalty * 0.3, 4)
+                        emotion_ratios["Desolation"] = round(emotion_ratios["Desolation"] + total_penalty * 0.2, 4)
                     else:
-                        emotion_ratios["sad"] = round(emotion_ratios["sad"] + total_penalty * 0.5, 4)
-                        emotion_ratios["lonely"] = round(emotion_ratios["lonely"] + total_penalty * 0.3, 4)
-                        emotion_ratios["angry"] = round(emotion_ratios["angry"] + total_penalty * 0.2, 4)
+                        emotion_ratios["Melancholic"] = round(emotion_ratios["Melancholic"] + total_penalty * 0.5, 4)
+                        emotion_ratios["Desolation"] = round(emotion_ratios["Desolation"] + total_penalty * 0.3, 4)
+                        emotion_ratios["Aggressive"] = round(emotion_ratios["Aggressive"] + total_penalty * 0.2, 4)
 
                 # Re-normalize ratios to sum to exactly 1.0000
                 total_ratios = sum(emotion_ratios.values())
@@ -312,20 +318,21 @@ class EmotionEngineV2:
 
             # --- Format to exact JSON spec ---
             scores_obj = {
-                "happy": float(emotion_ratios["happy"]),
-                "confident": float(emotion_ratios["confident"]),
-                "angry": float(emotion_ratios["angry"]),
-                "sad": float(emotion_ratios["sad"]),
-                "lonely": float(emotion_ratios["lonely"]),
-                "love": float(emotion_ratios["love"]),
+                # Legacy keys for client-side compatibility
+                "happy": float(emotion_ratios["Serenity"]),
+                "confident": float(emotion_ratios["Energetic"]),
+                "angry": float(emotion_ratios["Aggressive"]),
+                "sad": float(emotion_ratios["Melancholic"]),
+                "lonely": float(emotion_ratios["Desolation"]),
+                "love": float(emotion_ratios["Uplifting"]),
                 
                 # New Psychoacoustic 6-Axis mapping
-                "Uplifting": float(emotion_ratios["love"]),      # Swapped: Uplifting maps to love (pink)
-                "Energetic": float(emotion_ratios["confident"]), # Energetic maps to confident
-                "Aggressive": float(emotion_ratios["angry"]),    # Aggressive maps to angry
-                "Melancholic": float(emotion_ratios["sad"]),     # Melancholic maps to sad
-                "Desolation": float(emotion_ratios["lonely"]),   # Desolation maps to lonely
-                "Serenity": float(emotion_ratios["happy"]),      # Swapped: Serenity maps to happy (green)
+                "Uplifting": float(emotion_ratios["Uplifting"]),
+                "Energetic": float(emotion_ratios["Energetic"]),
+                "Aggressive": float(emotion_ratios["Aggressive"]),
+                "Melancholic": float(emotion_ratios["Melancholic"]),
+                "Desolation": float(emotion_ratios["Desolation"]),
+                "Serenity": float(emotion_ratios["Serenity"]),
                 
                 "primary_emotion": primary_emotion,
                 "confidence": final_confidence,
