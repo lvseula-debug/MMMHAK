@@ -572,12 +572,12 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
   const parseBackendScores = (backendData, streams) => {
     const scoresObj = backendData.scores || backendData;
     const legacyMapping = {
-      happy: ["happy", "joy"],
-      sad: ["sad", "depression"],
-      angry: ["angry", "anger"],
-      lonely: ["lonely", "anxiety"],
-      confident: ["confident", "stability"],
-      love: ["love"]
+      happy: ["Serenity", "happy", "joy"],
+      sad: ["Melancholic", "sad", "depression"],
+      angry: ["Aggressive", "angry", "anger"],
+      lonely: ["Desolation", "lonely", "anxiety"],
+      confident: ["Energetic", "confident", "stability"],
+      love: ["Uplifting", "love"]
     };
 
     const getVal = (key) => {

@@ -316,14 +316,6 @@ class EmotionEngineV2:
 
             # --- Format to exact JSON spec ---
             scores_obj = {
-                # Legacy keys for client-side compatibility
-                "happy": float(emotion_ratios["Serenity"]),
-                "confident": float(emotion_ratios["Energetic"]),
-                "angry": float(emotion_ratios["Aggressive"]),
-                "sad": float(emotion_ratios["Melancholic"]),
-                "lonely": float(emotion_ratios["Desolation"]),
-                "love": float(emotion_ratios["Uplifting"]),
-                
                 # New Psychoacoustic 6-Axis mapping
                 "Uplifting": float(emotion_ratios["Uplifting"]),
                 "Energetic": float(emotion_ratios["Energetic"]),
@@ -354,14 +346,6 @@ class EmotionEngineV2:
                 "advanced_analysis": advanced_analysis,
                 "is_cached": True,
                 
-                # Duplicate top-level keys for 100% React client compatibility safety
-                "happy": scores_obj["happy"],
-                "sad": scores_obj["sad"],
-                "angry": scores_obj["angry"],
-                "lonely": scores_obj["lonely"],
-                "love": scores_obj["love"],
-                "confident": scores_obj["confident"],
-                
                 # New Psychoacoustic 6-Axis mapping
                 "Uplifting": scores_obj["Uplifting"],
                 "Energetic": scores_obj["Energetic"],
@@ -370,7 +354,7 @@ class EmotionEngineV2:
                 "Desolation": scores_obj["Desolation"],
                 "Serenity": scores_obj["Serenity"],
                 
-                "primary_emotion": scores_obj["primary_emotion"],
+                "primary_emotion": primary_emotion,
                 "confidence": final_confidence,
                 "derived_valence": projected_valence,
                 "derived_arousal": projected_arousal,

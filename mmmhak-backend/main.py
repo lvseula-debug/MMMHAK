@@ -81,22 +81,22 @@ valence_hypotheses = [
 ]
 
 emotion_hypotheses = {
-    "happy": "This song expresses joy and happiness.",
-    "sad": "This song expresses sadness, sorrow, or heartbreak.",
-    "angry": "This song expresses anger or aggression.",
-    "love": "This song expresses romantic love or deep affection for someone.",
-    "lonely": "This song expresses loneliness or feeling alone.",
-    "confident": "This song expresses confidence or self-assurance."
+    "Uplifting": "This song expresses uplifting joy, hopeful emotion, or romantic warmth.",
+    "Energetic": "This song expresses high energy, powerful rhythm, and exciting vibes.",
+    "Aggressive": "This song expresses intense anger, heavy distortion, or raw frustration.",
+    "Melancholic": "This song expresses deep sadness, heartbreak, or melancholic sorrow.",
+    "Desolation": "This song expresses lonely isolation, quiet emptiness, or desolate mood.",
+    "Serenity": "This song expresses peaceful calm, relaxing serenity, or soothing melody."
 }
 
 # 3. 라벨별 threshold (초기값, 검증 데이터로 보정 예정)
 thresholds = {
-    "happy": 0.35,
-    "angry": 0.35,
-    "lonely": 0.30,
-    "love": 0.20,
-    "sad": 0.20,
-    "confident": 0.30
+    "Serenity": 0.35,
+    "Aggressive": 0.35,
+    "Desolation": 0.30,
+    "Uplifting": 0.20,
+    "Melancholic": 0.20,
+    "Energetic": 0.30
 }
 
 async def call_hf_zero_shot(client, api_url, headers, text, candidate_hypotheses, multi_label=False):
@@ -230,7 +230,7 @@ def validate_lyrics(lyrics: str) -> bool:
 
 async def classify_lyrics(lyrics: str, threshold_override: dict = None):
     """
-    가사에서 6대 감정(happy, sad, angry, love, lonely, confident)을 1회의 Zero-Shot Classification 호출로 동시 분류하여
+    가사에서 6대 감정(Uplifting, Energetic, Aggressive, Melancholic, Desolation, Serenity)을 1회의 Zero-Shot Classification 호출로 동시 분류하여
     성능을 2배 단축하고, 감정 배제(0점 처리) 없이 더욱 정확하게 혼합 감정(mixed vibe)을 잡아냅니다.
     """
     th = threshold_override or thresholds
@@ -244,40 +244,40 @@ async def classify_lyrics(lyrics: str, threshold_override: dict = None):
     headers = {"Authorization": f"Bearer {hf_key}"}
     weighted_lyrics = extract_and_duplicate_chorus(lyrics)
     safe_lyrics = weighted_lyrics[:1024]
-
-    all_emotions = ["happy", "sad", "angry", "love", "lonely", "confident"]
+ 
+    all_emotions = ["Uplifting", "Energetic", "Aggressive", "Melancholic", "Desolation", "Serenity"]
     candidate_hyps = [emotion_hypotheses[emo] for emo in all_emotions]
-
+ 
     async with httpx.AsyncClient(timeout=15.0) as client:
         emo_res = await call_hf_zero_shot(client, api_url, headers, safe_lyrics, candidate_hyps, multi_label=True)
-
+ 
     # 점수 매핑
     scores = {}
     for emo in all_emotions:
         hyp = emotion_hypotheses[emo]
         scores[emo] = round(emo_res.get(hyp, 0.0), 3)
-
+ 
     # Valence 및 polarity 계산에 근거한 동적 valence_group 판별
-    pos_score = scores["happy"] * 0.4 + scores["love"] * 0.3 + scores["confident"] * 0.3
-    neg_score = scores["sad"] * 0.4 + scores["lonely"] * 0.3 + scores["angry"] * 0.3
+    pos_score = scores["Serenity"] * 0.4 + scores["Uplifting"] * 0.3 + scores["Energetic"] * 0.3
+    neg_score = scores["Melancholic"] * 0.4 + scores["Desolation"] * 0.3 + scores["Aggressive"] * 0.3
     valence_group = "positive" if pos_score >= neg_score else "negative"
-
+ 
     # 전체 6대 감정 중 최고 점수를 대표 감정으로 결정
-    primary_emotion = max(["happy", "confident", "angry", "sad", "lonely", "love"], key=scores.get)
+    primary_emotion = max(all_emotions, key=scores.get)
     
-    love_theme_score = scores["love"]
-    is_love_themed = love_theme_score >= th.get("love", 0.20)
+    uplifting_theme_score = scores["Uplifting"]
+    is_uplifting_themed = uplifting_theme_score >= th.get("Uplifting", 0.20)
     
     # 가사에서 기준치(threshold)를 넘긴 감정 라벨들의 목록
-    matched_labels = [emo for emo in ["happy", "confident", "angry", "sad", "lonely"] if scores[emo] >= th.get(emo, 0.30)]
-    if is_love_themed:
-        matched_labels.append("love")
-
+    matched_labels = [emo for emo in ["Serenity", "Energetic", "Aggressive", "Melancholic", "Desolation"] if scores[emo] >= th.get(emo, 0.30)]
+    if is_uplifting_themed:
+        matched_labels.append("Uplifting")
+ 
     # Temperature Scaling 적용 (보정 및 극단값 완화)
     scaled_scores = {}
     for emo, val in scores.items():
         scaled_scores[emo] = apply_temperature(val, temperature=2.0)
-
+ 
     return {
         "scores": scaled_scores,
         "raw_scores": scores,
@@ -304,7 +304,7 @@ async def calibrate_thresholds(lyrics_list, ground_truth_labels):
     df = pd.DataFrame(records)
 
     # 라벨별로 정답일 때의 점수 분포 vs 정답이 아닐 때의 점수 분포 비교
-    for label in label_hypotheses.keys():
+    for label in emotion_hypotheses.keys():
         true_scores = df[df["true_label"] == label][label]
         false_scores = df[df["true_label"] != label][label]
         print(f"\n[{label}]")
@@ -327,16 +327,24 @@ async def analyze_lyrics(request: AnalyzeRequest):
             "angry": 0.5,
             "love": 0.5,
             "lonely": 0.5,
-            "confident": 0.5
+            "confident": 0.5,
+            "Serenity": 0.5,
+            "Melancholic": 0.5,
+            "Aggressive": 0.5,
+            "Uplifting": 0.5,
+            "Desolation": 0.5,
+            "Energetic": 0.5
         }
         result = {
-            "scores": neutral_scores,
+            "scores": {k: v for k, v in neutral_scores.items() if k in ["Serenity", "Melancholic", "Aggressive", "Uplifting", "Desolation", "Energetic"]},
             "matched_labels": [],
             "top_label": "none",
             "primary_emotion": "none",
             "valence_group": "neutral",
             "love_theme_score": 0.5,
             "is_love_themed": False,
+            "uplifting_theme_score": 0.5,
+            "is_uplifting_themed": False,
             "raw_scores": neutral_scores,
             "insufficient_data": True,
             "no_info": True,
