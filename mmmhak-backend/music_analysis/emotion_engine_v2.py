@@ -192,6 +192,27 @@ class EmotionEngineV2:
             projected_valence = av_projection["projected_valence"]
             projected_arousal = av_projection["projected_arousal"]
             
+            # --- Profiling Signal Weights & Contributions ---
+            consonance = normalized_features.get("consonance", 0.65)
+            temp_consonance = min(consonance, 0.52) if lyrics_valence < -0.2 else consonance
+            harmonic_tension = (normalized_features["dynamic_range"] * 0.6) + (1.0 - temp_consonance) * 0.4
+            
+            print(f"\n[PROFILING SIGNALS] for '{artist} - {title}':")
+            print(f"  - Lyrics Valence: {lyrics_valence:.4f}")
+            print(f"  - Spectral Centroid: {normalized_features['spectral_centroid']:.1f} (W_h1 contribution: {self.weights.get('W_h1', 0.15) * clamp(normalized_features['spectral_centroid']/8000.0, 0.0, 1.0):.4f})")
+            print(f"  - Vocal Range Energy: {normalized_features['vocal_range_energy']:.4f} (W_v contribution: {self.weights.get('W_v', 0.12) * normalized_features['vocal_range_energy']:.4f})")
+            print(f"  - Genre Valence Offset: {genre_info['genre_valence_offset']:.4f}")
+            print(f"  - Instrument Valence Offset: {instrument_info['instrument_valence_offset']:.4f}")
+            print(f"  - Fused Valence (raw): {projected_valence:.4f}")
+            print(f"  - Tempo (BPM): {normalized_features['tempo']:.1f} (W_a1 contribution: {self.weights.get('W_a1', 0.30) * clamp((normalized_features['tempo'] - 60.0)/120.0, 0.0, 1.0):.4f})")
+            print(f"  - Energy: {normalized_features['energy']:.4f} (W_a2 contribution: {self.weights.get('W_a2', 0.50) * normalized_features['energy']:.4f})")
+            print(f"  - Dynamic Range: {normalized_features['dynamic_range']:.4f} (W_a3 contribution: {self.weights.get('W_a3', 0.20) * normalized_features['dynamic_range']:.4f})")
+            print(f"  - Genre Arousal Offset: {genre_info['genre_arousal_offset']:.4f}")
+            print(f"  - Instrument Arousal Offset: {instrument_info['instrument_arousal_offset']:.4f}")
+            print(f"  - Fused Arousal (raw): {projected_arousal:.4f}")
+            print(f"  - Consonance: {consonance:.4f}")
+            print(f"  - Harmonic Tension: {harmonic_tension:.4f}")
+            
             # --- Existing RBF Kernel Execution ---
             emotion_ratios, primary_emotion = self._compute_rbf_mapping(projected_valence, projected_arousal)
 
