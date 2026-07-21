@@ -26,6 +26,8 @@ emotion_analyzer = MusicEmotionAnalyzer(use_api_fallback=True)
 from music_analysis.emotion_engine_v2 import EmotionEngineV2
 emotion_engine_v2 = EmotionEngineV2()
 
+ALGO_VERSION = "3.2"
+
 
 
 # CORS 설정
@@ -345,7 +347,8 @@ async def analyze_lyrics(request: AnalyzeRequest):
         return result
 
     # 1. 로컬 캐시 확인
-    lyrics_hash = hashlib.md5(request.lyrics.encode('utf-8')).hexdigest()
+    cache_string = f"{request.lyrics}_{ALGO_VERSION}"
+    lyrics_hash = hashlib.md5(cache_string.encode('utf-8')).hexdigest()
     if lyrics_hash in analyze_cache:
         cached_res = analyze_cache[lyrics_hash]
         cached_res["is_cached"] = True
