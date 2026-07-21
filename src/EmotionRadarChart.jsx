@@ -210,12 +210,16 @@ export default function EmotionRadarChart({ scores }) {
   // Chart labels sequence strictly in (Uplifting-Energetic-Aggressive-Melancholic-Desolation-Serenity) order for symmetry
   // Values are doubled for visual prominence (and will be clamped in drawing or plotted against PolarRadiusAxis)
   const data = [
-    { subject: "Uplifting", value: ((scores.Uplifting ?? scores.happy) ?? 0) * 2 },
+    // 핑크(#FF06EA) 축: 기존 love 값 fallback
+    { subject: "Uplifting", value: ((scores.Uplifting ?? scores.love) ?? 0) * 2 },
+
     { subject: "Energetic", value: ((scores.Energetic ?? scores.confident) ?? 0) * 2 },
     { subject: "Aggressive", value: ((scores.Aggressive ?? scores.angry) ?? 0) * 2 },
     { subject: "Melancholic", value: ((scores.Melancholic ?? scores.sad) ?? 0) * 2 },
     { subject: "Desolation", value: ((scores.Desolation ?? scores.lonely) ?? 0) * 2 },
-    { subject: "Serenity", value: ((scores.Serenity ?? scores.love) ?? 0) * 2 },
+
+    // 초록(#34A853) 축: 기존 happy 값 fallback
+    { subject: "Serenity", value: ((scores.Serenity ?? scores.happy) ?? 0) * 2 },
   ];
 
   return (
