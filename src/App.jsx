@@ -109,12 +109,12 @@ function generateStructuredInsights(track, scores) {
   const vibe = vibeMap[normalizedPrimaryKey] || fallbackVibe;
 
   const labels = {
-    Uplifting: "기쁨/희망(Uplifting)",
-    Energetic: "에너지(Energetic)",
-    Aggressive: "격정/분노(Aggressive)",
-    Melancholic: "우울/비통(Melancholic)",
-    Desolation: "고독/적막(Desolation)",
-    Serenity: "평온/차분(Serenity)"
+    Uplifting: "벅참/설렘(Uplifting)",
+    Energetic: "활력/신남(Energetic)",
+    Aggressive: "분노/격분(Aggressive)",
+    Melancholic: "우울/애상(Melancholic)",
+    Desolation: "고독/공허(Desolation)",
+    Serenity: "평온/안식(Serenity)"
   };
 
   // 2. GRAPH INSIGHT 및 PROFILE 생성
