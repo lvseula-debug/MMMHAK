@@ -1,5 +1,6 @@
 // src/EmotionRadarChart.jsx
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { getConfidenceLabel } from "./utils/confidenceUtils";
 import {
   Radar,
@@ -238,58 +239,41 @@ export default function EmotionRadarChart({ scores }) {
 
   return (
     <div className="flex flex-col items-center gap-2 mt-1 w-full relative">
-      {/* GRAPH button + modal popup — floats ABOVE the blob chart */}
-      <div className="relative z-50 mb-1">
-        <button
-          ref={btnRef}
-          onClick={() => {
-            if (!showModal && btnRef.current) {
-              const rect = btnRef.current.getBoundingClientRect();
-              setModalPos({
-                bottom: window.innerHeight - rect.top + 8,
-                left: rect.left + rect.width / 2,
-              });
-            }
-            setShowModal(!showModal);
+      {/* Modal rendered at body level via portal — bypasses CSS transform ancestor */}
+      {showModal && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            bottom: modalPos.bottom,
+            left: modalPos.left,
+            transform: 'translateX(-50%)',
+            width: 280,
+            zIndex: 9999,
           }}
-          className="px-4 py-1.5 bg-[#CCFF00] text-[#1A0050] font-['Space_Mono'] text-[11px] font-extrabold rounded-full shadow-[0_0_12px_rgba(204,255,0,0.4)] hover:scale-105 transition-transform"
+          className="bg-[#1A0050] border-2 border-[#CCFF00] rounded-2xl p-4 shadow-[0_0_20px_rgba(26,0,80,0.8)]"
         >
-          GRAPH
-        </button>
-
-        {showModal && (
-          <div
-            style={{
-              position: 'fixed',
-              bottom: modalPos.bottom,
-              left: modalPos.left,
-              transform: 'translateX(-50%)',
-              width: 280,
-              zIndex: 9999,
-            }}
-            className="bg-[#1A0050] border-2 border-[#CCFF00] rounded-2xl p-4 shadow-[0_0_20px_rgba(26,0,80,0.8)]">
-            <div className="flex justify-between items-center mb-2">
-              <span className="font-['Space_Mono'] text-[11px] text-[#CCFF00] font-extrabold tracking-wider">GRAPH</span>
-              <button onClick={() => setShowModal(false)} className="text-white text-xs font-bold hover:text-[#CCFF00]">✕</button>
-            </div>
-
-            <div className="text-center font-['Space_Mono'] text-[12px] text-[#CCFF00] font-bold mb-2">
-              EMOTION CONFIDENCE: {Math.round((scores.confidence ?? 0.19) * 100)}%
-            </div>
-
-            <div className="flex flex-col items-center gap-1.5">
-              <span className="px-3 py-1 rounded-full text-[10px] font-extrabold border uppercase tracking-wider bg-[#FF06EA]/20 border-[#FF06EA] text-[#FF06EA] font-['Pretendard_Variable',sans-serif]">
-                {confInfo.label}
-              </span>
-              <p className="text-[10px] text-[#E0D0FF] text-center font-medium leading-relaxed font-['Pretendard_Variable',sans-serif]">
-                {confInfo.description}
-              </p>
-            </div>
+          <div className="flex justify-between items-center mb-2">
+            <span className="font-['Space_Mono'] text-[11px] text-[#CCFF00] font-extrabold tracking-wider">GRAPH</span>
+            <button onClick={() => setShowModal(false)} className="text-white text-xs font-bold hover:text-[#CCFF00]">✕</button>
           </div>
-        )}
-      </div>
 
-      {/* Draggable blob chart — no confInfo text inside */}
+          <div className="text-center font-['Space_Mono'] text-[12px] text-[#CCFF00] font-bold mb-2">
+            EMOTION CONFIDENCE: {Math.round((scores.confidence ?? 0.19) * 100)}%
+          </div>
+
+          <div className="flex flex-col items-center gap-1.5">
+            <span className="px-3 py-1 rounded-full text-[10px] font-extrabold border uppercase tracking-wider bg-[#FF06EA]/20 border-[#FF06EA] text-[#FF06EA] font-['Pretendard_Variable',sans-serif]">
+              {confInfo.label}
+            </span>
+            <p className="text-[10px] text-[#E0D0FF] text-center font-medium leading-relaxed font-['Pretendard_Variable',sans-serif]">
+              {confInfo.description}
+            </p>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Draggable blob chart — GRAPH button lives inside so it moves with the chart */}
       <div className="flex flex-col items-center justify-center w-full">
         <DraggableChartGroup blobWidth={310} blobHeight={310}>
           <div className="flex flex-col items-center w-full pt-1" style={{ pointerEvents: "auto" }}>
@@ -341,6 +325,26 @@ export default function EmotionRadarChart({ scores }) {
                   dot={renderCustomDot(scores)}
                 />
               </RadarChart>
+            </div>
+
+            {/* GRAPH button at bottom of blob — moves with the chart when dragged */}
+            <div className="flex justify-center mt-1 mb-1">
+              <button
+                ref={btnRef}
+                onClick={() => {
+                  if (!showModal && btnRef.current) {
+                    const rect = btnRef.current.getBoundingClientRect();
+                    setModalPos({
+                      bottom: window.innerHeight - rect.top + 8,
+                      left: rect.left + rect.width / 2,
+                    });
+                  }
+                  setShowModal(!showModal);
+                }}
+                className="px-4 py-1.5 bg-[#CCFF00] text-[#1A0050] font-['Space_Mono'] text-[11px] font-extrabold rounded-full shadow-[0_0_12px_rgba(204,255,0,0.4)] hover:scale-105 transition-transform"
+              >
+                GRAPH
+              </button>
             </div>
           </div>
         </DraggableChartGroup>
