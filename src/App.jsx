@@ -22,12 +22,12 @@ const EMOTION_COLORS = {
 };
 
 const EMPATHY_THEMES = {
-  angry: { messages: ["누가 널 화나게 했어? 나한테 데리고 와."] },
-  confident: { messages: ["그 누가 지금 널 말릴 수 있을까?"] },
-  lonely: { messages: ["생각이 많아지는 날에는 산책이 최고야."] },
-  happy: { messages: ["여기 해피 바이러스를 느껴봐"] },
-  sad: { messages: ["오늘같이 숨이 찬 날이 있지."] },
-  love: { messages: ["마치 누가 떠오르는 듯한 노래야."] }
+  Uplifting: { messages: ["오 오늘 왠지 다 잘될 것 같은 기분 ㅋㅋ 이 텐션 그대로 가자."] },
+  Energetic: { messages: ["지금 완전 텐션 미쳤는데? 누가 이 에너지를 막아."] },
+  Aggressive: { messages: ["아 진짜 열받네. 그냥 참지 말고 확 질러버려."] },
+  Melancholic: { messages: ["오늘따라 괜히 마음 한켠이 짠하고 숨이 좀 막히더라."] },
+  Desolation: { messages: ["생각 많은 날은 그냥 아무도 없는 거리 걸어보는 게 답일 때가 있어."] },
+  Serenity: { messages: ["복잡한 생각 잠깐 다 내려놓고, 이 조용함에 그냥 기대봐."] }
 };
 
 // ── Custom Cursor ─────────────────────────────────────────────────────────────
@@ -63,15 +63,15 @@ function generateStructuredInsights(track, scores) {
   if (!track || !scores) return { vibe: "트랙 데이터를 분석 중입니다.", insight: "", profile: "" };
 
   const vibeMap = {
-    sad: "아무것도 할 힘이 없어. 하루 종일 침대에 누워만 있는 중. 우울감이 심해서 누구랑도 얘기하고 싶지 않아. 그냥 무기력해.",
-    confident: "난 무조건 성공해. 내 선택과 능력을 완벽하게 믿으니까. 누구도 날 막을 수 없고, 이대로 멈추지 않고 끝까지 밀고 나갈거야.",
-    love: "너랑 같이 있을 때 제일 편안해. 마주 잡은 손이 따뜻하고, 함께 걷는 이 시간이 소중해. 진심으로 널 사랑하고 있어.",
-    angry: "더 이상 못 참겠어. 속에서 화가 치밀어 오르고 한계에 부딪힌 기분이야. 날 그냥 내버려 둬. 짜증나고 분노가 조절이 안 돼.",
-    happy: "오늘 날씨도 좋고 모든 게 다 마음에 들어. 기분 좋은 리듬에 발걸음이 가벼워져. 아무 걱정 없이 행복한 하루야.",
-    lonely: "늦은 밤 텅 빈 거리를 혼자 걷고 있어. 주변에 아무도 없다는 게 실감 나서 쓸쓸하네. 갑자기 외로워져서 네 생각이 나."
+    Uplifting: "오늘 날씨도 좋고 그냥 다 마음에 든다. 가벼운 리듬 하나에도 기분이 붕 뜨고, 마음속에 사랑이랑 희망이 꽉 찬 것 같은, 딱 그런 하루야.",
+    Energetic: "오늘은 진짜 뭘 해도 될 것 같은 느낌. 빵빵 터지는 비트 따라 안에서 에너지가 계속 솟구치고, 끝까지 밀어붙일 자신감이 막 생겨.",
+    Aggressive: "아 진짜 더는 못 참겠다. 속에서 열받는 게 계속 치받쳐 올라오고 완전 한계 온 느낌이야. 그냥 지금은 나 좀 내버려 둬.",
+    Melancholic: "아무것도 하기가 싫다. 마이너 코드처럼 우울함이 스멀스멀 밀려오고, 그냥 하루 종일 침대에 파묻혀 있고만 싶어.",
+    Desolation: "늦은 밤에 텅 빈 공간에 나 혼자 덩그러니 남은 기분. 주변에 진짜 아무도 없다는 게 확 와닿아서 마음이 그냥 조용히 가라앉아버려.",
+    Serenity: "마음이 확 편해지고 조용해진 느낌. 잔잔한 멜로디에 걱정도 소음도 다 멀어지고, 고요함만 남는 것 같아."
   };
 
-  const fallbackVibe = "아무것도 할 힘이 없어. 하루 종일 침대에 누워만 있는 중. 우울감이 심해서 누구랑도 얘기하고 싶지 않아. 그냥 무기력해.";
+  const fallbackVibe = "아무것도 하기가 싫다. 마이너 코드처럼 우울함이 스멀스멀 밀려오고, 그냥 하루 종일 침대에 파묻혀 있고만 싶어.";
 
   if (scores.insufficient_data || scores.no_info) {
     return {
@@ -81,36 +81,44 @@ function generateStructuredInsights(track, scores) {
     };
   }
 
-  // 1. 최고 감정 추출 (6대 감정 분류)
+  // Support both legacy and new backend keys
   const emotions = {
-    happy: scores.happy,
-    sad: scores.sad,
-    angry: scores.angry,
-    lonely: scores.lonely,
-    confident: scores.confident,
-    love: scores.love
+    Uplifting: (scores.Uplifting ?? scores.love) ?? 0,
+    Energetic: (scores.Energetic ?? scores.confident) ?? 0,
+    Aggressive: (scores.Aggressive ?? scores.angry) ?? 0,
+    Melancholic: (scores.Melancholic ?? scores.sad) ?? 0,
+    Desolation: (scores.Desolation ?? scores.lonely) ?? 0,
+    Serenity: (scores.Serenity ?? scores.happy) ?? 0
   };
 
-  // 값을 기준으로 내림차순 정렬
+  // Sort emotions in descending order
   const sortedEmotions = Object.entries(emotions).sort((a, b) => b[1] - a[1]);
   const top1 = sortedEmotions[0][0];
   const top2 = sortedEmotions[1][0];
 
   const primaryKey = scores.primary_emotion || top1;
-  const vibe = vibeMap[primaryKey] || fallbackVibe;
+  const emotionNameMap = {
+    happy: "Serenity",
+    love: "Uplifting",
+    confident: "Energetic",
+    angry: "Aggressive",
+    sad: "Melancholic",
+    lonely: "Desolation"
+  };
+  const normalizedPrimaryKey = emotionNameMap[primaryKey] || primaryKey;
+  const vibe = vibeMap[normalizedPrimaryKey] || fallbackVibe;
 
-  // 한글 라벨 매핑 (다시 추가 요청됨)
   const labels = {
-    happy: "행복(Happy)",
-    sad: "슬픔(Sad)",
-    angry: "분노(Angry)",
-    love: "사랑(Love)",
-    lonely: "외로움(Lonely)",
-    confident: "자신감(Confident)"
+    Uplifting: "기쁨/희망(Uplifting)",
+    Energetic: "에너지(Energetic)",
+    Aggressive: "격정/분노(Aggressive)",
+    Melancholic: "우울/비통(Melancholic)",
+    Desolation: "고독/적막(Desolation)",
+    Serenity: "평온/차분(Serenity)"
   };
 
   // 2. GRAPH INSIGHT 및 PROFILE 생성
-  const insight = `차트에서 **${labels[top1]}**와(과) **${labels[top2]}** 축이 가장 두드러지게 뻗어 있습니다. 이는 곡 전반에 걸쳐 두 감정선이 얽히며 메인 테마로 작용하고 있음을 시각적으로 보여줍니다.`;
+  const insight = `차트에서 **${labels[top1] || top1}**와(과) **${labels[top2] || top2}** 축이 가장 두드러지게 뻗어 있습니다. 이는 곡 전반에 걸쳐 두 감정선이 얽히며 메인 테마로 작용하고 있음을 시각적으로 보여줍니다.`;
   const plays = track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + "M" : track.streams;
   const profile = `${track.mode === "minor" ? "Minor" : "Major"} Key · Energy ${track.energy.toFixed(2)} · ${plays} Plays`;
 
@@ -304,9 +312,21 @@ function getSanitizedGenreInfo(track, scores) {
     matchedGenres.length = 0;
     if (artistLower.includes("bts") || artistLower.includes("zico") || artistLower.includes("illit") || hasKorean(artistLower) || hasKorean(titleLower) || hasKorean(lyrics)) {
       matchedGenres.push("K-Pop");
-    } else if (scores?.primary_emotion === "happy" || scores?.primary_emotion === "confident") {
+    } else if (
+      scores?.primary_emotion === "happy" || 
+      scores?.primary_emotion === "confident" ||
+      scores?.primary_emotion === "Serenity" ||
+      scores?.primary_emotion === "Energetic"
+    ) {
       matchedGenres.push("Pop");
-    } else if (scores?.primary_emotion === "sad" || scores?.primary_emotion === "lonely" || scores?.primary_emotion === "love") {
+    } else if (
+      scores?.primary_emotion === "sad" || 
+      scores?.primary_emotion === "lonely" || 
+      scores?.primary_emotion === "love" ||
+      scores?.primary_emotion === "Melancholic" ||
+      scores?.primary_emotion === "Desolation" ||
+      scores?.primary_emotion === "Uplifting"
+    ) {
       matchedGenres.push("R&B / Soul");
     } else {
       matchedGenres.push("Pop");
@@ -339,22 +359,22 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores })
     else if (btn.id === 'mode') {
       const primaryEmotion = scores?.primary_emotion;
       let derived_mode = "unknown";
-      if (primaryEmotion === "happy") {
+      if (primaryEmotion === "happy" || primaryEmotion === "Serenity") {
         derived_mode = "ionian";
         content = "MODE: Ionian — 밝고 긍정적인 에너지를 주며 기분 전환을 유도하는 스케일입니다.";
-      } else if (primaryEmotion === "confident") {
+      } else if (primaryEmotion === "confident" || primaryEmotion === "Energetic") {
         derived_mode = "mixolydian";
         content = "MODE: Mixolydian — 당당하고 활기찬 해방감을 선사하는 스케일입니다.";
-      } else if (primaryEmotion === "love") {
+      } else if (primaryEmotion === "love" || primaryEmotion === "Uplifting") {
         derived_mode = "lydian";
         content = "MODE: Lydian — 공중에 뜬 듯한 신비롭고 환상적인 느낌을 주는 스케일입니다.";
-      } else if (primaryEmotion === "sad") {
+      } else if (primaryEmotion === "sad" || primaryEmotion === "Melancholic") {
         derived_mode = "aeolian";
         content = "MODE: Aeolian — 슬픔과 내면의 깊은 침잠을 유도하는 정통 단조 스케일입니다.";
-      } else if (primaryEmotion === "lonely") {
+      } else if (primaryEmotion === "lonely" || primaryEmotion === "Desolation") {
         derived_mode = "dorian";
         content = "MODE: Dorian — 세련되고 신비로운 무드로, 절제된 슬픔과 위로를 주는 스케일입니다.";
-      } else if (primaryEmotion === "angry") {
+      } else if (primaryEmotion === "angry" || primaryEmotion === "Aggressive") {
         derived_mode = "locrian";
         content = "MODE: Locrian — 극도의 불안정과 파괴적인 긴장감을 유발하여 다크한 감정을 자극하는 스케일입니다.";
       } else {
@@ -578,9 +598,9 @@ function PreviewSection({ track, playing, setPlaying, scores, onAddToHistory }) 
   useEffect(() => {
     if (!scores || !playing) return;
 
-    const topEmotion = scores.primary_emotion || (() => {
-      const emotions = ["happy", "confident", "angry", "sad", "lonely"];
-      let top = "happy";
+    const rawTop = scores.primary_emotion || (() => {
+      const emotions = ["Uplifting", "Energetic", "Aggressive", "Melancholic", "Desolation", "Serenity"];
+      let top = "Serenity";
       let maxVal = -1;
       emotions.forEach((emo) => {
         const val = scores[emo] ?? 0;
@@ -591,6 +611,16 @@ function PreviewSection({ track, playing, setPlaying, scores, onAddToHistory }) 
       });
       return top;
     })();
+
+    const emotionNameMap = {
+      happy: "Serenity",
+      love: "Uplifting",
+      confident: "Energetic",
+      angry: "Aggressive",
+      sad: "Melancholic",
+      lonely: "Desolation"
+    };
+    const topEmotion = emotionNameMap[rawTop] || rawTop;
 
     const themeInfo = EMPATHY_THEMES[topEmotion];
     if (themeInfo && themeInfo.messages.length > 0) {
@@ -1591,22 +1621,34 @@ export default function MMMHAKApp() {
   }, []);
 
   // Derive dominant emotion from scores during render
-  let currentEmotion = "happy";
+  // Derive dominant emotion from scores during render
+  let currentEmotion = "Serenity";
   if (scores) {
     if (scores.insufficient_data || scores.no_info) {
       currentEmotion = "neutral";
-    } else if (scores.primary_emotion) {
-      currentEmotion = scores.primary_emotion;
     } else {
-      const emotionsList = ["happy", "confident", "angry", "sad", "lonely"];
-      let maxVal = -1;
-      emotionsList.forEach((emo) => {
-        const val = scores[emo] ?? 0;
-        if (val > maxVal) {
-          maxVal = val;
-          currentEmotion = emo;
-        }
-      });
+      const rawPrimary = scores.primary_emotion || (() => {
+        const emotionsList = ["Uplifting", "Energetic", "Aggressive", "Melancholic", "Desolation", "Serenity"];
+        let top = "Serenity";
+        let maxVal = -1;
+        emotionsList.forEach((emo) => {
+          const val = scores[emo] ?? 0;
+          if (val > maxVal) {
+            maxVal = val;
+            top = emo;
+          }
+        });
+        return top;
+      })();
+      const emotionNameMap = {
+        happy: "Serenity",
+        love: "Uplifting",
+        confident: "Energetic",
+        angry: "Aggressive",
+        sad: "Melancholic",
+        lonely: "Desolation"
+      };
+      currentEmotion = emotionNameMap[rawPrimary] || rawPrimary;
     }
   }
 
