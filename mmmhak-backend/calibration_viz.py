@@ -136,7 +136,7 @@ async def run_calibration_analysis():
     plot_calibration(engine.centers, results)
 
 def plot_calibration(centers, results):
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(11, 8.5))
     
     center_colors = {
         "Serenity": "#FFD700", "Energetic": "#FF4500", "Aggressive": "#DC143C",
@@ -144,32 +144,40 @@ def plot_calibration(centers, results):
     }
 
     for name, (cv, ca) in centers.items():
-        plt.scatter(cv, ca, s=250, c=center_colors.get(name, "black"), marker="X", edgecolors="black", linewidths=1.5, zorder=5, label=f"Center: {name}")
+        plt.scatter(cv, ca, s=280, c=center_colors.get(name, "black"), marker="X", edgecolors="black", linewidths=1.8, zorder=5, label=f"Center: {name}")
         plt.text(cv + 0.02, ca + 0.02, f"{name} ({cv:.2f}, {ca:.2f})", fontsize=10, fontweight="bold", zorder=6)
 
     for item in results:
         v = item["projected_valence"]
         a = item["projected_arousal"]
         is_match = item["matched"]
+        is_love_track = (item["expected"] == "Uplifting")
 
-        marker = "o" if is_match else "s"
-        color = "green" if is_match else "red"
+        # Use magenta star for love/uplifting tracks, circle/square for others
+        if is_love_track:
+            marker = "*"
+            color = "#FF1493" if is_match else "#FFB6C1"
+            size = 200
+        else:
+            marker = "o" if is_match else "s"
+            color = "#00E676" if is_match else "#FF5252"
+            size = 120
         
-        plt.scatter(v, a, s=120, c=color, marker=marker, edgecolors="black", linewidths=1, zorder=4)
+        plt.scatter(v, a, s=size, c=color, marker=marker, edgecolors="black", linewidths=1.2, zorder=4)
         
         label_text = f"{item['title']}\n[Exp: {item['expected']} | Act: {item['actual']}]"
         plt.annotate(
             label_text,
             (v, a),
             textcoords="offset points",
-            xytext=(0, 10),
+            xytext=(0, 12),
             ha="center",
             fontsize=8,
-            bbox=dict(boxstyle="round,pad=0.3", fc="yellow" if not is_match else "white", alpha=0.8),
+            bbox=dict(boxstyle="round,pad=0.3", fc="#FFF0F5" if is_love_track else ("#E8F5E9" if is_match else "#FFEBEE"), alpha=0.85),
             zorder=7
         )
 
-    plt.title("Quick Calibration: Projected AV Space vs RBF Centers", fontsize=14, fontweight="bold")
+    plt.title("AV Space Calibration: RBF Centers & Love/Uplifting Tracking", fontsize=14, fontweight="bold")
     plt.xlabel("Projected Valence [-1.0 to 1.0]", fontsize=12)
     plt.ylabel("Projected Arousal [0.0 to 1.0]", fontsize=12)
     plt.xlim(-1.1, 1.1)

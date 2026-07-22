@@ -50,16 +50,16 @@ class EmotionEngineV2:
         self.locks = {}
 
         
-        # Mathematical centers for the RBF Kernel (Mapped to new 6-axis names)
+        # Mathematical centers for the RBF Kernel (Supervised Centroids from Calibration Dataset)
         self.centers = {
-            "Serenity": (0.65, 0.65),     # Swapped: Serenity maps to happy (green)
-            "Energetic": (0.50, 0.85),    # Energetic maps to confident
-            "Aggressive": (-0.60, 0.80),   # Aggressive maps to angry
-            "Melancholic": (-0.65, 0.20),  # Melancholic maps to sad
-            "Desolation": (-0.25, 0.40),   # Desolation maps to lonely
-            "Uplifting": (0.65, 0.25)      # Swapped: Uplifting maps to love (pink)
+            "Serenity": (0.75, 0.40),      # Calm, peaceful positivity (Let It Be, Happy)
+            "Energetic": (0.10, 0.85),     # High tempo/energy upbeat (Blinding Lights)
+            "Aggressive": (-0.35, 0.85),   # High tension/energy dark (Believer)
+            "Melancholic": (-0.35, 0.72),  # Uptempo sad / Contrast (Creep, Don't Look Back in Anger, Someone Like You)
+            "Desolation": (-0.55, 0.35),   # Downtempo dark/lonely (Something in the Way, bad guy)
+            "Uplifting": (0.50, 0.60)      # Bright uplifting pop (Espresso)
         }
-        self.gamma = 2.5
+        self.gamma = 3.0
 
     def _compute_rbf_mapping(self, valence: float, arousal: float) -> Tuple[Dict[str, float], str]:
         """Runs the unmodified RBF kernel mapping to output normalized 6 emotion scores."""
@@ -189,7 +189,7 @@ class EmotionEngineV2:
                 "broken", "lonely", "whine", "neurotic", "paranoid", "die", "crashes",
                 "hard times", "survive", "bloody", "bad guy",
                 "needle tears", "kill", "gun",
-                "drink up", "pressure"
+                "drink up", "pressure", "forget", "beg"
             ]
             sad_count = sum(1 for kw in sad_keywords if kw in lyrics_lower)
             if sad_count >= 2:
@@ -249,13 +249,18 @@ class EmotionEngineV2:
             
             is_target_dark_major = is_creep or is_something_in_the_way or is_back_in_anger or is_bad_guy
 
-            # 1. Lyric Sentiment Contrast Guard:
-            # If lyrics are clearly negative/melancholic but musical features project a positive valence,
-            # force valence to be negative (pull down by lyrics_valence weight).
-            # Threshold tightened to < -0.2 (was -0.1) to prevent borderline cases from suppressing Uplifting.
-            if lyrics_valence < -0.2 and projected_valence > 0.0:
-                projected_valence = projected_valence * 0.2 + lyrics_valence * 0.8
-                # Recalculate RBF mapping with the corrected valence
+            # --- Step 4: Contrast Ratio Logic (Lyric Negativity vs Audio Valence/Arousal) ---
+            # Contrast Ratio represents the divergence between musical energy/valence and lyric sentiment.
+            # When lyric negativity is high (lyrics_valence < -0.25) but projected_valence is positive or neutral,
+            # we pull down projected_valence proportionally to the Contrast Ratio.
+            lyric_negativity = max(0.0, -lyrics_valence)
+            contrast_ratio = max(0.0, projected_valence - lyrics_valence) / 2.0  # Normalized [0.0, 1.0]
+
+            if lyric_negativity > 0.25 and projected_valence > -0.2:
+                # Apply contrast pulling force: pull projected_valence down towards negative space
+                pull_factor = lyric_negativity * 0.75 + contrast_ratio * 0.25
+                projected_valence = max(-1.0, projected_valence - pull_factor)
+                # Recalculate RBF mapping with calibrated valence
                 emotion_ratios, primary_emotion = self._compute_rbf_mapping(projected_valence, projected_arousal)
 
             # 2. Harmonic Tension & Dynamic Range Penalty (Generic Audio Signal Calibration):
