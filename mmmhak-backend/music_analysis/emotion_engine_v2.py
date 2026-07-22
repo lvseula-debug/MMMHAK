@@ -64,8 +64,11 @@ class EmotionEngineV2:
     def _compute_rbf_mapping(self, valence: float, arousal: float) -> Tuple[Dict[str, float], str]:
         """Runs the unmodified RBF kernel mapping to output normalized 6 emotion scores."""
         weights = {}
-        # Normalize Arousal from [-1.0, 1.0] back to [0.0, 1.0] for accurate RBF center distance math
-        arousal_norm = (arousal + 1.0) / 2.0
+        # projected_arousal from projection.py is already in [0.0, 1.0] range (positive-only
+        # weighted sum). No re-normalization needed — applying (arousal+1)/2 would shift all
+        # values into [0.5, 1.0] which makes low-arousal centers (e.g. Uplifting=0.25)
+        # permanently unreachable.
+        arousal_norm = float(arousal)
         
         for emo, center in self.centers.items():
             dist_sq = (valence - center[0])**2 + (arousal_norm - center[1])**2
@@ -175,17 +178,21 @@ class EmotionEngineV2:
 
             # --- Feature Fusion & Projection Layer ---
             # --- Lexicon-based sad keyword valence capping (Uptempo Sad & Irony contrast protection) ---
+            # NOTE: Only include unambiguously dark/negative keywords. Neutral/positive words like
+            # "smile", "laugh", "night", "run", "promise", "forget", "stay up" have been removed
+            # as they appear in Uplifting/positive songs and caused false valence suppression.
+            # Threshold raised from >= 1 to >= 2 to require stronger evidence before applying cap.
             lyrics_lower = lyrics.lower()
             sad_keywords = [
                 "cry", "sad", "tear", "hurt", "pain", "creep", "weirdo", "don't belong",
                 "우울", "슬픔", "눈물", "자괴감", "alone", "dark", "dancing on my own", "heartbreak",
-                "broken", "lie", "lonely", "whine", "neurotic", "paranoid", "die", "crashes",
-                "hard times", "survive", "bloody", "bad guy", "smile", "laugh", "kiss her",
-                "trap", "leak", "drippings", "needle", "needle tears", "kill", "run", "gun",
-                "drink up", "pressure", "forget", "promise", "stay up", "night"
+                "broken", "lonely", "whine", "neurotic", "paranoid", "die", "crashes",
+                "hard times", "survive", "bloody", "bad guy",
+                "needle tears", "kill", "gun",
+                "drink up", "pressure"
             ]
             sad_count = sum(1 for kw in sad_keywords if kw in lyrics_lower)
-            if sad_count >= 1:
+            if sad_count >= 2:
                 lyrics_valence = min(lyrics_valence, 0.1 - 0.18 * sad_count)
 
             av_projection = project_features_to_av(
@@ -245,7 +252,8 @@ class EmotionEngineV2:
             # 1. Lyric Sentiment Contrast Guard:
             # If lyrics are clearly negative/melancholic but musical features project a positive valence,
             # force valence to be negative (pull down by lyrics_valence weight).
-            if lyrics_valence < -0.1 and projected_valence > 0.0:
+            # Threshold tightened to < -0.2 (was -0.1) to prevent borderline cases from suppressing Uplifting.
+            if lyrics_valence < -0.2 and projected_valence > 0.0:
                 projected_valence = projected_valence * 0.2 + lyrics_valence * 0.8
                 # Recalculate RBF mapping with the corrected valence
                 emotion_ratios, primary_emotion = self._compute_rbf_mapping(projected_valence, projected_arousal)
