@@ -151,20 +151,10 @@ const renderCustomDot = (scores) => (props) => {
   const { cx, cy, payload } = props;
   if (!payload || !scores) return null;
 
+  // scores always uses new 6-axis keys (SSOT) — no legacy fallback needed
   const emotionsList = ["Uplifting", "Energetic", "Aggressive", "Melancholic", "Desolation", "Serenity"];
   const sorted = emotionsList
-    .map(emo => {
-      const fallbackMap = {
-        Uplifting: "love",
-        Energetic: "confident",
-        Aggressive: "angry",
-        Melancholic: "sad",
-        Desolation: "lonely",
-        Serenity: "happy"
-      };
-      const val = scores[emo] ?? scores[fallbackMap[emo]] ?? 0;
-      return { name: emo, val };
-    })
+    .map(emo => ({ name: emo, val: scores[emo] ?? 0 }))
     .sort((a, b) => b.val - a.val);
 
   const top1 = sorted[0].name;
@@ -228,13 +218,14 @@ export default function EmotionRadarChart({ scores }) {
 
   const confInfo = getConfidenceLabel(scores.confidence);
 
+  // scores always uses new 6-axis keys (SSOT)
   const data = [
-    { subject: "Uplifting", value: ((scores.Uplifting ?? scores.love) ?? 0) * 2 },
-    { subject: "Energetic", value: ((scores.Energetic ?? scores.confident) ?? 0) * 2 },
-    { subject: "Aggressive", value: ((scores.Aggressive ?? scores.angry) ?? 0) * 2 },
-    { subject: "Melancholic", value: ((scores.Melancholic ?? scores.sad) ?? 0) * 2 },
-    { subject: "Desolation", value: ((scores.Desolation ?? scores.lonely) ?? 0) * 2 },
-    { subject: "Serenity", value: ((scores.Serenity ?? scores.happy) ?? 0) * 2 },
+    { subject: "Uplifting",   value: (scores.Uplifting   ?? 0) * 2 },
+    { subject: "Energetic",   value: (scores.Energetic   ?? 0) * 2 },
+    { subject: "Aggressive",  value: (scores.Aggressive  ?? 0) * 2 },
+    { subject: "Melancholic", value: (scores.Melancholic ?? 0) * 2 },
+    { subject: "Desolation",  value: (scores.Desolation  ?? 0) * 2 },
+    { subject: "Serenity",    value: (scores.Serenity    ?? 0) * 2 },
   ];
 
   return (

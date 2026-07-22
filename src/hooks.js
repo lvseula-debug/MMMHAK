@@ -34,105 +34,90 @@ export const getApiBaseUrl = () => {
   return `http://${hostname}:8000`;
 };
 
-export function normalizeEmotionScores(rawSpread, source, streams) {
-  const contagion = Math.log10(Math.max(streams, 10)) / Math.log10(3000000000);
-
-  // Normalize each emotion value to be strictly between 0 and 1
-  const spread = {
-    happy: Math.min(Math.max(Number(rawSpread.happy) || 0, 0), 1.0),
-    sad: Math.min(Math.max(Number(rawSpread.sad) || 0, 0), 1.0),
-    angry: Math.min(Math.max(Number(rawSpread.angry) || 0, 0), 1.0),
-    love: Math.min(Math.max(Number(rawSpread.love) || 0, 0), 1.0),
-    lonely: Math.min(Math.max(Number(rawSpread.lonely) || 0, 0), 1.0),
-    confident: Math.min(Math.max(Number(rawSpread.confident) || 0, 0), 1.0),
-  };
-
-  // Map 6-axis new names for native support
-  spread.Uplifting = spread.love;
-  spread.Energetic = spread.confident;
-  spread.Aggressive = spread.angry;
-  spread.Melancholic = spread.sad;
-  spread.Desolation = spread.lonely;
-  spread.Serenity = spread.happy;
-
-  const insufficient_data = rawSpread.insufficient_data || false;
-  const no_info = rawSpread.no_info || false;
-
-  const viralRisk = Object.values(spread).reduce((sum, v) => sum + v, 0) / 6 * contagion;
-  const positive_score = Math.min(spread.happy * 0.4 + spread.love * 0.3 + spread.confident * 0.3, 1.0);
-  const negative_score = Math.min(spread.sad * 0.4 + spread.lonely * 0.3 + spread.angry * 0.3, 1.0);
-  const polarity = positive_score - negative_score;
-  const confidence = Math.abs(polarity);
-  const classification = polarity > 0.25 ? "POSITIVE" : polarity < -0.25 ? "NEGATIVE" : "MIXED";
-
-  const primary_emotion = (() => {
-    if (insufficient_data || no_info) return "neutral";
-    const emos = ["happy", "confident", "angry", "sad", "lonely", "love"];
-    let maxVal = -1;
-    let top = "happy";
-    emos.forEach((emo) => {
-      if (spread[emo] > maxVal) {
-        maxVal = spread[emo];
-        top = emo;
-      }
-    });
-    return top;
-  })();
-
-  const valence_group = polarity > 0.0 ? "positive" : "negative";
-  const love_theme_score = spread.love;
-  const is_love_themed = love_theme_score >= 0.35 && !insufficient_data;
-
+/**
+ * Maps legacy sentiment object (old 6-axis: happy/love/sad/angry/lonely/confident)
+ * to the new psychoacoustic 6-axis schema (Serenity/Uplifting/Melancholic/Aggressive/Desolation/Energetic).
+ *
+ * Mapping is strictly 1:1 — NOT a merge of any two old keys:
+ *   happy     → Serenity   (calm, peaceful positivity)
+ *   love      → Uplifting  (warm, hopeful positivity) ← independent from happy/Serenity
+ *   sad       → Melancholic
+ *   angry     → Aggressive
+ *   lonely    → Desolation
+ *   confident → Energetic
+ *
+ * If the input already uses new keys (Uplifting !== undefined), it is returned as-is
+ * to support both legacy and migrated data sources without double-conversion.
+ *
+ * TODO [TICKET-MIGRATE-LYRICS-SENTIMENT]: processTracks() still generates lyrics_sentiment
+ * with old keys (happy/love/sad/angry/lonely/confident). Migrating that pipeline to emit
+ * new 6-axis keys directly is deferred to a separate ticket. Once complete, the `if`
+ * guard above becomes the only branch, and this function can be deleted.
+ */
+export function mapLegacySentimentKeys(sentiment) {
+  if (!sentiment) return {};
+  // Already in new-key format — return as-is (idempotent)
+  if (sentiment.Uplifting !== undefined) return sentiment;
   return {
-    ...spread,
-    positive_score: parseFloat(positive_score.toFixed(3)),
-    negative_score: parseFloat(negative_score.toFixed(3)),
-    polarity: parseFloat(polarity.toFixed(3)),
-    confidence: parseFloat(confidence.toFixed(3)),
-    classification,
-    discomfort: parseFloat(((spread.angry * 0.4) + (spread.sad * 0.3) + (spread.lonely * 0.3)).toFixed(3)),
-    contagion: parseFloat(contagion.toFixed(3)),
-    viralRisk: parseFloat(viralRisk.toFixed(3)),
-    streams,
-    isAI: source === "ai",
-    source,
-    primary_emotion,
-    valence_group,
-    love_theme_score,
-    is_love_themed,
-    insufficient_data,
-    no_info
+    Serenity:    Math.min(Math.max(Number(sentiment.happy)     || 0, 0), 1),
+    Uplifting:   Math.min(Math.max(Number(sentiment.love)      || 0, 0), 1), // 1:1 with love only
+    Melancholic: Math.min(Math.max(Number(sentiment.sad)       || 0, 0), 1),
+    Aggressive:  Math.min(Math.max(Number(sentiment.angry)     || 0, 0), 1),
+    Desolation:  Math.min(Math.max(Number(sentiment.lonely)    || 0, 0), 1),
+    Energetic:   Math.min(Math.max(Number(sentiment.confident) || 0, 0), 1),
+    insufficient_data: sentiment.insufficient_data || false,
+    no_info:     sentiment.no_info || false,
   };
 }
 
 export function computeVirusScores(track) {
   const { mode, valence, energy, loudness, lyrics_sentiment, streams } = track;
-  
+
   if (lyrics_sentiment?.insufficient_data) {
-    return normalizeEmotionScores({
-      happy: 0.5,
-      sad: 0.5,
-      angry: 0.5,
-      love: 0.5,
-      lonely: 0.5,
-      confident: 0.5,
-      insufficient_data: true
-    }, "heuristic", streams);
+    return {
+      Uplifting: 0.5, Energetic: 0.5, Aggressive: 0.5,
+      Melancholic: 0.5, Desolation: 0.5, Serenity: 0.5,
+      primary_emotion: "neutral",
+      confidence: 0,
+      insufficient_data: true,
+      no_info: false,
+      isAI: false,
+      source: "heuristic",
+      streams,
+    };
   }
+
+  // Convert legacy keys to new 6-axis schema at the single boundary point
+  const s = mapLegacySentimentKeys(lyrics_sentiment);
 
   const modeFactor = mode === "minor" ? 0.3 : -0.1;
   const loudNorm = Math.min(Math.max((loudness + 20) / 20, 0), 1);
 
   const rawSpread = {
-    happy: (lyrics_sentiment?.happy ?? 0.1) * 0.5 + valence * 0.35,
-    sad: (lyrics_sentiment?.sad ?? 0.1) * 0.5 + (1 - valence) * 0.3 + modeFactor * 0.2,
-    angry: (lyrics_sentiment?.angry ?? 0.05) * 0.5 + loudNorm * 0.2 + energy * 0.1,
-    love: (lyrics_sentiment?.love ?? 0.1) * 0.5 + valence * 0.2 + energy * 0.1,
-    lonely: (lyrics_sentiment?.lonely ?? 0.1) * 0.5 + (1 - valence) * 0.3 + (1 - energy) * 0.1,
-    confident: (lyrics_sentiment?.confident ?? 0.1) * 0.5 + energy * 0.3 + loudNorm * 0.1,
+    Serenity:    (s.Serenity    ?? 0.1) * 0.5 + valence * 0.35,
+    Melancholic: (s.Melancholic ?? 0.1) * 0.5 + (1 - valence) * 0.3 + modeFactor * 0.2,
+    Aggressive:  (s.Aggressive  ?? 0.05) * 0.5 + loudNorm * 0.2 + energy * 0.1,
+    Uplifting:   (s.Uplifting   ?? 0.1) * 0.5 + valence * 0.2 + energy * 0.1,
+    Desolation:  (s.Desolation  ?? 0.1) * 0.5 + (1 - valence) * 0.3 + (1 - energy) * 0.1,
+    Energetic:   (s.Energetic   ?? 0.1) * 0.5 + energy * 0.3 + loudNorm * 0.1,
   };
 
-  return normalizeEmotionScores(rawSpread, "heuristic", streams);
+  const spread = Object.fromEntries(
+    Object.entries(rawSpread).map(([k, v]) => [k, parseFloat(Math.min(Math.max(v, 0), 1).toFixed(4))])
+  );
+
+  const primary_emotion = Object.entries(spread).sort((a, b) => b[1] - a[1])[0][0];
+
+  return {
+    ...spread,
+    primary_emotion,
+    confidence: 0,
+    insufficient_data: !!(lyrics_sentiment?.insufficient_data),
+    no_info: false,
+    isAI: false,
+    source: "heuristic",
+    streams,
+  };
 }
 
 export const fetchLyrics = async (title, artist) => {
@@ -569,39 +554,43 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const selectedTrackIdRef = useRef(null);
 
+  // SSOT: Read the backend's new 6-axis keys directly.
+  // primary_emotion is determined exclusively by the backend — FE does NOT recalculate it.
+  // The argmax fallback below is only for legacy API responses that pre-date the 6-axis schema.
   const parseBackendScores = (backendData, streams) => {
     const scoresObj = backendData.scores || backendData;
-    const legacyMapping = {
-      happy: ["Serenity", "happy", "joy"],
-      sad: ["Melancholic", "sad", "depression"],
-      angry: ["Aggressive", "angry", "anger"],
-      lonely: ["Desolation", "lonely", "anxiety"],
-      confident: ["Energetic", "confident", "stability"],
-      love: ["Uplifting", "love"]
+
+    const clamp01 = (v) => Math.min(Math.max(Number(v) || 0, 0), 1);
+
+    const emotions = {
+      Uplifting:   clamp01(scoresObj.Uplifting   ?? backendData.Uplifting),
+      Energetic:   clamp01(scoresObj.Energetic   ?? backendData.Energetic),
+      Aggressive:  clamp01(scoresObj.Aggressive  ?? backendData.Aggressive),
+      Melancholic: clamp01(scoresObj.Melancholic ?? backendData.Melancholic),
+      Desolation:  clamp01(scoresObj.Desolation  ?? backendData.Desolation),
+      Serenity:    clamp01(scoresObj.Serenity    ?? backendData.Serenity),
     };
 
-    const getVal = (key) => {
-      const keysToTry = legacyMapping[key] || [key];
-      let val = undefined;
-      for (const k of keysToTry) {
-        val = scoresObj[k] ?? backendData[k] ?? backendData.emotions?.[k];
-        if (val !== undefined) break;
-      }
-      return Number(val) || 0;
-    };
+    // SSOT: Use BE's primary_emotion field as-is.
+    // Fallback (argmax) is only for legacy responses missing the field.
+    const primary_emotion =
+      scoresObj.primary_emotion ||
+      backendData.primary_emotion ||
+      Object.entries(emotions).sort((a, b) => b[1] - a[1])[0][0];
 
-    const rawSpread = {
-      happy: getVal('happy'),
-      sad: getVal('sad'),
-      angry: getVal('angry'),
-      love: getVal('love'),
-      lonely: getVal('lonely'),
-      confident: getVal('confident'),
-      insufficient_data: backendData.insufficient_data || backendData.no_info || false,
-      no_info: backendData.no_info || false
-    };
+    const confidence = clamp01(scoresObj.confidence ?? backendData.confidence ?? 0.5);
+    const insufficient_data = !!(backendData.insufficient_data || backendData.no_info);
 
-    return normalizeEmotionScores(rawSpread, "ai", streams);
+    return {
+      ...emotions,
+      primary_emotion,
+      confidence,
+      insufficient_data,
+      no_info: !!backendData.no_info,
+      isAI: true,
+      source: "ai",
+      streams,
+    };
   };
 
   useEffect(() => {
@@ -746,16 +735,17 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
           }
         } else {
           setLyrics("가사 정보를 불러올 수 없는 곡입니다.");
-          const finalScores = normalizeEmotionScores({
-            happy: 0.5,
-            sad: 0.5,
-            angry: 0.5,
-            love: 0.5,
-            lonely: 0.5,
-            confident: 0.5,
+          const finalScores = {
+            Uplifting: 0.5, Energetic: 0.5, Aggressive: 0.5,
+            Melancholic: 0.5, Desolation: 0.5, Serenity: 0.5,
+            primary_emotion: "neutral",
+            confidence: 0,
             insufficient_data: true,
-            no_info: true
-          }, "ai", track.streams);
+            no_info: true,
+            isAI: false,
+            source: "heuristic",
+            streams: track.streams,
+          };
           setScores(finalScores);
           setIsAnalyzing(false);
         }

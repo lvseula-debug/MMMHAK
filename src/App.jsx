@@ -82,14 +82,14 @@ function generateStructuredInsights(track, scores) {
     };
   }
 
-  // Support both legacy and new backend keys
+  // scores는 항상 new 6-axis key(Uplifting/Energetic/...) — SSOT 완성 후 legacy fallback 불필요
   const emotions = {
-    Uplifting: (scores.Uplifting ?? scores.love) ?? 0,
-    Energetic: (scores.Energetic ?? scores.confident) ?? 0,
-    Aggressive: (scores.Aggressive ?? scores.angry) ?? 0,
-    Melancholic: (scores.Melancholic ?? scores.sad) ?? 0,
-    Desolation: (scores.Desolation ?? scores.lonely) ?? 0,
-    Serenity: (scores.Serenity ?? scores.happy) ?? 0
+    Uplifting:   scores.Uplifting   ?? 0,
+    Energetic:   scores.Energetic   ?? 0,
+    Aggressive:  scores.Aggressive  ?? 0,
+    Melancholic: scores.Melancholic ?? 0,
+    Desolation:  scores.Desolation  ?? 0,
+    Serenity:    scores.Serenity    ?? 0
   };
 
   // Sort emotions in descending order
@@ -97,14 +97,13 @@ function generateStructuredInsights(track, scores) {
   const top1 = sortedEmotions[0][0];
   const top2 = sortedEmotions[1][0];
 
+  // SSOT: primary_emotion comes from BE and is already in new-key format ("Uplifting" etc.)
+  // emotionNameMap retained only as safety net for heuristic phase (computeVirusScores)
+  // which may still output new-key format primary_emotion
   const primaryKey = scores.primary_emotion || top1;
   const emotionNameMap = {
-    happy: "Serenity",
-    love: "Uplifting",
-    confident: "Energetic",
-    angry: "Aggressive",
-    sad: "Melancholic",
-    lonely: "Desolation"
+    happy: "Serenity", love: "Uplifting", confident: "Energetic",
+    angry: "Aggressive", sad: "Melancholic", lonely: "Desolation"
   };
   const normalizedPrimaryKey = emotionNameMap[primaryKey] || primaryKey;
   const vibe = vibeMap[normalizedPrimaryKey] || fallbackVibe;
@@ -655,12 +654,8 @@ function PreviewSection({ track, playing, setPlaying, scores, onAddToHistory }) 
     })();
 
     const emotionNameMap = {
-      happy: "Serenity",
-      love: "Uplifting",
-      confident: "Energetic",
-      angry: "Aggressive",
-      sad: "Melancholic",
-      lonely: "Desolation"
+      happy: "Serenity", love: "Uplifting", confident: "Energetic",
+      angry: "Aggressive", sad: "Melancholic", lonely: "Desolation"
     };
     const topEmotion = emotionNameMap[rawTop] || rawTop;
 
@@ -1691,13 +1686,11 @@ export default function MMMHAKApp() {
         });
         return top;
       })();
+      // SSOT: BE primary_emotion is already in new-key format ("Uplifting"/"Serenity" etc.).
+      // emotionNameMap fallback handles rare heuristic-phase old-key values.
       const emotionNameMap = {
-        happy: "Serenity",
-        love: "Uplifting",
-        confident: "Energetic",
-        angry: "Aggressive",
-        sad: "Melancholic",
-        lonely: "Desolation"
+        happy: "Serenity", love: "Uplifting", confident: "Energetic",
+        angry: "Aggressive", sad: "Melancholic", lonely: "Desolation"
       };
       currentEmotion = emotionNameMap[rawPrimary] || rawPrimary;
     }
