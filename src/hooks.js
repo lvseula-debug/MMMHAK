@@ -31,7 +31,8 @@ export const getApiBaseUrl = () => {
   if (hostname === "localhost" || hostname === "127.0.0.1") {
     return "http://127.0.0.1:8000";
   }
-  return `http://${hostname}:8000`;
+  // Fallback production backend URL if VITE_API_BASE_URL env var is missing during Vercel build
+  return "https://mmmhak-backend.onrender.com";
 };
 
 /**
