@@ -76,10 +76,11 @@ function generateStructuredInsights(track, scores) {
   const fallbackVibe = "아무것도 하기가 싫다. 마이너 코드처럼 우울함이 스멀스멀 밀려오고, 그냥 하루 종일 침대에 파묻혀 있고만 싶어.";
 
   const totalVal = (scores.Uplifting ?? 0) + (scores.Energetic ?? 0) + (scores.Aggressive ?? 0) + (scores.Melancholic ?? 0) + (scores.Desolation ?? 0) + (scores.Serenity ?? 0);
+  // Provide clearer message when data is insufficient
   if (scores.insufficient_data || scores.no_info || totalVal === 0) {
     return {
-      vibe: "트랙 데이터를 분석 중입니다.",
-      insight: "차트에서 어떤 축도 두드러지지 않습니다. 가사 분석 데이터가 모아지면 감정 축이 그래프에 표출됩니다.",
+      vibe: "데이터가 충분하지 않아 감정 분석을 할 수 없습니다.",
+      insight: "",
       profile: `${track.mode === "minor" ? "Minor" : "Major"} Key · ${track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + "M" : track.streams} Plays`
     };
   }
