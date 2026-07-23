@@ -87,7 +87,7 @@ def run_tests():
         print(json.dumps(result, indent=4, ensure_ascii=False))
         
         # Structure validations
-        for key in ["happy", "confident", "angry", "sad", "lonely", "love"]:
+        for key in ["Serenity", "Uplifting", "Melancholic", "Aggressive", "Desolation", "Energetic"]:
             assert key in result
             assert isinstance(result[key], float)
             
@@ -98,8 +98,8 @@ def run_tests():
         
         # Ensure scores sum to exactly 1.0000
         score_sum = round(
-            result["happy"] + result["confident"] + result["angry"] +
-            result["sad"] + result["lonely"] + result["love"], 
+            result["Serenity"] + result["Energetic"] + result["Aggressive"] +
+            result["Melancholic"] + result["Desolation"] + result["Uplifting"], 
             4
         )
         print(f"  [VALIDATION] Total Sum: {score_sum} (Expected: 1.0000)")

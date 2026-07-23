@@ -4,12 +4,8 @@ import requests
 from dotenv import load_dotenv
 
 # Try importing transformers and torch. If not available, we use the Hugging Face API or Heuristic fallbacks.
-try:
-    import torch
-    from transformers import pipeline
-    HAS_TRANSFORMERS = True
-except ImportError:
-    HAS_TRANSFORMERS = False
+# Forced to False to prevent local model download hang in offline environments and memory issues on host.
+HAS_TRANSFORMERS = False
 
 # Load environment variables from .env
 dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
