@@ -24,7 +24,6 @@ const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const color = colorMap[data.subject] || "#CCFF00";
-    const originalValue = data.value / 2;
     return (
       <div
         style={{
@@ -41,7 +40,7 @@ const CustomTooltip = ({ active, payload }) => {
           zIndex: 10000,
         }}
       >
-        {data.subject}: {Math.round(originalValue * 100)}%
+        {data.subject}: {Math.round(data.value * 100)}%
       </div>
     );
   }
@@ -57,7 +56,8 @@ const renderPolarAngleAxisTick = ({ payload, x, y, cx, cy, ...rest }) => {
     textAnchor = "end";
   }
 
-  const yOffset = y > cy ? 4 : y < cy ? -4 : 0;
+  // Y 오프셋을 상/하/중간으로 구분하여 텍스트 겹침 완화
+  const yOffset = y > cy + 10 ? 8 : y < cy - 10 ? -8 : 0;
 
   return (
     <text
@@ -79,15 +79,21 @@ const renderPolarAngleAxisTick = ({ payload, x, y, cx, cy, ...rest }) => {
   );
 };
 
-function DraggableChartGroup({ children, blobWidth = 310, blobHeight = 310 }) {
+function DraggableChartGroup({ children, trackId, onDragStart, blobWidth = 310, blobHeight = 310 }) {
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const dragging = useRef(false);
   const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
 
+  // 트랙 변경 시 드래그 위치 리셋
+  useEffect(() => {
+    setPos({ x: 0, y: 0 });
+  }, [trackId]);
+
   const onMouseDown = (e) => {
     dragging.current = true;
     setIsDragging(true);
+    if (onDragStart) onDragStart(); // 드래그 시작 시 열려있던 모달 닫기
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     dragStart.current = { mx: clientX, my: clientY, px: pos.x, py: pos.y };
@@ -130,7 +136,6 @@ function DraggableChartGroup({ children, blobWidth = 310, blobHeight = 310 }) {
       onMouseDown={onMouseDown}
       onTouchStart={onMouseDown}
     >
-      {/* Purple blob background */}
       <div
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#1A0050] rounded-full z-0 opacity-96 pointer-events-none w-full h-full"
         style={{
@@ -139,7 +144,6 @@ function DraggableChartGroup({ children, blobWidth = 310, blobHeight = 310 }) {
           animation: "float-blob 8s ease-in-out infinite",
         }}
       />
-      {/* Chart content on top of blob */}
       <div className="relative z-10 p-2 w-full flex justify-center items-center">
         {children}
       </div>
@@ -151,7 +155,6 @@ const renderCustomDot = (scores) => (props) => {
   const { cx, cy, payload } = props;
   if (!payload || !scores) return null;
 
-  // scores always uses new 6-axis keys (SSOT) — no legacy fallback needed
   const emotionsList = ["Uplifting", "Energetic", "Aggressive", "Melancholic", "Desolation", "Serenity"];
   const sorted = emotionsList
     .map(emo => ({ name: emo, val: scores[emo] ?? 0 }))
@@ -192,15 +195,16 @@ const renderCustomDot = (scores) => (props) => {
   );
 };
 
-export default function EmotionRadarChart({ scores }) {
+export default function EmotionRadarChart({ scores, trackId }) {
   const [showModal, setShowModal] = useState(false);
   const btnRef = useRef(null);
   const [modalPos, setModalPos] = useState({ bottom: 0, left: 0 });
 
-  // Reset modal whenever the track (scores) changes
+  // 트랙 ID 고유값으로 모달 초기화 (참조 동일성 버그 수정)
+  const targetTrackId = trackId || scores?.id || scores?.track_id;
   useEffect(() => {
     setShowModal(false);
-  }, [scores]);
+  }, [targetTrackId]);
 
   if (!scores) return null;
   const totalVal = (scores.Uplifting ?? 0) + (scores.Energetic ?? 0) + (scores.Aggressive ?? 0) + (scores.Melancholic ?? 0) + (scores.Desolation ?? 0) + (scores.Serenity ?? 0);
@@ -216,21 +220,21 @@ export default function EmotionRadarChart({ scores }) {
     );
   }
 
-  const confInfo = getConfidenceLabel(scores.confidence);
+  const confidenceValue = scores.confidence ?? 0;
+  const confInfo = getConfidenceLabel(confidenceValue);
 
-  // scores always uses new 6-axis keys (SSOT)
+  // Raw score(0~1) 그대로 data에 주입
   const data = [
-    { subject: "Uplifting",   value: (scores.Uplifting   ?? 0) * 2 },
-    { subject: "Energetic",   value: (scores.Energetic   ?? 0) * 2 },
-    { subject: "Aggressive",  value: (scores.Aggressive  ?? 0) * 2 },
-    { subject: "Melancholic", value: (scores.Melancholic ?? 0) * 2 },
-    { subject: "Desolation",  value: (scores.Desolation  ?? 0) * 2 },
-    { subject: "Serenity",    value: (scores.Serenity    ?? 0) * 2 },
+    { subject: "Uplifting",   value: scores.Uplifting   ?? 0 },
+    { subject: "Energetic",   value: scores.Energetic   ?? 0 },
+    { subject: "Aggressive",  value: scores.Aggressive  ?? 0 },
+    { subject: "Melancholic", value: scores.Melancholic ?? 0 },
+    { subject: "Desolation",  value: scores.Desolation  ?? 0 },
+    { subject: "Serenity",    value: scores.Serenity    ?? 0 },
   ];
 
   return (
     <div className="flex flex-col items-center gap-2 mt-1 w-full relative">
-      {/* Modal rendered at body level via portal — bypasses CSS transform ancestor */}
       {showModal && createPortal(
         <div
           style={{
@@ -249,7 +253,7 @@ export default function EmotionRadarChart({ scores }) {
           </div>
 
           <div className="text-center font-['Space_Mono'] text-[12px] text-[#CCFF00] font-bold mb-2">
-            EMOTION CONFIDENCE: {Math.round((scores.confidence ?? 0.19) * 100)}%
+            EMOTION CONFIDENCE: {Math.round(confidenceValue * 100)}%
           </div>
 
           <div className="flex flex-col items-center gap-1.5">
@@ -264,26 +268,23 @@ export default function EmotionRadarChart({ scores }) {
         document.body
       )}
 
-      {/* Draggable blob chart — GRAPH button lives inside so it moves with the chart */}
       <div className="flex flex-col items-center justify-center w-full">
-        <DraggableChartGroup blobWidth={310} blobHeight={310}>
+        <DraggableChartGroup 
+          trackId={targetTrackId} 
+          onDragStart={() => setShowModal(false)}
+          blobWidth={310} 
+          blobHeight={310}
+        >
           <div className="flex flex-col items-center w-full pt-1" style={{ pointerEvents: "auto" }}>
             <div className="font-['Space_Mono'] text-[13px] text-[#CCFF00] tracking-[0.2em] uppercase font-extrabold mb-0.5 text-center">
               EMOTION LANDSCAPE
             </div>
             <div className="font-['Space_Mono'] text-[10px] text-white tracking-[0.1em] uppercase font-bold mb-1 text-center">
               {(() => {
-                const sorted = data
-                  .map(item => ({ name: item.subject, val: item.value }))
-                  .sort((a, b) => b.val - a.val);
-
+                const sorted = [...data].sort((a, b) => b.value - a.value);
                 const top1 = sorted[0];
-                const top2 = sorted[1];
-                const formatName = (name) => name.toUpperCase();
-
-                if (!top1 || top1.val === 0) return "NEUTRAL";
-
-                return formatName(top1.name);
+                if (!top1 || top1.value === 0) return "NEUTRAL";
+                return top1.subject.toUpperCase();
               })()}
             </div>
 
@@ -302,7 +303,8 @@ export default function EmotionRadarChart({ scores }) {
 
                 <PolarGrid gridType="polygon" stroke="rgba(204,255,0,0.22)" strokeWidth={0.8} />
                 <PolarAngleAxis dataKey="subject" tick={renderPolarAngleAxisTick} />
-                <PolarRadiusAxis domain={[0, 0.6]} tick={false} axisLine={false} />
+                {/* 도메인 상한을 1.0(100%)로 정상화하여 잘림 방지 */}
+                <PolarRadiusAxis domain={[0, 1.0]} tick={false} axisLine={false} />
                 <Tooltip content={<CustomTooltip />} cursor={false} />
                 <Radar
                   name="Emotion"
@@ -317,7 +319,6 @@ export default function EmotionRadarChart({ scores }) {
               </RadarChart>
             </div>
 
-            {/* GRAPH button at bottom of blob — moves with the chart when dragged */}
             <div className="flex justify-center mt-1 mb-1">
               <button
                 ref={btnRef}

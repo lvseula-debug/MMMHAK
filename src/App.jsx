@@ -1393,7 +1393,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
           )}
           {scores && (
             <ErrorBoundary>
-              <EmotionRadarChart scores={scores} playing={playing} />
+              <EmotionRadarChart scores={scores} trackId={activeTrack?.id} />
             </ErrorBoundary>
           )}
         </div>
