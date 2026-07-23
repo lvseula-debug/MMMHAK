@@ -274,27 +274,30 @@ async def classify_lyrics(lyrics: str, threshold_override: dict = None):
         matched_labels.append("Uplifting")
  
     # Temperature Scaling 적용 (보정 및 극단값 완화)
+    # Temperature 값을 1.0(기본값) 또는 1.2 수준으로 낮추어 점수 보정을 정밀화합니다.
     scaled_scores = {}
     for emo, val in scores.items():
-        scaled_scores[emo] = apply_temperature(val, temperature=2.0)
- 
+        scaled_scores[emo] = apply_temperature(val, temperature=1.0)
+
+    primary_emotion = max(scaled_scores, key=scaled_scores.get) if scaled_scores else "neutral"
+
     return {
         "scores": scaled_scores,
         "raw_scores": scores,
         "primary_emotion": primary_emotion,
         "valence_group": valence_group,
-        "love_theme_score": scaled_scores.get("Uplifting", 0.0),
-        "is_love_themed": is_uplifting_themed,
+        # love 키워드 완전히 제거 -> uplifting 기준으로 통합
         "uplifting_theme_score": scaled_scores.get("Uplifting", 0.0),
         "is_uplifting_themed": is_uplifting_themed,
         "matched_labels": matched_labels,
         "top_label": primary_emotion,
     }
 
+
 async def calibrate_thresholds(lyrics_list, ground_truth_labels):
     """
-    검증셋(50곡 정도)으로 라벨별 점수 분포를 확인하고
-    threshold를 보정하기 위한 함수.
+    검증셋으로 6개 신규 감정 축(Serenity, Uplifting, Melancholic, Aggressive, Desolation, Energetic)의
+    Score 분포를 확인하고 Threshold를 보정합니다.
     """
     import pandas as pd
     records = []
@@ -305,46 +308,41 @@ async def calibrate_thresholds(lyrics_list, ground_truth_labels):
 
     df = pd.DataFrame(records)
 
-    # 라벨별로 정답일 때의 점수 분포 vs 정답이 아닐 때의 점수 분포 비교
-    for label in emotion_hypotheses.keys():
-        true_scores = df[df["true_label"] == label][label]
-        false_scores = df[df["true_label"] != label][label]
-        print(f"\n[{label}]")
-        print(f"  정답일 때 평균 점수: {true_scores.mean():.3f}")
-        print(f"  오답일 때 평균 점수: {false_scores.mean():.3f}")
-        # 이 두 분포 사이의 적절한 지점을 threshold로 설정
+    # 신규 6축 라벨 기준 점수 분포 비교
+    for label in ["Serenity", "Uplifting", "Melancholic", "Aggressive", "Desolation", "Energetic"]:
+        if label in df.columns:
+            true_scores = df[df["true_label"] == label][label]
+            false_scores = df[df["true_label"] != label][label]
+            print(f"\n[{label}]")
+            print(f"  정답일 때 평균 점수: {true_scores.mean():.3f}")
+            print(f"  오답일 때 평균 점수: {false_scores.mean():.3f}")
 
     return df
+
 
 @app.post("/api/analyze")
 async def analyze_lyrics(request: AnalyzeRequest):
     start_time = time.time()
     
-    # AI 분석 API 호출 전 가사 텍스트 유효성 검사 수행
+    # 가사 유효성 검사 실패 시: 신규 6축(Serenity ~ Energetic)으로 깔끔하게 통일
     if not request.lyrics or not validate_lyrics(request.lyrics):
         print(f"[DEBUG] Lyrics validation failed or empty for {request.artist} - {request.title}")
+        
         neutral_scores = {
-            "happy": 0.5,
-            "sad": 0.5,
-            "angry": 0.5,
-            "love": 0.5,
-            "lonely": 0.5,
-            "confident": 0.5,
             "Serenity": 0.5,
+            "Uplifting": 0.5,
             "Melancholic": 0.5,
             "Aggressive": 0.5,
-            "Uplifting": 0.5,
             "Desolation": 0.5,
             "Energetic": 0.5
         }
+        
         result = {
-            "scores": {k: v for k, v in neutral_scores.items() if k in ["Serenity", "Melancholic", "Aggressive", "Uplifting", "Desolation", "Energetic"]},
+            "scores": neutral_scores,
             "matched_labels": [],
             "top_label": "none",
             "primary_emotion": "none",
             "valence_group": "neutral",
-            "love_theme_score": 0.5,
-            "is_love_themed": False,
             "uplifting_theme_score": 0.5,
             "is_uplifting_themed": False,
             "raw_scores": neutral_scores,
@@ -352,8 +350,10 @@ async def analyze_lyrics(request: AnalyzeRequest):
             "no_info": True,
             "is_cached": True
         }
+        # 하위 호환성을 위해 flat하게 넣어주던 키값도 6축으로 정제
         for label, score in neutral_scores.items():
             result[label] = score
+            
         return result
 
     # 1. 로컬 캐시 확인
