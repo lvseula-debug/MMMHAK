@@ -78,12 +78,15 @@ function generateStructuredInsights(track, scores) {
   const totalVal = (scores.Uplifting ?? 0) + (scores.Energetic ?? 0) + (scores.Aggressive ?? 0) + (scores.Melancholic ?? 0) + (scores.Desolation ?? 0) + (scores.Serenity ?? 0);
   // Provide clearer message when data is insufficient
   if (scores.insufficient_data || scores.no_info || totalVal === 0) {
-    return {
-      vibe: "데이터가 충분하지 않아 감정 분석을 할 수 없습니다.",
-      insight: "",
-      profile: `${track.mode === "minor" ? "Minor" : "Major"} Key · ${track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + "M" : track.streams} Plays`
-    };
-  }
+  const profile = track ? `${track.mode === "minor" ? "Minor" : "Major"} Key · ${track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + "M" : track.streams} Plays` : "";
+  return {
+    vibe: "데이터가 충분하지 않아 감정 분석을 할 수 없습니다.",
+    insight: "",
+    profile,
+  };
+}
+
+
 
   // scores는 항상 new 6-axis key(Uplifting/Energetic/...) — SSOT 완성 후 legacy fallback 불필요
   const emotions = {
