@@ -203,8 +203,8 @@ export default function EmotionRadarChart({ scores }) {
   }, [scores]);
 
   if (!scores) return null;
-
-  if (scores.insufficient_data || scores.no_info) {
+  const totalVal = (scores.Uplifting ?? 0) + (scores.Energetic ?? 0) + (scores.Aggressive ?? 0) + (scores.Melancholic ?? 0) + (scores.Desolation ?? 0) + (scores.Serenity ?? 0);
+  if (scores.insufficient_data || scores.no_info || totalVal === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center text-white font-['Space_Mono'] bg-[#1A0050]/80 rounded-xl border border-dashed border-white/20 w-full max-w-[260px] min-h-[260px] mx-auto z-10 relative">
         <span style={{ fontSize: '28px', marginBottom: '8px' }}>⚠️</span>
@@ -281,9 +281,8 @@ export default function EmotionRadarChart({ scores }) {
                 const top2 = sorted[1];
                 const formatName = (name) => name.toUpperCase();
 
-                if (top2 && (top1.val - top2.val <= 0.3) && top2.val > 0) {
-                  return `${formatName(top1.name)} + ${formatName(top2.name)}`;
-                }
+                if (!top1 || top1.val === 0) return "NEUTRAL";
+
                 return formatName(top1.name);
               })()}
             </div>

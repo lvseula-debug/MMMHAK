@@ -567,23 +567,28 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
       Serenity:    clamp01(scoresObj.Serenity    ?? backendData.Serenity),
     };
 
+    const totalSum = Object.values(emotions).reduce((acc, val) => acc + val, 0);
+    const isZeroData = totalSum === 0;
+    const insufficient_data = !!(backendData.insufficient_data || backendData.no_info || isZeroData);
+
     // SSOT: Use BE's primary_emotion field as-is.
     // Fallback (argmax) is only for legacy responses missing the field.
     const primary_emotion =
-      scoresObj.primary_emotion ||
-      backendData.primary_emotion ||
-      rawScores.primary_emotion ||
-      Object.entries(emotions).sort((a, b) => b[1] - a[1])[0][0];
+      isZeroData ? "neutral" : (
+        scoresObj.primary_emotion ||
+        backendData.primary_emotion ||
+        rawScores.primary_emotion ||
+        Object.entries(emotions).sort((a, b) => b[1] - a[1])[0][0]
+      );
 
     const confidence = clamp01(scoresObj.confidence ?? backendData.confidence ?? 0.5);
-    const insufficient_data = !!(backendData.insufficient_data || backendData.no_info);
 
     return {
       ...emotions,
       primary_emotion,
       confidence,
       insufficient_data,
-      no_info: !!backendData.no_info,
+      no_info: !!(backendData.no_info || isZeroData),
       isAI: true,
       source: "ai",
       streams,

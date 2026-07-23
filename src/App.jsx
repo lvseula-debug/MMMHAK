@@ -7,7 +7,8 @@ import EmotionRadarChart from "./EmotionRadarChart";
 import {
   useTrackCatalog,
   useTrackAnalysis,
-  useMoodHistory
+  useMoodHistory,
+  mapLegacySentimentKeys
 } from "./hooks";
 
 // Optimized: LocalStorage caching + Incremental rendering (15-track batch)
@@ -74,10 +75,11 @@ function generateStructuredInsights(track, scores) {
 
   const fallbackVibe = "아무것도 하기가 싫다. 마이너 코드처럼 우울함이 스멀스멀 밀려오고, 그냥 하루 종일 침대에 파묻혀 있고만 싶어.";
 
-  if (scores.insufficient_data || scores.no_info) {
+  const totalVal = (scores.Uplifting ?? 0) + (scores.Energetic ?? 0) + (scores.Aggressive ?? 0) + (scores.Melancholic ?? 0) + (scores.Desolation ?? 0) + (scores.Serenity ?? 0);
+  if (scores.insufficient_data || scores.no_info || totalVal === 0) {
     return {
-      vibe: fallbackVibe,
-      insight: "차트에서 어떤 축도 두드러지지 않습니다. 데이터의 품질이나 가사 양이 부족하면 모든 점수가 0.5(중립)로 평탄화됩니다.",
+      vibe: "트랙 데이터를 분석 중입니다.",
+      insight: "차트에서 어떤 축도 두드러지지 않습니다. 가사 분석 데이터가 모아지면 감정 축이 그래프에 표출됩니다.",
       profile: `${track.mode === "minor" ? "Minor" : "Major"} Key · ${track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + "M" : track.streams} Plays`
     };
   }
@@ -1421,11 +1423,14 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
           zIndex: 1
         }}
       >
-        {activeTrack?.lyrics_sentiment && (
-          <div style={{ fontSize: "16px", fontWeight: "800", marginBottom: "16px", color: "#1A0050", opacity: 0.9 }}>
-            Sentiment: Uplifting {Math.round((activeTrack.lyrics_sentiment.Uplifting ?? activeTrack.lyrics_sentiment.love ?? 0) * 100)}% · Melancholic {Math.round((activeTrack.lyrics_sentiment.Melancholic ?? activeTrack.lyrics_sentiment.sad ?? 0) * 100)}% · Aggressive {Math.round((activeTrack.lyrics_sentiment.Aggressive ?? activeTrack.lyrics_sentiment.angry ?? 0) * 100)}% · Serenity {Math.round((activeTrack.lyrics_sentiment.Serenity ?? activeTrack.lyrics_sentiment.happy ?? 0) * 100)}% · Desolation {Math.round((activeTrack.lyrics_sentiment.Desolation ?? activeTrack.lyrics_sentiment.lonely ?? 0) * 100)}% · Energetic {Math.round((activeTrack.lyrics_sentiment.Energetic ?? activeTrack.lyrics_sentiment.confident ?? 0) * 100)}%
-          </div>
-        )}
+        {activeTrack?.lyrics_sentiment && (() => {
+          const sent = mapLegacySentimentKeys(activeTrack.lyrics_sentiment);
+          return (
+            <div style={{ fontSize: "16px", fontWeight: "800", marginBottom: "16px", color: "#1A0050", opacity: 0.9 }}>
+              Sentiment: Uplifting {Math.round((sent.Uplifting ?? 0) * 100)}% · Melancholic {Math.round((sent.Melancholic ?? 0) * 100)}% · Aggressive {Math.round((sent.Aggressive ?? 0) * 100)}% · Serenity {Math.round((sent.Serenity ?? 0) * 100)}% · Desolation {Math.round((sent.Desolation ?? 0) * 100)}% · Energetic {Math.round((sent.Energetic ?? 0) * 100)}%
+            </div>
+          );
+        })()}
         <div style={{ fontWeight: "700" }}>
           {lyrics}
         </div>
@@ -1670,13 +1675,14 @@ export default function MMMHAKApp() {
   // Derive dominant emotion from scores during render
   let currentEmotion = "Serenity";
   if (scores) {
-    if (scores.insufficient_data || scores.no_info) {
+    const totalVal = (scores.Uplifting ?? 0) + (scores.Energetic ?? 0) + (scores.Aggressive ?? 0) + (scores.Melancholic ?? 0) + (scores.Desolation ?? 0) + (scores.Serenity ?? 0);
+    if (scores.insufficient_data || scores.no_info || totalVal === 0 || scores.primary_emotion === "neutral") {
       currentEmotion = "neutral";
     } else {
-      const rawPrimary = scores.primary_emotion || (() => {
+      const rawPrimary = (scores.primary_emotion && scores.primary_emotion !== "neutral") ? scores.primary_emotion : (() => {
         const emotionsList = ["Uplifting", "Energetic", "Aggressive", "Melancholic", "Desolation", "Serenity"];
-        let top = "Serenity";
-        let maxVal = -1;
+        let top = "neutral";
+        let maxVal = 0;
         emotionsList.forEach((emo) => {
           const val = scores[emo] ?? 0;
           if (val > maxVal) {
