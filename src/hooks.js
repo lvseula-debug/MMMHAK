@@ -32,40 +32,34 @@ export const getApiBaseUrl = () => {
     return "http://127.0.0.1:8000";
   }
   // Fallback production backend URL if VITE_API_BASE_URL env var is missing during Vercel build
-  return "https://mmmhak-backend.onrender.com";
+  return "https://mmmhak.onrender.com";
 };
 
 /**
- * Maps legacy sentiment object (old 6-axis: happy/love/sad/angry/lonely/confident)
+ * Maps legacy sentiment object (old 5/6-axis: happy/love/sad/angry/lonely/confident/joy/stability/depression/anger/anxiety)
  * to the new psychoacoustic 6-axis schema (Serenity/Uplifting/Melancholic/Aggressive/Desolation/Energetic).
- *
- * Mapping is strictly 1:1 — NOT a merge of any two old keys:
- *   happy     → Serenity   (calm, peaceful positivity)
- *   love      → Uplifting  (warm, hopeful positivity) ← independent from happy/Serenity
- *   sad       → Melancholic
- *   angry     → Aggressive
- *   lonely    → Desolation
- *   confident → Energetic
- *
- * If the input already uses new keys (Uplifting !== undefined), it is returned as-is
- * to support both legacy and migrated data sources without double-conversion.
- *
- * TODO [TICKET-MIGRATE-LYRICS-SENTIMENT]: processTracks() still generates lyrics_sentiment
- * with old keys (happy/love/sad/angry/lonely/confident). Migrating that pipeline to emit
- * new 6-axis keys directly is deferred to a separate ticket. Once complete, the `if`
- * guard above becomes the only branch, and this function can be deleted.
  */
 export function mapLegacySentimentKeys(sentiment) {
   if (!sentiment) return {};
   // Already in new-key format — return as-is (idempotent)
   if (sentiment.Uplifting !== undefined) return sentiment;
+
+  const getVal = (...keys) => {
+    for (const key of keys) {
+      if (sentiment[key] !== undefined && sentiment[key] !== null) {
+        return Math.min(Math.max(Number(sentiment[key]) || 0, 0), 1);
+      }
+    }
+    return 0;
+  };
+
   return {
-    Serenity:    Math.min(Math.max(Number(sentiment.happy)     || 0, 0), 1),
-    Uplifting:   Math.min(Math.max(Number(sentiment.love)      || 0, 0), 1), // 1:1 with love only
-    Melancholic: Math.min(Math.max(Number(sentiment.sad)       || 0, 0), 1),
-    Aggressive:  Math.min(Math.max(Number(sentiment.angry)     || 0, 0), 1),
-    Desolation:  Math.min(Math.max(Number(sentiment.lonely)    || 0, 0), 1),
-    Energetic:   Math.min(Math.max(Number(sentiment.confident) || 0, 0), 1),
+    Serenity:    getVal("Serenity", "happy", "stability"),
+    Uplifting:   getVal("Uplifting", "love", "joy"),
+    Melancholic: getVal("Melancholic", "sad", "depression"),
+    Aggressive:  getVal("Aggressive", "angry", "anger"),
+    Desolation:  getVal("Desolation", "lonely", "anxiety"),
+    Energetic:   getVal("Energetic", "confident", "joy"),
     insufficient_data: sentiment.insufficient_data || false,
     no_info:     sentiment.no_info || false,
   };
@@ -559,7 +553,8 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
   // primary_emotion is determined exclusively by the backend — FE does NOT recalculate it.
   // The argmax fallback below is only for legacy API responses that pre-date the 6-axis schema.
   const parseBackendScores = (backendData, streams) => {
-    const scoresObj = backendData.scores || backendData;
+    const rawScores = backendData.scores || backendData;
+    const scoresObj = mapLegacySentimentKeys(rawScores);
 
     const clamp01 = (v) => Math.min(Math.max(Number(v) || 0, 0), 1);
 
@@ -577,6 +572,7 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
     const primary_emotion =
       scoresObj.primary_emotion ||
       backendData.primary_emotion ||
+      rawScores.primary_emotion ||
       Object.entries(emotions).sort((a, b) => b[1] - a[1])[0][0];
 
     const confidence = clamp01(scoresObj.confidence ?? backendData.confidence ?? 0.5);

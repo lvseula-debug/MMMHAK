@@ -1624,7 +1624,7 @@ export default function MMMHAKApp() {
   const [isMobile, setIsMobile] = useState(false);
   const [playing, setPlaying] = useState(false);
 
-  const [isGraphOpen, setIsGraphOpen] = useState(false);
+  const [isGraphOpen, setIsGraphOpen] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
