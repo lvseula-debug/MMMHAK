@@ -1677,6 +1677,7 @@ export default function MMMHAKApp() {
   let currentEmotion = "Serenity";
   if (scores) {
     const totalVal = (scores.Uplifting ?? 0) + (scores.Energetic ?? 0) + (scores.Aggressive ?? 0) + (scores.Melancholic ?? 0) + (scores.Desolation ?? 0) + (scores.Serenity ?? 0);
+   console.log('🟢 generateStructuredInsights - track:', track?.title, 'scores:', scores);
     if (scores.insufficient_data || scores.no_info || totalVal === 0 || scores.primary_emotion === "neutral") {
       currentEmotion = "neutral";
     } else {
