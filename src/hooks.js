@@ -12,17 +12,6 @@ const MUSIC_PLACEHOLDER = "/default_album_art.png";
 const LASTFM_API_KEY = "8031c3fd85fae84e3a1970b02e22a231";
 const LASTFM_BASE = "https://ws.audioscrobbler.com/2.0";
 
-const MOCK_TRACKS = [
-  { id: "1", title: "Espresso", artist: "Sabrina Carpenter", bpm: 120, mode: "major", valence: 0.69, energy: 0.76, loudness: -3.5, streams: 1420000000, lyrics_sentiment: { happy: 0.72, sad: 0.08, angry: 0.05, love: 0.65, lonely: 0.10, confident: 0.60 } },
-  { id: "2", title: "BIRDS OF A FEATHER", artist: "Billie Eilish", bpm: 105, mode: "major", valence: 0.43, energy: 0.51, loudness: -7.8, streams: 1280000000, lyrics_sentiment: { happy: 0.45, sad: 0.28, angry: 0.12, love: 0.55, lonely: 0.35, confident: 0.40 } },
-  { id: "3", title: "Beautiful Things", artist: "Benson Boone", bpm: 105, mode: "major", valence: 0.31, energy: 0.47, loudness: -5.6, streams: 1610000000, lyrics_sentiment: { happy: 0.32, sad: 0.38, angry: 0.35, love: 0.45, lonely: 0.42, confident: 0.30 } },
-  { id: "4", title: "Too Sweet", artist: "Hozier", bpm: 117, mode: "minor", valence: 0.65, energy: 0.62, loudness: -4.9, streams: 980000000, lyrics_sentiment: { happy: 0.58, sad: 0.18, angry: 0.15, love: 0.50, lonely: 0.22, confident: 0.45 } },
-  { id: "5", title: "Gata Only", artist: "FloyyMenor", bpm: 100, mode: "minor", valence: 0.81, energy: 0.72, loudness: -5.4, streams: 1140000000, lyrics_sentiment: { happy: 0.78, sad: 0.05, angry: 0.08, love: 0.52, lonely: 0.12, confident: 0.50 } },
-  { id: "6", title: "Cruel Summer", artist: "Taylor Swift", bpm: 170, mode: "major", valence: 0.53, energy: 0.70, loudness: -5.7, streams: 2450000000, lyrics_sentiment: { happy: 0.62, sad: 0.15, angry: 0.10, love: 0.58, lonely: 0.28, confident: 0.55 } },
-  { id: "7", title: "Magnetic", artist: "ILLIT", bpm: 132, mode: "major", valence: 0.69, energy: 0.78, loudness: -4.8, streams: 580000000, lyrics_sentiment: { happy: 0.82, sad: 0.06, angry: 0.05, love: 0.68, lonely: 0.15, confident: 0.60 } },
-  { id: "8", title: "Spot!", artist: "ZICO", bpm: 110, mode: "minor", valence: 0.78, energy: 0.83, loudness: -4.2, streams: 320000000, lyrics_sentiment: { happy: 0.76, sad: 0.08, angry: 0.12, love: 0.60, lonely: 0.18, confident: 0.65 } },
-];
-
 export const getApiBaseUrl = () => {
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL;
@@ -31,18 +20,15 @@ export const getApiBaseUrl = () => {
   if (hostname === "localhost" || hostname === "127.0.0.1") {
     return "http://127.0.0.1:8000";
   }
-  // Fallback production backend URL if VITE_API_BASE_URL env var is missing during Vercel build
   return "https://mmmhak.onrender.com";
 };
 
-/**
- * Maps legacy sentiment object (old 5/6-axis: happy/love/sad/angry/lonely/confident/joy/stability/depression/anger/anxiety)
- * to the new psychoacoustic 6-axis schema (Serenity/Uplifting/Melancholic/Aggressive/Desolation/Energetic).
- */
 export function mapLegacySentimentKeys(sentiment) {
   if (!sentiment) return {};
-  // Already in new-key format — return as-is (idempotent)
-  if (sentiment.Uplifting !== undefined) return sentiment;
+  // 이미 신규 6축 스키마인 경우 그대로 반환
+  if (sentiment.Uplifting !== undefined && sentiment.Serenity !== undefined) {
+    return sentiment;
+  }
 
   const getVal = (...keys) => {
     for (const key of keys) {
@@ -54,12 +40,12 @@ export function mapLegacySentimentKeys(sentiment) {
   };
 
   return {
-    Serenity:    getVal("Serenity", "happy", "stability"),
+    Serenity:    getVal("Serenity", "happy", "calm", "stability"),
     Uplifting:   getVal("Uplifting", "love", "joy"),
     Melancholic: getVal("Melancholic", "sad", "depression"),
     Aggressive:  getVal("Aggressive", "angry", "anger"),
     Desolation:  getVal("Desolation", "lonely", "anxiety"),
-    Energetic:   getVal("Energetic", "confident", "joy"),
+    Energetic:   getVal("Energetic", "confident"),
     insufficient_data: sentiment.insufficient_data || false,
     no_info:     sentiment.no_info || false,
   };
@@ -82,19 +68,19 @@ export function computeVirusScores(track) {
     };
   }
 
-  // Convert legacy keys to new 6-axis schema at the single boundary point
   const s = mapLegacySentimentKeys(lyrics_sentiment);
 
-  const modeFactor = mode === "minor" ? 0.3 : -0.1;
+  const modeFactor = mode === "minor" ? 0.25 : -0.05;
   const loudNorm = Math.min(Math.max((loudness + 20) / 20, 0), 1);
 
+  // 음원 메타데이터가 감정을 지배하지 않도록 가중치 재조정
   const rawSpread = {
-    Serenity:    (s.Serenity    ?? 0.1) * 0.5 + valence * 0.35,
-    Melancholic: (s.Melancholic ?? 0.1) * 0.5 + (1 - valence) * 0.3 + modeFactor * 0.2,
-    Aggressive:  (s.Aggressive  ?? 0.05) * 0.5 + loudNorm * 0.2 + energy * 0.1,
-    Uplifting:   (s.Uplifting   ?? 0.1) * 0.5 + valence * 0.2 + energy * 0.1,
-    Desolation:  (s.Desolation  ?? 0.1) * 0.5 + (1 - valence) * 0.3 + (1 - energy) * 0.1,
-    Energetic:   (s.Energetic   ?? 0.1) * 0.5 + energy * 0.3 + loudNorm * 0.1,
+    Serenity:    (s.Serenity    ?? 0) * 0.6 + valence * 0.2,
+    Melancholic: (s.Melancholic ?? 0) * 0.6 + (1 - valence) * 0.25 + modeFactor * 0.15,
+    Aggressive:  (s.Aggressive  ?? 0) * 0.6 + loudNorm * 0.2 + energy * 0.2,
+    Uplifting:   (s.Uplifting   ?? 0) * 0.6 + valence * 0.25 + energy * 0.15,
+    Desolation:  (s.Desolation  ?? 0) * 0.6 + (1 - valence) * 0.25 + (1 - energy) * 0.15,
+    Energetic:   (s.Energetic   ?? 0) * 0.6 + energy * 0.25 + loudNorm * 0.15,
   };
 
   const spread = Object.fromEntries(
@@ -306,9 +292,9 @@ const processTracks = async (rawTracks, startIdx = 0, onBatchComplete = null) =>
           const hasAngry = tags.some(t => ['angry', 'aggressive', 'metal', 'hardcore', 'rage', 'punk'].some(k => t.includes(k)));
           const hasHappy = tags.some(t => ['happy', 'upbeat', 'dance', 'party', 'summer', 'pop', 'fun', 'joy'].some(k => t.includes(k)));
           const hasCalm = tags.some(t => ['calm', 'chill', 'relax', 'ambient', 'peaceful', 'acoustic'].some(k => t.includes(k)));
-          const hasLove = tags.some(t => ['love', 'romantic', 'heart', 'affection', 'together', 'sweet'].some(k => t.includes(k)));
           const hasLonely = tags.some(t => ['lonely', 'loneliness', 'alone', 'isolated', 'solitude'].some(k => t.includes(k)));
           const hasConfident = tags.some(t => ['confident', 'confidence', 'proud', 'power', 'strong', 'bold', 'badass', 'anthem', 'energy'].some(k => t.includes(k)));
+
 
           const getPseudoRandom = (str) => {
             let hash = 0;
@@ -354,22 +340,17 @@ const processTracks = async (rawTracks, startIdx = 0, onBatchComplete = null) =>
 
           const insufficient_data = tags.length < 3;
           const lyrics_sentiment = insufficient_data ? {
-            happy: 0.5,
-            sad: 0.5,
-            angry: 0.5,
-            love: 0.5,
-            lonely: 0.5,
-            confident: 0.5,
+            happy: 0.5, sad: 0.5, angry: 0.5, calm: 0.5, lonely: 0.5, confident: 0.5,
             insufficient_data: true
           } : {
-            happy: Math.max(0.01, parseFloat(((((hasHappy ? 0.5 : 0.1) + valence * 0.3) * modeModifier) * (0.5 + intensity)).toFixed(2))),
-            sad: Math.max(0.01, parseFloat((((hasSad ? 0.4 : 0.05) + (1 - valence) * 0.4) * (1.5 - intensity)).toFixed(2))),
+            // happy 및 긍정 계열 기본 배점을 0.5 -> 0.35로 조정하여 편향 제거
+            happy: Math.max(0.01, parseFloat(((((hasHappy ? 0.35 : 0.05) + valence * 0.25) * modeModifier) * (0.5 + intensity)).toFixed(2))),
+            sad: Math.max(0.01, parseFloat((((hasSad ? 0.4 : 0.05) + (1 - valence) * 0.35) * (1.5 - intensity)).toFixed(2))),
             angry: Math.max(0.01, parseFloat((((hasAngry ? 0.4 : 0.05) + (1 - valence) * 0.3) * (0.5 + intensity)).toFixed(2))),
-            love: Math.max(0.01, parseFloat(((((hasLove ? 0.5 : 0.1) + valence * 0.2) * modeModifier) * (0.8 + intensity * 0.2)).toFixed(2))),
-            lonely: Math.max(0.01, parseFloat((((hasLonely ? 0.4 : 0.1) + (1 - valence) * 0.3) * (1.2 - intensity * 0.2)).toFixed(2))),
-            confident: Math.max(0.01, parseFloat((((hasConfident ? 0.4 : 0.1) + valence * 0.2) * (0.5 + intensity)).toFixed(2))),
+            calm: Math.max(0.01, parseFloat((((hasCalm ? 0.4 : 0.05) + valence * 0.2) * (1.2 - intensity * 0.2)).toFixed(2))),
+            lonely: Math.max(0.01, parseFloat((((hasLonely ? 0.4 : 0.05) + (1 - valence) * 0.3) * (1.2 - intensity * 0.2)).toFixed(2))),
+            confident: Math.max(0.01, parseFloat((((hasConfident ? 0.4 : 0.05) + valence * 0.2) * (0.5 + intensity)).toFixed(2))),
           };
-
           const cleanTags = [];
           const rawTags = tags || [];
           for (let t of rawTags) {
