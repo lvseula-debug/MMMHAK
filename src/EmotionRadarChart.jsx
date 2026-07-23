@@ -56,7 +56,7 @@ const renderPolarAngleAxisTick = ({ payload, x, y, cx, cy, ...rest }) => {
     textAnchor = "end";
   }
 
-  // Y 오프셋을 상/하/중간으로 구분하여 텍스트 겹침 완화
+  // Y offset to reduce label overlap
   const yOffset = y > cy + 10 ? 8 : y < cy - 10 ? -8 : 0;
 
   return (
@@ -85,19 +85,23 @@ function DraggableChartGroup({ children, trackId, onDragStart, blobWidth = 310, 
   const dragging = useRef(false);
   const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
 
-  // 트랙 변경 시 드래그 위치 리셋
+  // Reset position when track changes
   useEffect(() => {
     setPos({ x: 0, y: 0 });
   }, [trackId]);
 
   const onMouseDown = (e) => {
+    // Disable dragging while modal is visible – parent will set a flag via onDragStart if needed
+    if (showModalRef.current) return;
     dragging.current = true;
     setIsDragging(true);
-    if (onDragStart) onDragStart(); // 드래그 시작 시 열려있던 모달 닫기
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     dragStart.current = { mx: clientX, my: clientY, px: pos.x, py: pos.y };
   };
+
+  // Expose modal open flag via ref for guard
+  const showModalRef = useRef(false);
 
   useEffect(() => {
     const onMove = (e) => {
@@ -195,19 +199,26 @@ const renderCustomDot = (scores) => (props) => {
   );
 };
 
-export default function EmotionRadarChart({ scores, trackId }) {
+export default function EmotionRadarChart({ scores, trackId, source }) {
   const [showModal, setShowModal] = useState(false);
   const btnRef = useRef(null);
   const [modalPos, setModalPos] = useState({ bottom: 0, left: 0 });
+  const showModalRef = useRef(false);
 
-  // 트랙 ID 고유값으로 모달 초기화 (참조 동일성 버그 수정)
-  const targetTrackId = trackId || scores?.id || scores?.track_id;
+  // Reset modal when track changes
   useEffect(() => {
     setShowModal(false);
-  }, [targetTrackId]);
+  }, [trackId]);
+
+  // Sync ref for drag guard
+  useEffect(() => {
+    showModalRef.current = showModal;
+  }, [showModal]);
 
   if (!scores) return null;
+
   const totalVal = (scores.Uplifting ?? 0) + (scores.Energetic ?? 0) + (scores.Aggressive ?? 0) + (scores.Melancholic ?? 0) + (scores.Desolation ?? 0) + (scores.Serenity ?? 0);
+
   if (scores.insufficient_data || scores.no_info || totalVal === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center text-white font-['Space_Mono'] bg-[#1A0050]/80 rounded-xl border border-dashed border-white/20 w-full max-w-[260px] min-h-[260px] mx-auto z-10 relative">
@@ -223,7 +234,6 @@ export default function EmotionRadarChart({ scores, trackId }) {
   const confidenceValue = scores.confidence ?? 0;
   const confInfo = getConfidenceLabel(confidenceValue);
 
-  // Raw score(0~1) 그대로 data에 주입
   const data = [
     { subject: "Uplifting",   value: scores.Uplifting   ?? 0 },
     { subject: "Energetic",   value: scores.Energetic   ?? 0 },
@@ -232,6 +242,11 @@ export default function EmotionRadarChart({ scores, trackId }) {
     { subject: "Desolation",  value: scores.Desolation  ?? 0 },
     { subject: "Serenity",    value: scores.Serenity    ?? 0 },
   ];
+
+  const maxVal = Math.max(...data.map(d => d.value));
+  const radiusDomain = [0, Math.max(1, maxVal)];
+
+  const hideBoard = scores.insufficient_data || scores.no_info || (source === 'heuristic' && scores.insufficient_data);
 
   return (
     <div className="flex flex-col items-center gap-2 mt-1 w-full relative">
@@ -251,11 +266,9 @@ export default function EmotionRadarChart({ scores, trackId }) {
             <span className="font-['Space_Mono'] text-[11px] text-[#CCFF00] font-extrabold tracking-wider">GRAPH</span>
             <button onClick={() => setShowModal(false)} className="text-white text-xs font-bold hover:text-[#CCFF00]">✕</button>
           </div>
-
           <div className="text-center font-['Space_Mono'] text-[12px] text-[#CCFF00] font-bold mb-2">
             EMOTION CONFIDENCE: {Math.round(confidenceValue * 100)}%
           </div>
-
           <div className="flex flex-col items-center gap-1.5">
             <span className="px-3 py-1 rounded-full text-[10px] font-extrabold border uppercase tracking-wider bg-[#FF06EA]/20 border-[#FF06EA] text-[#FF06EA] font-['Pretendard_Variable',sans-serif]">
               {confInfo.label}
@@ -269,10 +282,10 @@ export default function EmotionRadarChart({ scores, trackId }) {
       )}
 
       <div className="flex flex-col items-center justify-center w-full">
-        <DraggableChartGroup 
-          trackId={targetTrackId} 
+        <DraggableChartGroup
+          trackId={trackId}
           onDragStart={() => setShowModal(false)}
-          blobWidth={310} 
+          blobWidth={310}
           blobHeight={310}
         >
           <div className="flex flex-col items-center w-full pt-1" style={{ pointerEvents: "auto" }}>
@@ -300,11 +313,9 @@ export default function EmotionRadarChart({ scores, trackId }) {
                     <stop offset="100%" stopColor="#34A853" />
                   </linearGradient>
                 </defs>
-
                 <PolarGrid gridType="polygon" stroke="rgba(204,255,0,0.22)" strokeWidth={0.8} />
                 <PolarAngleAxis dataKey="subject" tick={renderPolarAngleAxisTick} />
-                {/* 도메인 상한을 1.0(100%)로 정상화하여 잘림 방지 */}
-                <PolarRadiusAxis domain={[0, 1.0]} tick={false} axisLine={false} />
+                <PolarRadiusAxis domain={radiusDomain} tick={false} axisLine={false} />
                 <Tooltip content={<CustomTooltip />} cursor={false} />
                 <Radar
                   name="Emotion"
@@ -337,6 +348,22 @@ export default function EmotionRadarChart({ scores, trackId }) {
                 GRAPH
               </button>
             </div>
+
+            {/* Bottom emotion percentage board */}
+            {!hideBoard ? (
+              <div className="flex flex-col items-center w-full pt-1" style={{ pointerEvents: "auto" }}>
+                {data.map(d => (
+                  <div key={d.subject} className="text-[10px] text-white" style={{ marginTop: "2px" }}>
+                    {d.subject}: {Math.round(d.value * 100)}%
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center text-[#CCFF00] font-['Space_Mono'] text-sm mt-2">
+                INFO UNAVAILABLE
+              </div>
+            )}
+
           </div>
         </DraggableChartGroup>
       </div>
