@@ -242,30 +242,36 @@ class MusicEmotionAnalyzer:
     def analyze(self, lyrics: str, bpm: float) -> dict:
         """
         Analyzes lyrics and BPM to calculate Recharts radar chart compatible emotion scores.
-        Applies RBF Kernel with gamma = 2.5 and normalizes weights to sum to exactly 1.0000.
+        Applies RBF Kernel with gamma = 2.0 and normalizes weights to new 6-axis schema.
         """
         try:
-            # 1. Calculate Arousal and Valence independently (Late Fusion)
+            # 1. Calculate Arousal and Valence independently
             valence, confidence = self.calculate_valence(lyrics)
             arousal = self.calculate_arousal(bpm)
             
-            # 2. Define target mathematical centers for each of the 6 emotions
+            # [중요] valence/arousal이 0~1 범위로 들어올 경우 -1~1 범위로 정규화 (좌표계 매칭)
+            # 만약 이미 -1~1 범위라면 아래 두 줄은 주석 처리하세요.
+            v_norm = (valence * 2) - 1 if 0 <= valence <= 1 else valence
+            a_norm = (arousal * 2) - 1 if 0 <= arousal <= 1 else arousal
+            
+            # 2. 신규 6축 2차원 감정 좌표계 (Valence, Arousal) 재정의
+            # V: Valence (-1.0 ~ 1.0), A: Arousal (-1.0 ~ 1.0)
             centers = {
-                "happy": (0.65, 0.65),
-                "confident": (0.50, 0.85),
-                "angry": (-0.60, 0.80),
-                "sad": (-0.65, 0.20),
-                "lonely": (-0.25, 0.40),
-                "love": (0.65, 0.25)
+                "Uplifting":   (0.70,  0.60),  # 높은 긍정 + 높은 에너지
+                "Energetic":   (0.30,  0.85),  # 에너지가 매우 높음
+                "Aggressive":  (-0.65, 0.75),  # 높은 부정 + 높은 에너지
+                "Melancholic": (-0.70, -0.20), # 높은 부정 + 낮은/중간 에너지
+                "Desolation":  (-0.40, -0.70), # 높은 부정 + 매우 낮은 에너지 (고독)
+                "Serenity":    (0.60,  -0.50)  # 높은 긍정 + 낮은 에너지 (평온)
             }
             
-            # 3. Compute similarity weights based on RBF Kernel (gamma = 2.5, using distance squared)
+            # 3. Compute similarity weights based on RBF Kernel (gamma = 2.0)
             weights = {}
             for emo, center in centers.items():
-                # Distance squared
-                dist_sq = (valence - center[0])**2 + (arousal - center[1])**2
-                # RBF similarity: w_i = exp(-gamma * d_i^2)
-                w = math.exp(-2.5 * dist_sq)
+                # Distance squared on 2D plane
+                dist_sq = (v_norm - center[0])**2 + (a_norm - center[1])**2
+                # RBF similarity: gamma를 2.0으로 조정하여 감정 간 점수 분산 확보
+                w = math.exp(-2.0 * dist_sq)
                 weights[emo] = w
                 
             # 4. Normalize weights so they sum to exactly 1.0000
@@ -278,21 +284,20 @@ class MusicEmotionAnalyzer:
             # Adjust rounding errors to guarantee exactly 1.0000 total
             diff = round(1.0000 - sum(normalized.values()), 4)
             if diff != 0:
-                # Distribute rounding offset to the emotion with the highest score
                 max_emo = max(normalized, key=normalized.get)
                 normalized[max_emo] = round(normalized[max_emo] + diff, 4)
                 
-            # 5. Determine primary emotion (the key with the highest score)
+            # 5. Determine primary emotion
             primary_emotion = max(normalized, key=normalized.get)
             
             # 6. Formulate output rounded to 4 decimal places
             output = {
-                "happy": float(normalized["happy"]),
-                "confident": float(normalized["confident"]),
-                "angry": float(normalized["angry"]),
-                "sad": float(normalized["sad"]),
-                "lonely": float(normalized["lonely"]),
-                "love": float(normalized["love"]),
+                "Serenity": float(normalized["Serenity"]),
+                "Uplifting": float(normalized["Uplifting"]),
+                "Melancholic": float(normalized["Melancholic"]),
+                "Aggressive": float(normalized["Aggressive"]),
+                "Desolation": float(normalized["Desolation"]),
+                "Energetic": float(normalized["Energetic"]),
                 "primary_emotion": primary_emotion,
                 "confidence": float(round(confidence, 4)),
                 "derived_valence": float(round(valence, 4)),
@@ -301,16 +306,15 @@ class MusicEmotionAnalyzer:
             return output
             
         except Exception as e:
-            # Absolute crash safety: return neutral default profile if anything goes wrong
             print(f"[MusicEmotionAnalyzer] Error during analysis: {e}. Returning safe fallback profile.")
             return {
-                "happy": 0.1667,
-                "confident": 0.1667,
-                "angry": 0.1666,
-                "sad": 0.1667,
-                "lonely": 0.1667,
-                "love": 0.1666,
-                "primary_emotion": "happy",
+                "Serenity": 0.1667,
+                "Uplifting": 0.1667,
+                "Melancholic": 0.1666,
+                "Aggressive": 0.1667,
+                "Desolation": 0.1667,
+                "Energetic": 0.1666,
+                "primary_emotion": "Serenity",
                 "confidence": 0.5000,
                 "derived_valence": 0.0000,
                 "derived_arousal": 0.5000
