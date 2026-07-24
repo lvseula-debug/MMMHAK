@@ -759,9 +759,13 @@ export function useMoodHistory() {
       ...prev,
       {
         id: track.id + "_" + Date.now(),
+        trackId: track.id,
         title: track.title,
         artist: track.artist,
-        emotion: emotion
+        artworkUrl: track.artworkUrl,
+        previewUrl: track.previewUrl,
+        emotion: emotion,
+        timestamp: new Date().toISOString()
       }
     ]);
   }, []);

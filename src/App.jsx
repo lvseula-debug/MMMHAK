@@ -10,6 +10,7 @@ import {
   useMoodHistory,
   mapLegacySentimentKeys
 } from "./hooks";
+import MusicMoodMappingView from "./MusicMoodMappingView";
 
 // Optimized: LocalStorage caching + Incremental rendering (15-track batch)
 const MUSIC_PLACEHOLDER = "/default_album_art.png";
@@ -596,7 +597,6 @@ function Waveform({ playing }) {
 }
 
 // ── Preview Section ───────────────────────────────────────────────────────────
-// ── Preview Section ───────────────────────────────────────────────────────────
 function PreviewSection({ track, playing, setPlaying, scores, onAddToHistory }) {
   const audioRef = useRef(null);
   const [empathyMessage, setEmpathyMessage] = useState(null);
@@ -1053,7 +1053,7 @@ const aggregateHistoryByEmotion = (history) => {
 };
 
 // ── Center Panel (핑크색 섹션 내부 가사 스크롤 구현 완료) ───────────────────────
-function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphInfoOpen, onToggleGraphInfo, onToggleSearch, isSearchOpen, searchQuery, setSearchQuery, onSearch, playing, setPlaying, currentEmotion, onAddToHistory, history }) {
+function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphInfoOpen, onToggleGraphInfo, onToggleSearch, isSearchOpen, searchQuery, setSearchQuery, onSearch, playing, setPlaying, currentEmotion, onAddToHistory, history, viewMode, onOpenMonthlyView }) {
   const [openPopup, setOpenPopup] = useState(null);
   const [prevTrackId, setPrevTrackId] = useState(activeTrack?.id);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -1222,15 +1222,23 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphInfoOpen, o
               </div>
 
               {/* Pie Chart / Donut Chart */}
-              <div style={{
-                position: "relative",
-                width: 120,
-                height: 120,
-                margin: "0 auto",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center"
-              }}>
+              <div
+                onClick={() => {
+                  setIsHistoryOpen(false);
+                  if (onOpenMonthlyView) onOpenMonthlyView();
+                }}
+                style={{
+                  position: "relative",
+                  width: 120,
+                  height: 120,
+                  margin: "0 auto",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer"
+                }}
+                title="Click to view 30-Day Music Mood Mapping"
+              >
                 <PieChart width={120} height={120}>
                   <Pie
                     data={pieData}
@@ -1357,99 +1365,106 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphInfoOpen, o
         </div>
       </div>
 
-      {/* Top Center: Preview Section */}
-      <div className="flex justify-center w-full mt-2">
-        <PreviewSection track={activeTrack} playing={playing} setPlaying={setPlaying} scores={scores} onAddToHistory={onAddToHistory} />
-      </div>
+      {/* Content Section: Main vs Monthly Mindmap */}
+      {viewMode === "monthly" ? (
+        <MusicMoodMappingView history={history} isMobile={isMobile} />
+      ) : (
+        <>
+          {/* Top Center: Preview Section */}
+          <div className="flex justify-center w-full mt-2">
+            <PreviewSection track={activeTrack} playing={playing} setPlaying={setPlaying} scores={scores} onAddToHistory={onAddToHistory} />
+          </div>
 
-      {/* Info buttons row (가로로 일렬 배치) */}
-      <div className="flex flex-row flex-wrap justify-center items-center gap-4 mt-6 px-4 relative z-50 w-full">
-        {INFO_BUTTONS.map((btn) => (
-          <InfoButton
-            key={btn.id}
-            btn={btn}
-            isOpen={openPopup === btn.id}
-            onToggle={() => {
-              const isOpening = openPopup !== btn.id;
-              toggle(btn.id);
-              if (btn.id === "graph") {
-                if (onToggleGraphInfo) onToggleGraphInfo(isOpening);
-              }
-            }}
-            onClose={() => {
-              close();
-              if (btn.id === "graph") {
-                if (onToggleGraphInfo) onToggleGraphInfo(false);
-              }
-            }}
-            isMobile={isMobile}
-            track={activeTrack}
-            scores={scores}
-          />
-        ))}
-      </div>
+          {/* Info buttons row (가로로 일렬 배치) */}
+          <div className="flex flex-row flex-wrap justify-center items-center gap-4 mt-6 px-4 relative z-50 w-full">
+            {INFO_BUTTONS.map((btn) => (
+              <InfoButton
+                key={btn.id}
+                btn={btn}
+                isOpen={openPopup === btn.id}
+                onToggle={() => {
+                  const isOpening = openPopup !== btn.id;
+                  toggle(btn.id);
+                  if (btn.id === "graph") {
+                    if (onToggleGraphInfo) onToggleGraphInfo(isOpening);
+                  }
+                }}
+                onClose={() => {
+                  close();
+                  if (btn.id === "graph") {
+                    if (onToggleGraphInfo) onToggleGraphInfo(false);
+                  }
+                }}
+                isMobile={isMobile}
+                track={activeTrack}
+                scores={scores}
+              />
+            ))}
+          </div>
 
-      {/* Content row (Radar chart) */}
-      {scores && (
-        <div
-          className={`flex flex-1 flex-col items-center justify-center gap-4 ${isMobile ? "p-5 pb-10" : "p-6 pb-12"}`}
-          style={{ position: "relative", zIndex: 10, pointerEvents: "none" }}
-        >
-          {lyrics === "LOADING LYRICS..." && (
-            <div style={{
-              color: "#CCFF00",
-              fontSize: "9px",
-              fontFamily: "'Space Mono', monospace",
-              letterSpacing: "0.15em",
-              textShadow: "0 0 8px rgba(204,255,0,0.6)",
-              marginBottom: "8px",
-              textAlign: "center"
-            }}>
-              ⚡ AI ANALYZING MOOD & LYRICS...
+          {/* Content row (Radar chart) */}
+          {scores && (
+            <div
+              className={`flex flex-1 flex-col items-center justify-center gap-4 ${isMobile ? "p-5 pb-10" : "p-6 pb-12"}`}
+              style={{ position: "relative", zIndex: 10, pointerEvents: "none" }}
+            >
+              {lyrics === "LOADING LYRICS..." && (
+                <div style={{
+                  color: "#CCFF00",
+                  fontSize: "9px",
+                  fontFamily: "'Space Mono', monospace",
+                  letterSpacing: "0.15em",
+                  textShadow: "0 0 8px rgba(204,255,0,0.6)",
+                  marginBottom: "8px",
+                  textAlign: "center"
+                }}>
+                  ⚡ AI ANALYZING MOOD & LYRICS...
+                </div>
+              )}
+              <ErrorBoundary>
+                <EmotionRadarChart scores={scores} trackId={activeTrack?.id} />
+              </ErrorBoundary>
             </div>
           )}
-          <ErrorBoundary>
-            <EmotionRadarChart scores={scores} trackId={activeTrack?.id} />
-          </ErrorBoundary>
-        </div>
-      )}
 
-      {/* ── [신규 추가] 핑크 섹션 배경에 흘러나오는 힙한 가사 보드 (하단 배치) ── */}
-      <div
-        style={{
-          position: "relative",
-          margin: "20px auto 80px auto",
-          height: "auto",
-          minHeight: isMobile ? "1000px" : "600px",
-          width: "90%",
-          maxWidth: "800px",
-          backgroundColor: playing ? EMOTION_COLORS[currentEmotion] : "#F5C8C8",
-          transition: "background-color 1.5s ease-in-out",
-          border: "none",
-          borderRadius: "12px",
-          padding: "20px",
-          fontFamily: "\"Pretendard Variable\", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, \"Helvetica Neue\", \"Segoe UI\", \"Apple SD Gothic Neo\", \"Noto Sans KR\", \"Malgun Gothic\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", sans-serif",
-          textAlign: "center",
-          color: "#1A0050",
-          overflowY: "auto",
-          lineHeight: "1.8",
-          fontSize: "13px",
-          whiteSpace: "pre-wrap",
-          zIndex: 1
-        }}
-      >
-        {activeTrack?.lyrics_sentiment && (() => {
-          const sent = mapLegacySentimentKeys(activeTrack.lyrics_sentiment);
-          return (
-            <div style={{ fontSize: "16px", fontWeight: "800", marginBottom: "16px", color: "#1A0050", opacity: 0.9 }}>
-              Sentiment: Uplifting {Math.round((sent.Uplifting ?? 0) * 100)}% · Melancholic {Math.round((sent.Melancholic ?? 0) * 100)}% · Aggressive {Math.round((sent.Aggressive ?? 0) * 100)}% · Serenity {Math.round((sent.Serenity ?? 0) * 100)}% · Desolation {Math.round((sent.Desolation ?? 0) * 100)}% · Energetic {Math.round((sent.Energetic ?? 0) * 100)}%
+          {/* ── [신규 추가] 핑크 섹션 배경에 흘러나오는 힙한 가사 보드 (하단 배치) ── */}
+          <div
+            style={{
+              position: "relative",
+              margin: "20px auto 80px auto",
+              height: "auto",
+              minHeight: isMobile ? "1000px" : "600px",
+              width: "90%",
+              maxWidth: "800px",
+              backgroundColor: playing ? EMOTION_COLORS[currentEmotion] : "#F5C8C8",
+              transition: "background-color 1.5s ease-in-out",
+              border: "none",
+              borderRadius: "12px",
+              padding: "20px",
+              fontFamily: "\"Pretendard Variable\", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, \"Helvetica Neue\", \"Segoe UI\", \"Apple SD Gothic Neo\", \"Noto Sans KR\", \"Malgun Gothic\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", sans-serif",
+              textAlign: "center",
+              color: "#1A0050",
+              overflowY: "auto",
+              lineHeight: "1.8",
+              fontSize: "13px",
+              whiteSpace: "pre-wrap",
+              zIndex: 1
+            }}
+          >
+            {activeTrack?.lyrics_sentiment && (() => {
+              const sent = mapLegacySentimentKeys(activeTrack.lyrics_sentiment);
+              return (
+                <div style={{ fontSize: "16px", fontWeight: "800", marginBottom: "16px", color: "#1A0050", opacity: 0.9 }}>
+                  Sentiment: Uplifting {Math.round((sent.Uplifting ?? 0) * 100)}% · Melancholic {Math.round((sent.Melancholic ?? 0) * 100)}% · Aggressive {Math.round((sent.Aggressive ?? 0) * 100)}% · Serenity {Math.round((sent.Serenity ?? 0) * 100)}% · Desolation {Math.round((sent.Desolation ?? 0) * 100)}% · Energetic {Math.round((sent.Energetic ?? 0) * 100)}%
+                </div>
+              );
+            })()}
+            <div style={{ fontWeight: "700" }}>
+              {lyrics}
             </div>
-          );
-        })()}
-        <div style={{ fontWeight: "700" }}>
-          {lyrics}
-        </div>
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1643,6 +1658,7 @@ export default function MMMHAKApp() {
   const [activeTrack, setActiveTrack] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [viewMode, setViewMode] = useState("main");
 
   const [isGraphInfoOpen, setIsGraphInfoOpen] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -1687,7 +1703,6 @@ export default function MMMHAKApp() {
   }, []);
 
   // Derive dominant emotion from scores during render
-  // Derive dominant emotion from scores during render
   let currentEmotion = "Serenity";
   if (scores) {
     const totalVal = (scores.Uplifting ?? 0) + (scores.Energetic ?? 0) + (scores.Aggressive ?? 0) + (scores.Melancholic ?? 0) + (scores.Desolation ?? 0) + (scores.Serenity ?? 0);
@@ -1707,8 +1722,6 @@ export default function MMMHAKApp() {
         });
         return top;
       })();
-      // SSOT: BE primary_emotion is already in new-key format ("Uplifting"/"Serenity" etc.).
-      // emotionNameMap fallback handles rare heuristic-phase old-key values.
       const emotionNameMap = {
         happy: "Serenity", love: "Uplifting", confident: "Energetic",
         angry: "Aggressive", sad: "Melancholic", lonely: "Desolation"
@@ -1777,19 +1790,23 @@ export default function MMMHAKApp() {
       />
 
       <div style={{ width: "100%", height: "100%" }}>
-        <Header isMobile={isMobile} tracksCount={tracks.length} onLogoClick={reloadGlobalChart} />
+        <Header isMobile={isMobile} tracksCount={tracks.length} onLogoClick={() => { setViewMode("main"); reloadGlobalChart(); }} />
 
         {/* ── DESKTOP layout ── */}
         {!isMobile && (
           <>
-            <Sidebar tracks={leftTracks} side="left" activeTrack={activeTrack} onSelect={patchTrackSelection} isMobile={false} />
-            <Sidebar tracks={rightTracks} side="right" activeTrack={activeTrack} onSelect={patchTrackSelection} isMobile={false} />
+            {viewMode === "main" && (
+              <>
+                <Sidebar tracks={leftTracks} side="left" activeTrack={activeTrack} onSelect={patchTrackSelection} isMobile={false} />
+                <Sidebar tracks={rightTracks} side="right" activeTrack={activeTrack} onSelect={patchTrackSelection} isMobile={false} />
+              </>
+            )}
             <div
               style={{
                 position: "fixed",
                 top: 80,
-                left: 160,
-                right: 160,
+                left: viewMode === "monthly" ? 0 : 160,
+                right: viewMode === "monthly" ? 0 : 160,
                 bottom: 0,
                 overflowY: "auto",
                 overflowX: "hidden",
@@ -1814,6 +1831,8 @@ export default function MMMHAKApp() {
                 currentEmotion={currentEmotion}
                 onAddToHistory={handleAddToHistory}
                 history={moodHistory}
+                viewMode={viewMode}
+                onOpenMonthlyView={() => setViewMode("monthly")}
               />
             </div>
           </>
@@ -1835,7 +1854,9 @@ export default function MMMHAKApp() {
               touchAction: "pan-y",
             }}
           >
-            <MobileSidebarStrip tracks={tracks} activeTrack={activeTrack} onSelect={patchTrackSelection} label="Top Tracks" />
+            {viewMode === "main" && (
+              <MobileSidebarStrip tracks={tracks} activeTrack={activeTrack} onSelect={patchTrackSelection} label="Top Tracks" />
+            )}
             <CenterPanel
               activeTrack={activeTrack}
               isMobile={true}
@@ -1853,6 +1874,8 @@ export default function MMMHAKApp() {
               currentEmotion={currentEmotion}
               onAddToHistory={handleAddToHistory}
               history={moodHistory}
+              viewMode={viewMode}
+              onOpenMonthlyView={() => setViewMode("monthly")}
             />
           </div>
         )}
