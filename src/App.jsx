@@ -78,13 +78,14 @@ function generateStructuredInsights(track, scores) {
   const totalVal = (scores.Uplifting ?? 0) + (scores.Energetic ?? 0) + (scores.Aggressive ?? 0) + (scores.Melancholic ?? 0) + (scores.Desolation ?? 0) + (scores.Serenity ?? 0);
   // Provide clearer message when data is insufficient
   if (scores.insufficient_data || scores.no_info || totalVal === 0) {
-  const profile = track ? `${track.mode === "minor" ? "Minor" : "Major"} Key · ${track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + "M" : track.streams} Plays` : "";
-  return {
-    vibe: "데이터가 충분하지 않아 감정 분석을 할 수 없습니다.",
-    insight: "",
-    profile,
-  };
-}
+    const streamsVal = track?.streams ?? 0;
+    const profile = track ? `${track.mode === "minor" ? "Minor" : "Major"} Key · ${streamsVal >= 1000000 ? (streamsVal / 1000000).toFixed(1) + "M" : streamsVal} Plays` : "";
+    return {
+      vibe: "데이터가 충분하지 않아 감정 분석을 할 수 없습니다.",
+      insight: "",
+      profile,
+    };
+  }
 
 
 
@@ -125,8 +126,10 @@ function generateStructuredInsights(track, scores) {
 
   // 2. GRAPH INSIGHT 및 PROFILE 생성
   const insight = `차트에서 **${labels[top1] || top1}**와(과) **${labels[top2] || top2}** 축이 가장 두드러지게 뻗어 있습니다. 이는 곡 전반에 걸쳐 두 감정선이 얽히며 메인 테마로 작용하고 있음을 시각적으로 보여줍니다.`;
-  const plays = track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + "M" : track.streams;
-  const profile = `${track.mode === "minor" ? "Minor" : "Major"} Key · Energy ${track.energy.toFixed(2)} · ${plays} Plays`;
+  const streamsVal = track?.streams ?? 0;
+  const energyVal = track?.energy ?? 0;
+  const plays = streamsVal >= 1000000 ? (streamsVal / 1000000).toFixed(1) + "M" : streamsVal;
+  const profile = `${track?.mode === "minor" ? "Minor" : "Major"} Key · Energy ${energyVal.toFixed(2)} · ${plays} Plays`;
 
   return { vibe, insight, profile };
 }
@@ -358,105 +361,115 @@ function InfoButton({ btn, isOpen, onToggle, onClose, isMobile, track, scores })
 
   let content = btn.content;
   if (track) {
-    if (btn.id === 'genre') {
-      const genreInfo = getSanitizedGenreInfo(track, scores);
-      content = genreInfo.content;
-    }
-    else if (btn.id === 'mode') {
-      const primaryEmotion = scores?.primary_emotion;
-      let derived_mode = "unknown";
-      if (primaryEmotion === "happy" || primaryEmotion === "Serenity") {
-        derived_mode = "ionian";
-        content = "MODE: Ionian — 밝고 긍정적인 에너지를 주며 기분 전환을 유도하는 스케일입니다.";
-      } else if (primaryEmotion === "confident" || primaryEmotion === "Energetic") {
-        derived_mode = "mixolydian";
-        content = "MODE: Mixolydian — 당당하고 활기찬 해방감을 선사하는 스케일입니다.";
-      } else if (primaryEmotion === "love" || primaryEmotion === "Uplifting") {
-        derived_mode = "lydian";
-        content = "MODE: Lydian — 공중에 뜬 듯한 신비롭고 환상적인 느낌을 주는 스케일입니다.";
-      } else if (primaryEmotion === "sad" || primaryEmotion === "Melancholic") {
-        derived_mode = "aeolian";
-        content = "MODE: Aeolian — 슬픔과 내면의 깊은 침잠을 유도하는 정통 단조 스케일입니다.";
-      } else if (primaryEmotion === "lonely" || primaryEmotion === "Desolation") {
-        derived_mode = "dorian";
-        content = "MODE: Dorian — 세련되고 신비로운 무드로, 절제된 슬픔과 위로를 주는 스케일입니다.";
-      } else if (primaryEmotion === "angry" || primaryEmotion === "Aggressive") {
-        derived_mode = "locrian";
-        content = "MODE: Locrian — 극도의 불안정과 파괴적인 긴장감을 유발하여 다크한 감정을 자극하는 스케일입니다.";
-      } else {
-        derived_mode = "unknown";
-        content = "MODE: Analyzing — 곡의 스케일 정보를 분석 중입니다.";
+    try {
+      if (btn.id === 'genre') {
+        const genreInfo = getSanitizedGenreInfo(track, scores);
+        content = genreInfo.content;
       }
-    }
-    else if (btn.id === 'energy') content = `Energy Score: ${track.energy.toFixed(2)} / 1.0`;
-    else if (btn.id === 'plays') content = `Total Plays: ${track.streams >= 1000000 ? (track.streams / 1000000).toFixed(1) + 'M' : track.streams}`;
-    else if (btn.id === 'graph') {
-      const confInfo = getConfidenceLabel(scores?.confidence);
-      content = (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {scores && (
-            <div style={{
-              color: "#CCFF00",
-              fontWeight: "700",
-              fontSize: "11px",
-              textAlign: "center",
-              marginTop: "4px"
-            }}>
-              EMOTION CONFIDENCE: {Math.round(scores.confidence * 100)}%
+      else if (btn.id === 'mode') {
+        const primaryEmotion = scores?.primary_emotion;
+        let derived_mode = "unknown";
+        if (primaryEmotion === "happy" || primaryEmotion === "Serenity") {
+          derived_mode = "ionian";
+          content = "MODE: Ionian — 밝고 긍정적인 에너지를 주며 기분 전환을 유도하는 스케일입니다.";
+        } else if (primaryEmotion === "confident" || primaryEmotion === "Energetic") {
+          derived_mode = "mixolydian";
+          content = "MODE: Mixolydian — 당당하고 활기찬 해방감을 선사하는 스케일입니다.";
+        } else if (primaryEmotion === "love" || primaryEmotion === "Uplifting") {
+          derived_mode = "lydian";
+          content = "MODE: Lydian — 공중에 뜬 듯한 신비롭고 환상적인 느낌을 주는 스케일입니다.";
+        } else if (primaryEmotion === "sad" || primaryEmotion === "Melancholic") {
+          derived_mode = "aeolian";
+          content = "MODE: Aeolian — 슬픔과 내면의 깊은 침잠을 유도하는 정통 단조 스케일입니다.";
+        } else if (primaryEmotion === "lonely" || primaryEmotion === "Desolation") {
+          derived_mode = "dorian";
+          content = "MODE: Dorian — 세련되고 신비로운 무드로, 절제된 슬픔과 위로를 주는 스케일입니다.";
+        } else if (primaryEmotion === "angry" || primaryEmotion === "Aggressive") {
+          derived_mode = "locrian";
+          content = "MODE: Locrian — 극도의 불안정과 파괴적인 긴장감을 유발하여 다크한 감정을 자극하는 스케일입니다.";
+        } else {
+          derived_mode = "unknown";
+          content = "MODE: Analyzing — 곡의 스케일 정보를 분석 중입니다.";
+        }
+      }
+      else if (btn.id === 'energy') {
+        const energyVal = track?.energy ?? 0;
+        content = `Energy Score: ${energyVal.toFixed(2)} / 1.0`;
+      }
+      else if (btn.id === 'plays') {
+        const streamsVal = track?.streams ?? 0;
+        content = `Total Plays: ${streamsVal >= 1000000 ? (streamsVal / 1000000).toFixed(1) + 'M' : streamsVal}`;
+      }
+      else if (btn.id === 'graph') {
+        const confInfo = getConfidenceLabel(scores?.confidence);
+        content = (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {scores && (
               <div style={{
-                fontSize: "10px",
-                fontWeight: "800",
-                marginTop: "8px",
-                color: confInfo.level === 'clear_dominant' ? '#00FF88' : '#FF06EA',
-                border: `1px solid ${confInfo.level === 'clear_dominant' ? '#00FF88' : '#FF06EA'}`,
-                borderRadius: "16px",
-                padding: "2px 8px",
-                display: "inline-block",
-                backgroundColor: confInfo.level === 'clear_dominant' ? 'rgba(0, 255, 136, 0.12)' : 'rgba(255, 6, 234, 0.12)',
-                fontFamily: '"Pretendard Variable", sans-serif'
+                color: "#CCFF00",
+                fontWeight: "700",
+                fontSize: "11px",
+                textAlign: "center",
+                marginTop: "4px"
               }}>
-                {confInfo.label}
+                EMOTION CONFIDENCE: {Math.round(scores.confidence * 100)}%
+                <div style={{
+                  fontSize: "10px",
+                  fontWeight: "800",
+                  marginTop: "8px",
+                  color: confInfo.level === 'clear_dominant' ? '#00FF88' : '#FF06EA',
+                  border: `1px solid ${confInfo.level === 'clear_dominant' ? '#00FF88' : '#FF06EA'}`,
+                  borderRadius: "16px",
+                  padding: "2px 8px",
+                  display: "inline-block",
+                  backgroundColor: confInfo.level === 'clear_dominant' ? 'rgba(0, 255, 136, 0.12)' : 'rgba(255, 6, 234, 0.12)',
+                  fontFamily: '"Pretendard Variable", sans-serif'
+                }}>
+                  {confInfo.label}
+                </div>
+                <div style={{
+                  fontSize: "10px",
+                  color: "#E0D0FF",
+                  fontWeight: "normal",
+                  lineHeight: "1.4",
+                  marginTop: "6px",
+                  fontFamily: '"Pretendard Variable", sans-serif'
+                }}>
+                  {confInfo.description}
+                </div>
               </div>
-              <div style={{
-                fontSize: "10px",
-                color: "#E0D0FF",
-                fontWeight: "normal",
-                lineHeight: "1.4",
-                marginTop: "6px",
-                fontFamily: '"Pretendard Variable", sans-serif'
-              }}>
-                {confInfo.description}
-              </div>
+            )}
+          </div>
+        );
+      }
+      // 🌟 새로 추가된 MOOD 로직
+      else if (btn.id === 'mood' && scores) {
+        const insights = generateStructuredInsights(track, scores);
+        content = (
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px",
+            marginTop: "4px",
+            fontFamily: "'Nanum Myeongjo', serif",
+            fontStyle: "italic",
+            lineHeight: "1.6",
+            wordBreak: "keep-all"
+          }}>
+            <div>
+              <span style={{ color: "#CCFF00", fontWeight: 700, fontFamily: "'Space Mono', monospace", fontStyle: "normal" }}>VIBE:</span> {insights.vibe}
             </div>
-          )}
-        </div>
-      );
-    }
-    // 🌟 새로 추가된 MOOD 로직
-    else if (btn.id === 'mood' && scores) {
-      const insights = generateStructuredInsights(track, scores);
-      content = (
-        <div style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "10px",
-          marginTop: "4px",
-          fontFamily: "'Nanum Myeongjo', serif",
-          fontStyle: "italic",
-          lineHeight: "1.6",
-          wordBreak: "keep-all"
-        }}>
-          <div>
-            <span style={{ color: "#CCFF00", fontWeight: 700, fontFamily: "'Space Mono', monospace", fontStyle: "normal" }}>VIBE:</span> {insights.vibe}
+            <div>
+              <span style={{ color: "#00FF88", fontWeight: 700, fontFamily: "'Space Mono', monospace", fontStyle: "normal" }}>GRAPH INSIGHT:</span> {insights.insight}
+            </div>
+            <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.6)", marginTop: "4px", fontFamily: "'Space Mono', monospace", fontStyle: "normal" }}>
+              {insights.profile}
+            </div>
           </div>
-          <div>
-            <span style={{ color: "#00FF88", fontWeight: 700, fontFamily: "'Space Mono', monospace", fontStyle: "normal" }}>GRAPH INSIGHT:</span> {insights.insight}
-          </div>
-          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.6)", marginTop: "4px", fontFamily: "'Space Mono', monospace", fontStyle: "normal" }}>
-            {insights.profile}
-          </div>
-        </div>
-      );
+        );
+      }
+    } catch (err) {
+      content = "정보를 불러올 수 없습니다";
     }
   }
 
@@ -1040,7 +1053,7 @@ const aggregateHistoryByEmotion = (history) => {
 };
 
 // ── Center Panel (핑크색 섹션 내부 가사 스크롤 구현 완료) ───────────────────────
-function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onToggleGraph, onToggleSearch, isSearchOpen, searchQuery, setSearchQuery, onSearch, playing, setPlaying, currentEmotion, onAddToHistory, history }) {
+function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphInfoOpen, onToggleGraphInfo, onToggleSearch, isSearchOpen, searchQuery, setSearchQuery, onSearch, playing, setPlaying, currentEmotion, onAddToHistory, history }) {
   const [openPopup, setOpenPopup] = useState(null);
   const [prevTrackId, setPrevTrackId] = useState(activeTrack?.id);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -1360,13 +1373,13 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
               const isOpening = openPopup !== btn.id;
               toggle(btn.id);
               if (btn.id === "graph") {
-                if (onToggleGraph) onToggleGraph(isOpening);
+                if (onToggleGraphInfo) onToggleGraphInfo(isOpening);
               }
             }}
             onClose={() => {
               close();
               if (btn.id === "graph") {
-                if (onToggleGraph) onToggleGraph(false);
+                if (onToggleGraphInfo) onToggleGraphInfo(false);
               }
             }}
             isMobile={isMobile}
@@ -1377,7 +1390,7 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
       </div>
 
       {/* Content row (Radar chart) */}
-      {isGraphOpen && (
+      {scores && (
         <div
           className={`flex flex-1 flex-col items-center justify-center gap-4 ${isMobile ? "p-5 pb-10" : "p-6 pb-12"}`}
           style={{ position: "relative", zIndex: 10, pointerEvents: "none" }}
@@ -1395,11 +1408,9 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphOpen, onTog
               ⚡ AI ANALYZING MOOD & LYRICS...
             </div>
           )}
-          {scores && (
-            <ErrorBoundary>
-              <EmotionRadarChart scores={scores} trackId={activeTrack?.id} />
-            </ErrorBoundary>
-          )}
+          <ErrorBoundary>
+            <EmotionRadarChart scores={scores} trackId={activeTrack?.id} />
+          </ErrorBoundary>
         </div>
       )}
 
@@ -1633,7 +1644,7 @@ export default function MMMHAKApp() {
   const [isMobile, setIsMobile] = useState(false);
   const [playing, setPlaying] = useState(false);
 
-  const [isGraphOpen, setIsGraphOpen] = useState(true);
+  const [isGraphInfoOpen, setIsGraphInfoOpen] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -1791,8 +1802,8 @@ export default function MMMHAKApp() {
                 isMobile={false}
                 scores={scores}
                 lyrics={lyrics}
-                isGraphOpen={isGraphOpen}
-                onToggleGraph={setIsGraphOpen}
+                isGraphInfoOpen={isGraphInfoOpen}
+                onToggleGraphInfo={setIsGraphInfoOpen}
                 onToggleSearch={setIsSearchOpen}
                 isSearchOpen={isSearchOpen}
                 searchQuery={searchQuery}
@@ -1830,8 +1841,8 @@ export default function MMMHAKApp() {
               isMobile={true}
               scores={scores}
               lyrics={lyrics}
-              isGraphOpen={isGraphOpen}
-              onToggleGraph={setIsGraphOpen}
+              isGraphInfoOpen={isGraphInfoOpen}
+              onToggleGraphInfo={setIsGraphInfoOpen}
               onToggleSearch={setIsSearchOpen}
               isSearchOpen={isSearchOpen}
               searchQuery={searchQuery}

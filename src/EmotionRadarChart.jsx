@@ -79,7 +79,7 @@ const renderPolarAngleAxisTick = ({ payload, x, y, cx, cy, ...rest }) => {
   );
 };
 
-function DraggableChartGroup({ children, trackId, onDragStart, blobWidth = 310, blobHeight = 310 }) {
+function DraggableChartGroup({ children, trackId, onDragStart, blobWidth = 310, blobHeight = 310, showModalRef }) {
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const dragging = useRef(false);
@@ -92,7 +92,7 @@ function DraggableChartGroup({ children, trackId, onDragStart, blobWidth = 310, 
 
   const onMouseDown = (e) => {
     // Disable dragging while modal is visible – parent will set a flag via onDragStart if needed
-    if (showModalRef.current) return;
+    if (showModalRef?.current) return;
     dragging.current = true;
     setIsDragging(true);
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -100,8 +100,7 @@ function DraggableChartGroup({ children, trackId, onDragStart, blobWidth = 310, 
     dragStart.current = { mx: clientX, my: clientY, px: pos.x, py: pos.y };
   };
 
-  // Expose modal open flag via ref for guard
-  const showModalRef = useRef(false);
+
 
   useEffect(() => {
     const onMove = (e) => {
@@ -287,6 +286,7 @@ export default function EmotionRadarChart({ scores, trackId, source }) {
           onDragStart={() => setShowModal(false)}
           blobWidth={310}
           blobHeight={310}
+          showModalRef={showModalRef}
         >
           <div className="flex flex-col items-center w-full pt-1" style={{ pointerEvents: "auto" }}>
             <div className="font-['Space_Mono'] text-[13px] text-[#CCFF00] tracking-[0.2em] uppercase font-extrabold mb-0.5 text-center">
