@@ -11,6 +11,7 @@ import {
   mapLegacySentimentKeys
 } from "./hooks";
 import MusicMoodMappingView from "./MusicMoodMappingView";
+import NaverLogin from "./NaverLogin";
 
 // Optimized: LocalStorage caching + Incremental rendering (15-track batch)
 const MUSIC_PLACEHOLDER = "/default_album_art.png";
@@ -1617,39 +1618,44 @@ function Header({ isMobile, tracksCount, onLogoClick }) {
         </div>
       </div>
 
-      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-        <span
-          style={{
-            fontFamily: "'Space Mono', monospace",
-            fontSize: 8,
-            color: "rgba(255,255,255,0.4)",
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-          }}
-        >
-          {tracksCount} Tracks
-        </span>
-        <div
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            background: "#CCFF00",
-            boxShadow: "0 0 10px #CCFF0099",
-            animation: "pulse-glow 2s ease-in-out infinite",
-          }}
-        />
-        <span
-          style={{
-            fontFamily: "'Space Mono', monospace",
-            fontSize: 8,
-            color: "rgba(255,255,255,0.3)",
-            letterSpacing: "0.2em",
-            textTransform: "uppercase",
-          }}
-        >
-          Live
-        </span>
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+        <NaverLogin isMobile={isMobile} />
+        {!isMobile && (
+          <>
+            <span
+              style={{
+                fontFamily: "'Space Mono', monospace",
+                fontSize: 8,
+                color: "rgba(255,255,255,0.4)",
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+              }}
+            >
+              {tracksCount} Tracks
+            </span>
+            <div
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "#CCFF00",
+                boxShadow: "0 0 10px #CCFF0099",
+                animation: "pulse-glow 2s ease-in-out infinite",
+              }}
+            />
+            <span
+              style={{
+                fontFamily: "'Space Mono', monospace",
+                fontSize: 8,
+                color: "rgba(255,255,255,0.3)",
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+              }}
+            >
+              Live
+            </span>
+          </>
+        )}
       </div>
     </header>
   );
