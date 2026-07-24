@@ -7,7 +7,7 @@ const NAVER_CLIENT_ID =
 
 const STORAGE_KEY = "mmmhak_naver_user";
 
-export default function NaverLogin({ isMobile = false }) {
+export default function NaverLogin({ isMobile = false, onUserChange }) {
   const [user, setUser] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -18,6 +18,12 @@ export default function NaverLogin({ isMobile = false }) {
   });
 
   const hiddenBtnRef = useRef(null);
+
+  useEffect(() => {
+    if (onUserChange) {
+      onUserChange(user);
+    }
+  }, [user, onUserChange]);
 
   useEffect(() => {
     // 1. Check if window.naver SDK is present
@@ -48,6 +54,7 @@ export default function NaverLogin({ isMobile = false }) {
           };
 
           setUser(userInfo);
+          if (onUserChange) onUserChange(userInfo);
           try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(userInfo));
           } catch (e) {
@@ -59,7 +66,7 @@ export default function NaverLogin({ isMobile = false }) {
         }
       });
     }
-  }, []);
+  }, [onUserChange]);
 
   const handleCustomLogin = () => {
     // Click SDK's hidden anchor button or fallback to manual authorization redirect
@@ -80,6 +87,7 @@ export default function NaverLogin({ isMobile = false }) {
 
   const handleLogout = () => {
     setUser(null);
+    if (onUserChange) onUserChange(null);
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch (e) {

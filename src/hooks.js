@@ -751,24 +751,65 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
   return { scores, lyrics, isAnalyzing };
 }
 
-export function useMoodHistory() {
-  const [history, setHistory] = useState([]);
-
-  const addEntry = useCallback((track, emotion) => {
-    setHistory((prev) => [
-      ...prev,
-      {
-        id: track.id + "_" + Date.now(),
-        trackId: track.id,
-        title: track.title,
-        artist: track.artist,
-        artworkUrl: track.artworkUrl,
-        previewUrl: track.previewUrl,
-        emotion: emotion,
-        timestamp: new Date().toISOString()
-      }
-    ]);
+export function useMoodHistory(userId) {
+  const getStorageKey = useCallback((id) => {
+    return id ? `mmmhak_mood_history_${id}` : "mmmhak_mood_history_guest";
   }, []);
 
-  return { history, addEntry };
+  const [history, setHistory] = useState(() => {
+    const key = getStorageKey(userId);
+    try {
+      const saved = localStorage.getItem(key);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Sync state when userId changes (e.g. login, logout, user switch)
+  useEffect(() => {
+    const key = getStorageKey(userId);
+    try {
+      const saved = localStorage.getItem(key);
+      setHistory(saved ? JSON.parse(saved) : []);
+    } catch {
+      setHistory([]);
+    }
+  }, [userId, getStorageKey]);
+
+  const addEntry = useCallback((track, emotion) => {
+    const newEntry = {
+      id: track.id + "_" + Date.now(),
+      trackId: track.id,
+      title: track.title,
+      artist: track.artist,
+      artworkUrl: track.artworkUrl,
+      previewUrl: track.previewUrl,
+      emotion: emotion,
+      timestamp: new Date().toISOString()
+    };
+
+    setHistory((prev) => {
+      const updated = [...prev, newEntry];
+      const key = getStorageKey(userId);
+      try {
+        localStorage.setItem(key, JSON.stringify(updated));
+      } catch (err) {
+        console.error("Failed to save mood history to LocalStorage", err);
+      }
+      return updated;
+    });
+  }, [userId, getStorageKey]);
+
+  const clearHistory = useCallback(() => {
+    setHistory([]);
+    const key = getStorageKey(userId);
+    try {
+      localStorage.removeItem(key);
+    } catch (err) {
+      console.error("Failed to clear mood history from LocalStorage", err);
+    }
+  }, [userId, getStorageKey]);
+
+  return { history, addEntry, clearHistory };
 }

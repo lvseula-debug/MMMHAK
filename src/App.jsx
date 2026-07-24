@@ -1570,7 +1570,7 @@ function MobileSidebarStrip({ tracks, activeTrack, onSelect, label }) {
 }
 
 // ── Header ────────────────────────────────────────────────────────────────────
-function Header({ isMobile, tracksCount, onLogoClick }) {
+function Header({ isMobile, tracksCount, onLogoClick, onUserChange }) {
   return (
     <header
       style={{
@@ -1619,7 +1619,7 @@ function Header({ isMobile, tracksCount, onLogoClick }) {
       </div>
 
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-        <NaverLogin isMobile={isMobile} />
+        <NaverLogin isMobile={isMobile} onUserChange={onUserChange} />
         {!isMobile && (
           <>
             <span
@@ -1667,6 +1667,14 @@ export default function MMMHAKApp() {
   const [isMobile, setIsMobile] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [viewMode, setViewMode] = useState("main");
+  const [naverUser, setNaverUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem("mmmhak_naver_user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
   const [isGraphInfoOpen, setIsGraphInfoOpen] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -1698,7 +1706,7 @@ export default function MMMHAKApp() {
   }, [updateTrackData]);
 
   const { scores, lyrics } = useTrackAnalysis(activeTrack, handleTrackAnalyzed);
-  const { history: moodHistory, addEntry: handleAddToHistory } = useMoodHistory();
+  const { history: moodHistory, addEntry: handleAddToHistory } = useMoodHistory(naverUser?.id);
 
   const handleSearch = useCallback((query) => {
     setIsSearchOpen(false);
@@ -1798,7 +1806,7 @@ export default function MMMHAKApp() {
       />
 
       <div style={{ width: "100%", height: "100%" }}>
-        <Header isMobile={isMobile} tracksCount={tracks.length} onLogoClick={() => { setViewMode("main"); reloadGlobalChart(); }} />
+        <Header isMobile={isMobile} tracksCount={tracks.length} onLogoClick={() => { setViewMode("main"); reloadGlobalChart(); }} onUserChange={setNaverUser} />
 
         {/* ── DESKTOP layout ── */}
         {!isMobile && (
