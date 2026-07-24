@@ -1,6 +1,6 @@
 const ITUNES_CACHE_KEY = "mm_itunes_cache";
 const LASTFM_CACHE_KEY = "mm_lastfm_cache";
-const AI_SCORES_CACHE_KEY = "mm_ai_scores_cache_v2";
+const AI_SCORES_CACHE_KEY = "mm_ai_scores_cache_v3";
 
 const getLocalCache = (key) => {
   try {
@@ -41,11 +41,28 @@ export const setLastfmCache = (key, data) => {
   setLocalCache(LASTFM_CACHE_KEY, lastfmCache);
 };
 
+export const isValidAiScores = (aiScores) => {
+  if (!aiScores || typeof aiScores !== "object") return false;
+  const requiredKeys = ["Uplifting", "Energetic", "Aggressive", "Melancholic", "Desolation", "Serenity"];
+  return requiredKeys.every(key => aiScores[key] !== undefined && aiScores[key] !== null);
+};
+
 export const getAiScoresCache = (key) => {
-  return aiScoresCache[key] || null;
+  const item = aiScoresCache[key];
+  if (!item) return null;
+  if (item.aiScores && !isValidAiScores(item.aiScores)) {
+    delete aiScoresCache[key];
+    setLocalCache(AI_SCORES_CACHE_KEY, aiScoresCache);
+    return null;
+  }
+  return item;
 };
 
 export const setAiScoresCache = (key, data) => {
+  if (data && data.aiScores && !isValidAiScores(data.aiScores)) {
+    return;
+  }
   aiScoresCache[key] = data;
   setLocalCache(AI_SCORES_CACHE_KEY, aiScoresCache);
 };
+

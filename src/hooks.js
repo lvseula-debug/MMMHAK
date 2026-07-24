@@ -5,7 +5,8 @@ import {
   getLastfmCache,
   setLastfmCache,
   getAiScoresCache,
-  setAiScoresCache
+  setAiScoresCache,
+  isValidAiScores
 } from "./cache";
 
 const MUSIC_PLACEHOLDER = "/default_album_art.png";
@@ -588,7 +589,7 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
     const myTrackId = track.id;
     const cacheKey = `${track.title.toLowerCase().trim()}_${track.artist.toLowerCase().trim()}`;
 
-    if (track.isAI && track.lyrics) {
+    if (track.isAI && track.lyrics && isValidAiScores(track.aiScores)) {
       setScores(track.aiScores);
       setLyrics(track.lyrics);
       setIsAnalyzing(false);
@@ -596,7 +597,7 @@ export function useTrackAnalysis(track, onTrackAnalyzed) {
     }
 
     const cachedData = getAiScoresCache(cacheKey);
-    if (cachedData && cachedData.lyrics && cachedData.aiScores) {
+    if (cachedData && cachedData.lyrics && cachedData.aiScores && isValidAiScores(cachedData.aiScores)) {
       setScores(cachedData.aiScores);
       setLyrics(cachedData.lyrics);
       setIsAnalyzing(false);
