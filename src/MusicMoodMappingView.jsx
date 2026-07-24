@@ -3,12 +3,12 @@ import React, { useState, useEffect, useRef } from "react";
 const MUSIC_PLACEHOLDER = "/default_album_art.png";
 
 const MONTHLY_FOOD_MESSAGES = {
-  Melancholic: "이번 한 달은 Melancholic한 음악을 가장 많이 들으셨네요. 마음을 깊게 다독여줄 쌉싸름한 다크 초콜릿 한 조각이 필요한 기간이에요.",
-  Uplifting: "이번 한 달은 Uplifting한 음악을 가장 많이 들으셨네요. 설렘과 행복이 한가득 퍼지는 달콤한 딸기 생크림 케이크 같은 시간이었네요!",
-  Energetic: "이번 한 달은 Energetic한 음악을 가장 많이 들으셨네요. 톡톡 튀는 에너지를 닮은 톡 쏘는 자몽 에이드 한 잔으로 텐션을 유지해 보세요!",
-  Aggressive: "이번 한 달은 Aggressive한 음악을 가장 많이 들으셨네요. 가슴속 답답함을 싹 풀어줄 화끈하고 매콤한 떡볶이가 당기는 한 달이었군요.",
-  Desolation: "이번 한 달은 Desolation한 음악을 가장 많이 들으셨네요. 텅 빈 마음에 고요하게 온기를 채워줄 따뜻한 캐모마일 티 한 잔을 선물해 보세요.",
-  Serenity: "이번 한 달은 Serenity한 음악을 가장 많이 들으셨네요. 부드럽고 잔잔한 온기로 지친 몸과 마음을 부드럽게 감싸주는 바닐라 라떼 같은 기간이었네요."
+  Melancholic: "저음은 쓴맛을 더 깊게 느끼게 한대요. 마음이 쌉싸름한 날엔, 일하고 홀로 앉아 마시던 그 믹스커피 한 잔처럼 씁쓸함을 가만히 받아들여보세요.",
+  Uplifting: "고음은 단맛도 한 스푼 더 얹어준다죠. 귀가 벌써 달달해졌으니, 문방구 달고나처럼 톡톡 튀는 기분을 즐겨보세요.",
+  Energetic: "빠른 비트에 심장이 이미 쿵쿵 뛰었죠? 매운 거 먹고 나서 원샷하는 그 사이다처럼, 톡 쏘는 청량함으로 텐션을 이어가 보세요.",
+  Aggressive: "거칠고 강렬한 사운드가 매운맛을 더 맵게 느끼게 한대요. 길거리 포장마차 떡볶이로 그 화력, 속 시원히 씻어내세요.",
+  Serenity: "느리고 매끈한 선율은 부드러운 맛으로 이어진대요. 학창시절부터 쭉 마셔온 바나나맛우유 한 모금처럼, 오늘은 마음도 스르륵 풀어지길.",
+  Desolation: "여운 긴 저음은 깊은 맛으로 남는대요. 자취방에서 혼자 끓여 먹던 라면 한 그릇처럼, 그 온기가 노래보다 오래갈 거예요."
 };
 
 const EMOTION_COLORS = {
@@ -254,6 +254,7 @@ export default function MusicMoodMappingView({ history = [], isMobile = false })
               color: "#E0D0FF",
               lineHeight: 1.5,
               wordBreak: "keep-all",
+              whiteSpace: "pre-wrap",
               fontFamily: "'Pretendard Variable', sans-serif",
               fontWeight: 500,
               maxWidth: 210,
