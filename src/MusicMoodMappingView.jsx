@@ -20,9 +20,22 @@ const EMOTION_COLORS = {
   Serenity: "#34A853",
 };
 
+// 연결선 베지어 곡선 패스 계산 함수
+const getCurvedPath = (startX, startY, endX, endY) => {
+  const deltaX = (endX - startX) * 0.5;
+  const deltaY = (endY - startY) * 0.5;
+  const cp1x = startX + deltaX;
+  const cp1y = startY;
+  const cp2x = endX - deltaX;
+  const cp2y = endY;
+  return `M ${startX} ${startY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${endX} ${endY}`;
+};
+
 export default function MusicMoodMappingView({ history = [], isMobile = false }) {
   const [playingTrackId, setPlayingTrackId] = useState(null);
   const audioRef = useRef(null);
+  const containerRef = useRef(null);
+  const [centerPos, setCenterPos] = useState({ x: 450, y: 300 });
 
   // 1. 최근 30일 이내 데이터 추출
   const now = Date.now();
@@ -51,8 +64,12 @@ export default function MusicMoodMappingView({ history = [], isMobile = false })
     } else {
       const existing = trackMap.get(key);
       existing.playCount += 1;
-      if (!existing.previewUrl && item.previewUrl) existing.previewUrl = item.previewUrl;
-      if (!existing.artworkUrl && item.artworkUrl) existing.artworkUrl = item.artworkUrl;
+      if (!existing.previewUrl && (item.previewUrl || item.preview)) {
+        existing.previewUrl = item.previewUrl || item.preview;
+      }
+      if (!existing.artworkUrl && (item.artworkUrl || item.artwork)) {
+        existing.artworkUrl = item.artworkUrl || item.artwork;
+      }
     }
 
     const emo = item.emotion || "Serenity";
@@ -105,13 +122,7 @@ export default function MusicMoodMappingView({ history = [], isMobile = false })
     setPlayingTrackId(null);
   };
 
-  // 4. 마인드맵 노드 좌표 계산 (방사형 배치)
-  const displayTracks = aggregatedTracks.slice(0, 6);
-  const totalCount = displayTracks.length;
-
-  const containerRef = useRef(null);
-  const [centerPos, setCenterPos] = useState({ x: 400, y: 320 });
-
+  // 4. 마인드맵 노드 좌표 및 캔버스 크기 정중앙 계산
   useEffect(() => {
     const updateCenter = () => {
       if (containerRef.current) {
@@ -124,21 +135,24 @@ export default function MusicMoodMappingView({ history = [], isMobile = false })
     return () => window.removeEventListener("resize", updateCenter);
   }, []);
 
-  const radius = isMobile ? 160 : 250;
+  const displayTracks = aggregatedTracks.slice(0, 6);
+  const totalCount = displayTracks.length;
+  const radius = isMobile ? 150 : 240;
 
   return (
     <div
-      ref={containerRef}
-      className="flex flex-col items-center relative w-full min-h-screen px-4 pb-20 select-none overflow-hidden"
+      className="flex flex-col items-center relative w-full select-none overflow-hidden"
       style={{
+        minHeight: "100vh",
         backgroundColor: "#1A0050",
         color: "#fff",
         fontFamily: "'Space Mono', monospace",
+        paddingBottom: "60px",
       }}
     >
       <audio ref={audioRef} onEnded={handleAudioEnded} />
 
-      {/* 1. 화면 타이틀: "Music mood mapping" (M만 대문자) */}
+      {/* 1. 타이틀 텍스트: "Music Mood Mapping" (M, M, M 모두 대문자!) */}
       <div className="mt-8 mb-4 text-center z-20">
         <h1
           style={{
@@ -151,19 +165,28 @@ export default function MusicMoodMappingView({ history = [], isMobile = false })
             textShadow: "0 0 20px rgba(204,255,0,0.6)",
           }}
         >
-          Music mood mapping
+          Music Mood Mapping
         </h1>
-        <div style={{ fontSize: isMobile ? 9 : 11, color: "rgba(255,255,255,0.6)", letterSpacing: "0.2em", textTransform: "uppercase", marginTop: 4 }}>
+        <div
+          style={{
+            fontSize: isMobile ? 9 : 11,
+            color: "rgba(255,255,255,0.6)",
+            letterSpacing: "0.2em",
+            textTransform: "uppercase",
+            marginTop: 4,
+          }}
+        >
           30-DAY EMOTION & MUSIC MINDMAP
         </div>
       </div>
 
-      {/* 마인드맵 캔버스 영역 */}
+      {/* 2. 마인드맵 캔버스 영역 (정중앙 50% 50% 배치) */}
       <div
-        className="relative w-full max-w-[900px] flex items-center justify-center"
-        style={{ minHeight: isMobile ? 520 : 650 }}
+        ref={containerRef}
+        className="relative w-full max-w-[900px] flex-1 flex items-center justify-center"
+        style={{ minHeight: isMobile ? 500 : 600, height: isMobile ? "500px" : "600px" }}
       >
-        {/* SVG 점선 연결선 */}
+        {/* 3. SVG 연결선 - 베지어 곡선 패스 (<path d={...} />) */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
           {displayTracks.map((track, idx) => {
             const angle = (idx * (360 / Math.max(totalCount, 1)) - 90) * (Math.PI / 180);
@@ -171,31 +194,30 @@ export default function MusicMoodMappingView({ history = [], isMobile = false })
             const targetY = centerPos.y + radius * Math.sin(angle);
 
             return (
-              <line
-                key={`line-${track.id}`}
-                x1={centerPos.x}
-                y1={centerPos.y}
-                x2={targetX}
-                y2={targetY}
+              <path
+                key={`path-${track.id}`}
+                d={getCurvedPath(centerPos.x, centerPos.y, targetX, targetY)}
+                fill="none"
                 stroke="#CCFF00"
-                strokeWidth="1.5"
-                strokeDasharray="6 6"
-                opacity="0.45"
+                strokeWidth={2}
+                strokeDasharray="4 4"
+                opacity={0.65}
+                style={{ filter: "drop-shadow(0 0 6px rgba(204,255,0,0.5))" }}
               />
             );
           })}
         </svg>
 
-        {/* 중앙 노드: 30일 대표 감정 + 푸드 페어링 멘트 */}
+        {/* 중앙 노드 (X: 50%, Y: 50% 절대 배치) */}
         <div
           className="absolute z-10 flex flex-col items-center justify-center p-6 text-center rounded-full transition-all duration-300"
           style={{
-            left: centerPos.x,
-            top: centerPos.y,
+            left: "50%",
+            top: "50%",
             transform: "translate(-50%, -50%)",
-            width: isMobile ? 220 : 280,
-            height: isMobile ? 220 : 280,
-            background: "rgba(26, 0, 80, 0.92)",
+            width: isMobile ? 210 : 270,
+            height: isMobile ? 210 : 270,
+            background: "rgba(26, 0, 80, 0.94)",
             border: `2px solid ${dominantColor}`,
             boxShadow: `0 0 35px ${dominantColor}66, inset 0 0 20px ${dominantColor}33`,
             animation: "pulse-glow 3s ease-in-out infinite",
@@ -234,7 +256,7 @@ export default function MusicMoodMappingView({ history = [], isMobile = false })
               wordBreak: "keep-all",
               fontFamily: "'Pretendard Variable', sans-serif",
               fontWeight: 500,
-              maxWidth: 220,
+              maxWidth: 210,
             }}
           >
             {foodMessage}
@@ -266,15 +288,15 @@ export default function MusicMoodMappingView({ history = [], isMobile = false })
               <div
                 className="absolute inset-0 bg-[#1A0050] rounded-full z-0 opacity-80 pointer-events-none"
                 style={{
-                  width: isMobile ? 100 : 120,
-                  height: isMobile ? 100 : 120,
+                  width: isMobile ? 90 : 110,
+                  height: isMobile ? 90 : 110,
                   transform: "translate(-10%, -10%)",
                   filter: "blur(8px)",
                 }}
               />
 
               {/* 앨범 커버 아트워크 */}
-              <div style={{ position: "relative", width: isMobile ? 70 : 90, height: isMobile ? 70 : 90, zIndex: 1 }}>
+              <div style={{ position: "relative", width: isMobile ? 65 : 85, height: isMobile ? 65 : 85, zIndex: 1 }}>
                 <img
                   src={track.artworkUrl || MUSIC_PLACEHOLDER}
                   alt={track.artist}
