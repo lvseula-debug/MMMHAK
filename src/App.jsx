@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { PieChart, Pie, Cell } from "recharts";
 import "./App.css";
 import { getConfidenceLabel } from "./utils/confidenceUtils";
 import EmotionRadarChart from "./EmotionRadarChart";
@@ -1162,229 +1161,31 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphInfoOpen, o
             )}
           </div>
 
-          {/* Right: History Button & History Dropdown */}
+          {/* Right: History Button */}
           <div style={{ position: "relative" }}>
             <button
-              onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+              onClick={() => {
+                if (onOpenMonthlyView) onOpenMonthlyView();
+              }}
               className={`${isMobile ? "px-4 py-1.5 text-[10px]" : "px-6 py-2 text-[14px]"} rounded-full bg-[#1A0050] text-[#CCFF00] font-bold tracking-[0.15em] uppercase border border-[#CCFF00] transition-all duration-200`}
-              style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontWeight: 900, cursor: "pointer", width: isMobile ? "130px" : "180px" }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.05)"; e.currentTarget.style.boxShadow = "0 0 10px rgba(204,255,0,0.5)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "none"; }}
+              style={{
+                fontFamily: "'Playfair Display', serif",
+                fontStyle: "italic",
+                fontWeight: 900,
+                cursor: "pointer",
+                width: isMobile ? "130px" : "180px"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "scale(1.05)";
+                e.currentTarget.style.boxShadow = "0 0 10px rgba(204,255,0,0.5)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "scale(1)";
+                e.currentTarget.style.boxShadow = "none";
+              }}
             >
               HISTORY 📊
             </button>
-
-            {isHistoryOpen && (
-              <div style={{
-                position: "absolute",
-                top: "100%",
-                right: 0,
-                marginTop: "12px",
-                background: "#1A0050",
-                border: "2px solid #CCFF00",
-                borderRadius: "12px",
-                padding: "16px",
-                display: "flex",
-                flexDirection: "column",
-                gap: "14px",
-                animation: "fadeSlideIn 0.2s ease-out",
-                width: isMobile ? "calc(100vw - 32px)" : "280px",
-                maxHeight: "480px",
-                boxShadow: "0 0 20px rgba(204,255,0,0.3)",
-                zIndex: 500,
-                overflowY: "auto",
-                scrollbarWidth: "none",
-                msOverflowStyle: "none"
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: "#CCFF00",
-                    letterSpacing: "0.15em",
-                    textTransform: "uppercase",
-                    fontFamily: "'Space Mono', monospace"
-                  }}>
-                    Mood History
-                  </div>
-                  <button
-                    onClick={() => setIsHistoryOpen(false)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#CCFF00",
-                      fontSize: "20px",
-                      cursor: "pointer",
-                      lineHeight: 1,
-                      padding: "0 4px"
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-
-                {/* Pie Chart / Donut Chart */}
-                <div
-                  onClick={() => {
-                    setIsHistoryOpen(false);
-                    if (onOpenMonthlyView) onOpenMonthlyView();
-                  }}
-                  style={{
-                    position: "relative",
-                    width: 120,
-                    height: 120,
-                    margin: "0 auto",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer"
-                  }}
-                  title="Click to view 30-Day Music Mood Mapping"
-                >
-                  <PieChart width={120} height={120}>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={36}
-                      outerRadius={48}
-                      paddingAngle={hasHistory ? 2 : 0}
-                      dataKey="value"
-                      isAnimationActive={false}
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-
-                  {/* Center dominant label */}
-                  <div style={{
-                    position: "absolute",
-                    textAlign: "center",
-                    width: "100%",
-                    pointerEvents: "none",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}>
-                    <span style={{
-                      fontSize: 8,
-                      color: "rgba(255, 255, 255, 0.5)",
-                      textTransform: "uppercase",
-                      fontFamily: "'Space Mono', monospace",
-                      letterSpacing: "0.05em",
-                    }}>
-                      Dominant
-                    </span>
-                    <span style={{
-                      fontSize: dominant.length > 8 ? 8 : 10,
-                      color: hasHistory ? (EMOTION_COLORS[dominant.toLowerCase()] || "#CCFF00") : "#888",
-                      fontWeight: 800,
-                      fontFamily: "'Space Mono', monospace",
-                      letterSpacing: "0.02em",
-                      marginTop: 2
-                    }}>
-                      {dominant}
-                    </span>
-                  </div>
-                </div>
-
-                {/* History list of played songs */}
-                <div style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 8,
-                  marginTop: 4,
-                  maxHeight: "180px",
-                  overflowY: "auto",
-                  scrollbarWidth: "none",
-                  msOverflowStyle: "none"
-                }}>
-                  {history.length === 0 ? (
-                    <div style={{
-                      fontSize: 9,
-                      color: "rgba(255, 255, 255, 0.4)",
-                      textAlign: "center",
-                      fontFamily: "'Space Mono', monospace",
-                      padding: "12px 0"
-                    }}>
-                      No history yet
-                    </div>
-                  ) : (
-                    (() => {
-                      const aggregated = history.reduce((acc, item) => {
-                        const rawKey = item.trackId || (item.title && item.artist ? `${item.title.trim()}-${item.artist.trim()}` : item.id);
-                        const key = rawKey.toString().toLowerCase();
-                        if (!acc[key]) {
-                          acc[key] = { ...item, playCount: 1 };
-                        } else {
-                          acc[key].playCount += 1;
-                        }
-                        return acc;
-                      }, {});
-                      return Object.values(aggregated).sort((a, b) => b.playCount - a.playCount).map(item => (
-                        <div
-                          key={item.id}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            padding: "6px 8px",
-                            background: "rgba(255, 255, 255, 0.05)",
-                            border: "1px solid rgba(255, 255, 255, 0.08)",
-                            borderRadius: 6,
-                          }}
-                        >
-                          <div style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: "50%",
-                            backgroundColor: EMOTION_COLORS[item.emotion] || "#CCFF00",
-                            flexShrink: 0,
-                            boxShadow: `0 0 5px ${EMOTION_COLORS[item.emotion]}aa`
-                          }} />
-                          <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
-                            <span style={{
-                              fontSize: 9,
-                              fontWeight: 700,
-                              color: "#fff",
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              fontFamily: "'Space Mono', monospace"
-                            }} title={item.title}>
-                              {item.title}
-                            </span>
-                            <span style={{
-                              fontSize: 8,
-                              color: "rgba(255, 255, 255, 0.5)",
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              fontFamily: "'Space Mono', monospace",
-                              marginTop: 1
-                            }} title={item.artist}>
-                              {item.artist}
-                            </span>
-                          </div>
-                          <span style={{
-                            fontSize: 8,
-                            fontWeight: 800,
-                            color: "#00FF88",
-                            fontFamily: "'Space Mono', monospace",
-                            marginLeft: "auto"
-                          }}>
-                            {item.playCount > 1 ? `${item.playCount} plays` : `${item.playCount} play`}
-                          </span>
-                        </div>
-                      ));
-                    })()
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
