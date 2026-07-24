@@ -1313,53 +1313,74 @@ function CenterPanel({ activeTrack, isMobile, scores, lyrics, isGraphInfoOpen, o
                       No history yet
                     </div>
                   ) : (
-                    history.slice().reverse().map(item => (
-                      <div
-                        key={item.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          padding: "6px 8px",
-                          background: "rgba(255, 255, 255, 0.05)",
-                          border: "1px solid rgba(255, 255, 255, 0.08)",
-                          borderRadius: 6,
-                        }}
-                      >
-                        <div style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: "50%",
-                          backgroundColor: EMOTION_COLORS[item.emotion] || "#CCFF00",
-                          flexShrink: 0,
-                          boxShadow: `0 0 5px ${EMOTION_COLORS[item.emotion]}aa`
-                        }} />
-                        <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
-                          <span style={{
-                            fontSize: 9,
-                            fontWeight: 700,
-                            color: "#fff",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            fontFamily: "'Space Mono', monospace"
-                          }} title={item.title}>
-                            {item.title}
-                          </span>
+                    (() => {
+                      const aggregated = history.reduce((acc, item) => {
+                        const rawKey = item.trackId || (item.title && item.artist ? `${item.title.trim()}-${item.artist.trim()}` : item.id);
+                        const key = rawKey.toString().toLowerCase();
+                        if (!acc[key]) {
+                          acc[key] = { ...item, playCount: 1 };
+                        } else {
+                          acc[key].playCount += 1;
+                        }
+                        return acc;
+                      }, {});
+                      return Object.values(aggregated).sort((a, b) => b.playCount - a.playCount).map(item => (
+                        <div
+                          key={item.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            padding: "6px 8px",
+                            background: "rgba(255, 255, 255, 0.05)",
+                            border: "1px solid rgba(255, 255, 255, 0.08)",
+                            borderRadius: 6,
+                          }}
+                        >
+                          <div style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: "50%",
+                            backgroundColor: EMOTION_COLORS[item.emotion] || "#CCFF00",
+                            flexShrink: 0,
+                            boxShadow: `0 0 5px ${EMOTION_COLORS[item.emotion]}aa`
+                          }} />
+                          <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
+                            <span style={{
+                              fontSize: 9,
+                              fontWeight: 700,
+                              color: "#fff",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              fontFamily: "'Space Mono', monospace"
+                            }} title={item.title}>
+                              {item.title}
+                            </span>
+                            <span style={{
+                              fontSize: 8,
+                              color: "rgba(255, 255, 255, 0.5)",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              fontFamily: "'Space Mono', monospace",
+                              marginTop: 1
+                            }} title={item.artist}>
+                              {item.artist}
+                            </span>
+                          </div>
                           <span style={{
                             fontSize: 8,
-                            color: "rgba(255, 255, 255, 0.5)",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
+                            fontWeight: 800,
+                            color: "#00FF88",
                             fontFamily: "'Space Mono', monospace",
-                            marginTop: 1
-                          }} title={item.artist}>
-                            {item.artist}
+                            marginLeft: "auto"
+                          }}>
+                            {item.playCount > 1 ? `${item.playCount} plays` : `${item.playCount} play`}
                           </span>
                         </div>
-                      </div>
-                    ))
+                      ));
+                    })()
                   )}
                 </div>
               </div>

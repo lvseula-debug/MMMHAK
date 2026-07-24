@@ -45,15 +45,18 @@ export default function MusicMoodMappingView({ history = [], isMobile = false })
     return now - new Date(item.timestamp).getTime() <= thirtyDaysMs;
   });
 
-  // 2. 곡명(title) 기준 청취 횟수(playCount) 집계 및 대표 감정 계산
+  // 2. 곡명(title) & 아티스트/trackId 기준 청취 횟수(playCount) 중복 집계 및 대표 감정 계산
   const trackMap = new Map();
   const emotionCounts = {};
 
   recentHistory.forEach(item => {
-    const key = `${item.title}_${item.artist}`.toLowerCase();
+    // 곡 식별 키: trackId가 유효하면 trackId, 없으면 title + artist 조합
+    const rawKey = item.trackId || (item.title && item.artist ? `${item.title.trim()}-${item.artist.trim()}` : item.id);
+    const key = rawKey.toString().toLowerCase();
+
     if (!trackMap.has(key)) {
       trackMap.set(key, {
-        id: item.id || key,
+        id: item.trackId || item.id || key,
         title: item.title,
         artist: item.artist,
         artworkUrl: item.artworkUrl || item.artwork || MUSIC_PLACEHOLDER,
@@ -76,6 +79,7 @@ export default function MusicMoodMappingView({ history = [], isMobile = false })
     emotionCounts[emo] = (emotionCounts[emo] || 0) + 1;
   });
 
+  // 많이 들은 곡 순서대로 (playCount 내림차순) 정렬
   const aggregatedTracks = Array.from(trackMap.values()).sort((a, b) => b.playCount - a.playCount);
 
   // 대표 감정 (Dominant Emotion)
